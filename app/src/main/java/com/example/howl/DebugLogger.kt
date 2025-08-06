@@ -42,14 +42,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 data class LogEntry(
     val timestamp: Long,
     val tag: String,
-    val message: String
+    val message: String,
+    val exception: Throwable? = null
 )
 
 object HLog {
@@ -61,11 +61,12 @@ object HLog {
     private val mutex = Mutex()
     private val loggerScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    fun d(tag: String, message: String) {
+    fun d(tag: String, message: String, exception: Throwable? = null) {
         val newEntry = LogEntry(
             timestamp = System.currentTimeMillis(),
             tag = tag,
-            message = message
+            message = message,
+            exception = exception
         )
 
         loggerScope.launch {
@@ -77,7 +78,11 @@ object HLog {
                 _logStateFlow.value = logQueue.toList()
             }
         }
-        Log.d(tag, message)
+        if (exception != null) {
+            Log.d(tag, message, exception)
+        } else {
+            Log.d(tag, message)
+        }
     }
 
     fun clear() {
@@ -92,7 +97,12 @@ object HLog {
     fun formatLogEntry(entry: LogEntry): String {
         val dateFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
         val timeString = dateFormat.format(Date(entry.timestamp))
-        return "[$timeString] ${entry.tag}: ${entry.message}"
+        val base = "[$timeString] ${entry.tag}: ${entry.message}"
+        return if (entry.exception != null) {
+            base + "\n" + Log.getStackTraceString(entry.exception)
+        } else {
+            base
+        }
     }
 
     suspend fun getFormattedLogs(): String {
@@ -165,16 +175,22 @@ fun LogViewer() {
                     )
             ) {
                 items(logEntries) { entry ->
-                    Text(
-                        text = HLog.formatLogEntry(entry),
+                    // Display each line of the formatted entry separately
+                    val formattedText = HLog.formatLogEntry(entry)
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(4.dp),
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 8.sp,
-                        overflow = TextOverflow.Visible,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                            .padding(4.dp)
+                    ) {
+                        formattedText.lineSequence().forEach { line ->
+                            Text(
+                                text = line,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 8.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
                     HorizontalDivider(thickness = 0.5.dp)
                 }
             }

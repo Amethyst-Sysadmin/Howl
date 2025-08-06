@@ -46,7 +46,6 @@ class PlayerService : Service() {
     }
 
     private fun startForegroundService() {
-        HLog.d("PlayerService", "Foreground service starting")
         createNotificationChannel()
         val notification = createNotification()
         startForeground(NOTIFICATION_ID, notification)
@@ -75,6 +74,7 @@ class PlayerService : Service() {
 
     private fun startPlayerLoop() {
         if (playerJob?.isActive == true) return
+        HLog.d("PlayerService", "Starting foreground service loop")
         playerJob = serviceScope.launch {
             try {
                 while (isActive) {
@@ -150,7 +150,7 @@ class PlayerService : Service() {
                         delay(waitTime)
                     }
                 }
-            } catch (e: CancellationException) {
+            } catch (_: CancellationException) {
                 // Normal cancellation
                 HLog.d("PlayerService", "Foreground service cancelled")
             } finally {

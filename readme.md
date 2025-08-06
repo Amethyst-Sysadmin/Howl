@@ -12,6 +12,7 @@ Current features are: -
 * Playback of HWL files, which are preconverted audio files specifically for use with Howl.
 * A wave generator with various different parameters and shapes.
 * Several built-in "activities" to enjoy.
+* Convenient automatic synchronisation of funscript files with videos, via our "Howl Sync" add-on for Kodi.
 
 All features take advantage of the full capabilities of the Coyote 3, sending frequency and amplitude updates 40 times per second.
 
@@ -170,45 +171,80 @@ The "Player" tab allows you to play back different kinds of files. Currently it 
 
 This section explains the function of all the player options.
 
-#### Global settings
+#### Player settings
 
-The player's global settings affect all app output (features like the generator and activities also send their output via the player). Be careful not to unintentionally leave them active.
+Global settings for the player that affect all app output (features like the generator and activities also send their output via the player).
+
+**Show sync fine tune**
+When enabled, a control will appear below the player allowing slight adjustments to Howl's playback position (up to +/- 0.5 seconds). This can be helpful if the content you're trying to play is supposed to sync up with something else (for example a video) and makes it easier to obtain perfect sync. The sync adjustment is a temporary control and will reset to zero upon opening a new file. For correcting typical funscript latency when using the Kodi add-on, use the "Remote funscript latency" control instead.
 
 **Playback speed**
 This controls the rate at which the player counts time, allowing any content Howl can play to be sped up or slowed down. The playback speed can be set from 0.25x to 4.0x, in increments of 0.25. For example setting this control to 0.5 will play at half speed. Setting it to 2.0 will play at double speed. 1.0 is the most typical setting and plays at normal rate.
 
-**Invert channel A/B frequencies**
-This inverts all the frequencies played on that channel. So if it would have played the lowest frequency, it will instead play the highest frequency (and vice versa). Setting one or both of these when playing a converted audio file can be interesting, and sometimes gives a very different experience.
-
 #### Funscript settings
 
-**Volume (versus dynamic range)**
-Increasing this makes funscript playback "louder" at a particular power level, but this is at the cost of dynamic range. The more you increase it, the less difference there will be in feeling between fast and slow actions (our algorithm generally gives faster movements higher power than slower ones). The default value is 0.5.
+**Scaling (boosts slower movements)**
+Our algorithm generally gives faster movements in funscripts a higher output power than slower ones. This control adjusts what power level we assign to slow or medium speed movements. At 0 the power is directly proportional to movement speed, so a movement at 0.5 strokes per second gets 1/10th of the power of a movement at 5 strokes per second (this is generally bad since slow strokes get very low power and will be hard to notice). At 1 there will be no difference between fast and slow movements - everything is full power and all dynamic range is lost.
+
+The default value of 0.75 has been carefully considered and should give good results with most funscripts. This setting controls an exponent rather than a linear value, so small adjustments will have a big impact. For example try 0.7 if you would like a bit more dynamic range, or try 0.8 if you want more powerful slow movements than the default.
 
 **Positional effect strength**
 This adjusts the strength of the positional effect that Howl uses to "pan" between the channels when playing funscripts. At 0 there is no positional effect, and both channels always have the same power level. At 1 there is the maximum possible positional effect, with only channel B used for funscript positions at the very top, and only channel A used for positions at the very bottom.
 
 The default value is 1. If you are only using a single channel setup, 0 will give you the best result, as the positional effect cannot work in a single channel configuration.
 
-For some files or electrode setups, you might prefer mid-range values. For example at 0.7, the positional effect is pretty strong and you can clearly feel movement in line with the funscript, but there's still a bit of "spillover" onto the other channel even for the very top/bottom positions.
+**Remote funscript latency (seconds)**
+This setting configures the expected network latency between the Kodi Sync add-on and Howl when funscripts are loaded remotely. The player will correct for this latency, so adjusting this control to the appropriate value should allow near perfect sync to be obtained.
 
-**Feel adjustment**
-This changes the way in which the configured frequency range is used, which allows some control over the general feeling of the script. The default value is 1.0. Values higher than 1 result in more use of lower frequencies, which can feel more "thumpy" and "physical". Values less than 1 result in more use of higher frequencies, which can feel more "buzzy" and "electrical". It's probably easiest to think of the control as shifting where the middle of the frequency range is (but everything is rescaled around this so the full range is still used).
+This setting only affects remotely loaded funscripts and will be ignored if you load a funscript manually from your Android device.
 
-Personally I've found higher values of this like 1.5 or 2.0 can be very nice with some scripts if you're looking for a more physical sensation.
+**Amplitude algorithm**
+Selects the algorithm that Howl will use to calculate the output power levels when playing a funscript.
+* Default: A good choice for most content, has the most convincing positional effect.
+* Penetrative: Blends in additional noise on channel B for lower positions that would normally be almost entirely on A with the default algorithm. The concept is that it might possibly better match activities like penetrative sex or a blowjob, where the higher point (B) is inside something, so should probably still have stimulation even when the overall position is lower down towards A.
 
-**A/B frequency time offset**
-The frequency we play is based on our calculation of where the "stroker" head of a funscript playback device would be (lower frequencies for bottom positions and higher frequencies for top positions). When this is set to 0, channels A and B both play exactly the same frequency, based on the current stroker position.
+**Frequency algorithm**
+Selects the algorithm that Howl will use to calculate the output frequency when play a funscript.
+* Position: The frequency is the same as the position the "stroker" device would have when playing the funscript. So low positions will always have a low frequency, and high positions will always have a high frequency.
+* Varied: The frequency is based on simplex noise generated by Howl, and will vary smoothly over time. It's essentially random, so may give more interesting output, but it's completely unrelated to what's happening in the funscript.
+* Blend: Blends together output from the "Position" and "Varied" algorithms in the configured ratio. It's an attempt to find the "sweet spot" where the output frequency has enough randomness to be interesting, but is also influenced by what's happening in the funscript.
 
-When this control is higher than 0, we instead take channel A's position (and resulting frequency) from the configured amount of time in the past. Channel B still uses the current time. This often results in us playing slightly different frequencies on both channels, which may give a more pleasing effect.
+**A/B frequency time offset (position algorithm only)**
+Take channel A's position (and resulting frequency) from the configured amount of time in the past. Channel B still uses the current time. This often results in us playing slightly different frequencies on both channels, which may give a more pleasing effect.
 
 The default value is 0.1. Values in the range of 0.0 to 0.2 seem to give the best results, too large a time difference often just results in things feeling weird and out of sync.
 
-This time offset only affects what frequency is used on channel A (it does not affect the positional effect, which is always based on the current time).
+**Frequency vary speed (varied/blend algorithm only)**
+Controls how quickly the frequency noise Howl generates moves around. Frequencies will shift around the range slowly at low values, or quickly at high values.
+
+**Blend ratio (blend algorithm only)**
+Controls what proportion of the "Position" algorithm and the "Varied" algorithm to blend into the final result. 0.0 is the same as just using "Position". 1.0 as the same as just using "Varied". 0.5 is a 50/50 split between the two algorithms.
+
+### Special effects
+The player can optionally apply various interesting special effects, which are accessed via the "magic wand" button. These work with all types of content, and can sometimes very significantly change the output.
+
+**Apply special effects**
+When toggled on, any configured special effects are applied. When toggled off, all controls in the "Special effects" section are ignored and have no effect on output.
+
+**Invert channel A/B frequencies**
+This inverts all the frequencies played on that channel. So if it would have played the lowest frequency, it will instead play the highest frequency (and vice versa). Setting one or both of these when playing a converted audio file can be interesting, and sometimes gives a very different experience.
+
+**Frequency feel adjustment**
+This changes the way in which the configured frequency range is used, which allows some control over the general feeling of the output. The default value is 1.0. Values lower than 1 result in more use of lower frequencies, which can feel more "thumpy" and "physical". Values higher than 1 result in more use of higher frequencies, which can feel more "buzzy" and "electrical". It's probably easiest to think of the control as shifting where the middle of the frequency range is (but everything is rescaled around this so the full range is still used).
+
+Lower values like 0.5 or 0.75 can work quite well with funscripts if you'd like a more physical overall sensation.
+
+**Random amplitude noise (amount/speed)**
+Introduces an element of random noise into the power values we would output. The easiest way to understand it is to play the "Calibration 1" activity and look at the output chart - you will see it's a nice smooth repeating curve. Now set this control to 0.1, and observe the difference. You'll see that the output follows approximately the same shape, but it's now jagged and bouncy instead of smooth, which will feel different.
+
+There's also a control for the speed of our generated noise. Higher values will cause the output to bounce around more rapidly, and lower values will cause it to bounce around more slowly.
+
+**Random frequency noise (amount/speed)**
+The same concept as the random amplitude noise control, but affects frequency instead. This can be very useful with something like a converted audio file that just sits on one frequency (which is pretty common). By applying some random frequency noise at a slow speed, you can make the frequency shift around in a pleasing way instead.
 
 ### Funscript playback tips
 
-There is currently no support for syncing with any video player (this is something I hope to look at in future). You just need to have the .funscript files on your device, and manually press the play button at the same time as you start the video on whatever device you're using to view that.
+The most convenient way to use funscripts is through the Howl Sync add-on for Kodi (see the dedicated section below). That allows Howl to automatically play funscripts that accompany videos, and to automatically sync its playback position with Kodi's video player. If you aren't using the Kodi add-on, you'll just need to have the .funscript files on your device, and manually press the play button at the same time as you start the video on whatever device you're using to view that.
 
 Howl always tracks time exactly in real-time from when you pressed the play button, so as long as your player is also correct in this regard, it should not go out of sync during file playback. Use the "Mute pulse output" function if you need to make adjustments to your electrodes - this stops sending pulses, but the file keeps playing so it will remain in sync.
 
@@ -230,7 +266,7 @@ The probability of speed, power, frequency and shape changes can all be set inde
 
 ## Activity
 
-Howl offers several built-in "activities". These are small programs, usually with some random elements. They're intended to offer a more interesting alternative to having fixed preset patterns, or just playing back a file.
+Howl offers a number of built-in "activities". These are small programs, usually with some random elements. They're intended to offer a more interesting alternative to having fixed preset patterns, or just playing back a file.
 
 The activities are generally designed with the default 10Hz-100Hz frequency range in mind (but you can certainly change it and experiment). They do not necessarily use the full configured range, as each activity is intended to feel unique and noticeably different from the others.
 
@@ -265,6 +301,21 @@ Channel A's frequency and power both each shift around the whole range in fairly
 ### Penetration
 Inspired by: just sex innit mate. The channel B part of the wave is quite unusually shaped and is designed to peak at different points to the A wave, helping to represent the in/out movements. Lots of smooth speed changes over time. There are also some more subtle random changes to "feel" and how the frequency range is used over time. Uses plenty of artistic licence and needs a healthy dose of imagination (as with most of these).
 
+### Simplex
+An activity based on simplex noise, which is a computer graphics technique that could be used to generate a random landscape in a game (for example). We use it here to generate a seemingly endless pattern of unpredictable rolling peaks and troughs. This version produces a classic simplex noise pattern, with a chart that looks very much like a landscape. Parameters such as the traversal speed  will vary smoothly over time. Because this classic simplex generation completely lacks any repetition, you might not find it as pleasurable as the other options.
+
+Frequency generation works in a similar way, but traverses the pattern at a fixed slow speed. The frequencies will shift around their range slowly in a fairly pleasing and natural way (all three of the simplex patterns actually use exactly the same frequency generation).
+
+### Simplex Pro
+An enhanced simplex pattern that introduces a repetitive element, while still being able to vary endlessly. Our classic simplex pattern took the A and B channel amplitudes from either side of a circle centred at our position in the landscape. So they often move in a connected way (as the points are close to each other) but aren't exactly the same. I thought "Hmm, what if we also spin the circle round?" and the unholy abomination that is our simplex pro pattern was born.
+
+Because we move forward at a slower rate, and our circle is spinning, we usually pass close to the same points on the landscape several times. This introduces some very nice repetition which the standard simplex pattern lacked, and very often results in "pumping" patterns that go back and forth between our two channels.
+
+Simplex pro is the most varied of our simplex noise based patterns, and the level of repetition will vary significantly as our traversal speed and rotation speed smoothly shift around their ranges.
+
+### Simplex Turbo
+Essentially the same pattern as simplex pro, but the rotation speed only goes between very fast and absolutely ridiculous. Probably not suitable for humans! ;)
+
 ### Sliding vibrator
 Designed to feel like a vibrator being slowly and teasingly moved over... well whatever you put your electrodes on! Power is based on our positional algorithm and varies as the vibrator slowly moves around. Movement is smooth and at varying (but generally slow) speeds. Sometimes it will stop and hold position for a few seconds. The frequency sits on a fixed value for a while and only changes from time to time (representing the vibrator being switched to a different speed).
 
@@ -295,6 +346,9 @@ The delay can be configured independently for each channel, which can be helpful
 
 ### Misc options
 
+**Allow remote access (not secured)**
+This setting enables remote access to Howl so that it can be controlled by other apps (such as the Howl Sync Kodi add-on). It says "not secured" as a reminder that there are no access passwords or keys required - Howl will accept requests from anything that connects to the port. It's expected that you will be using this feature on a typical home network that sits behind a NAT router. You should not forward ports or allow access from the internet.
+
 **Smoother charts & meters**
 This setting causes our charts and meters to update with every pulse (40 times per second) instead of every batch (10 times per second). This looks nicer, but uses additional resources and energy. The difference is only visual, pulse output remains smooth with either setting.
 
@@ -303,6 +357,65 @@ This setting causes animated power meters to be shown for each channel on the ma
 
 **Show debug log tab**
 When this setting is enabled, a "Debug" tab becomes visible, located to the right of "Settings" on the main tab bar (on narrower devices you may need to scroll the bar to see it). The debug tab shows information from Howl's internal log, which may sometimes be useful for troubleshooting issues.
+
+## Kodi add-on
+
+The Howl Sync add-on for Kodi allows .funscript files for videos that you're playing in Kodi to be automatically sent to Howl and synchronised with the video position. It is by far the most convenient method for playing funscripts.
+
+Kodi add-on features: -
+* Funscript files will be automatically sent to Howl by the Kodi add-on (you do not need to copy them to your phone).
+* One-way sync for player events from Kodi to Howl. E.g. if you skip forward in the video, Howl will skip forward too. If you stop the video, Howl will stop.
+
+### Howl Sync installation
+
+Obtain the latest Kodi add-on .zip file from the Github "Releases" section. You can install this in Kodi in either of two ways.
+
+1) In Kodi select "Add-ons / Install from zip file" and select the .zip file you downloaded from its location on your machine. Since the add-on isn't in Kodi's official repository, you will first have to allow the installation of add-ons from unknown sources. Kodi should prompt for this when you try to install, or you can find the setting under "Settings / System / Add-ons".
+
+or 2) You can alternatively extract the "script.service.howl" folder from the .zip file you downloaded, and place it in Kodi's "addons" directory. See [this page](https://kodi.wiki/view/Kodi_data_folder) for where to find that directory on different platforms. (Re)start Kodi and the add-on should be available. It will probably be marked as disabled initially, but you can enable it in the next step.
+
+Please note that Kodi version 19 (Matrix) or higher is required to install Howl Sync.
+
+### Howl Sync configuration
+
+After installation check under "Add-ons / My add-ons / All". You should be able to see "Howl Sync" in the list. Select "Howl Sync" and you should see the add-on's screen, which will look similar to the screenshot.
+
+<a href="screenshots/kodi1.png"><img src="screenshots/kodi1.png" alt="Kodi"></a>
+
+Note the "Status" of the add-on on the right hand side of the screen. If it is disabled, pick the "Enable" option to activate it.
+
+Next pick the "Configure" option to display the add-on's settings. The only one you will need to set is the "Remote IP address" setting. That must be set to the IP address of your Android phone that's running Howl on your local wi-fi network.
+
+<a href="screenshots/kodi2.png"><img src="screenshots/kodi2.png" alt="Kodi"></a>
+
+### Other Kodi configuration
+
+You will need to set up a source in Kodi that contains the videos you want to play. You'll have to look elsewhere if you need a guide on basic Kodi setup, but either local files or files on a network device (such as a NAS) should work fine with the add-on. You'll probably want to set the content type of the source in Kodi to "None" (as we're not playing standard TV shows or movies that Kodi can scrape information on) and access it under the "Videos" section.
+
+Your funscript files need to be placed in the same location as your videos, and should have exactly the same name as the related video, but with the .funscript extension instead of the video type. For example if your video is called "Very Sexy Video.mp4", then the accompanying funscript should be called "Very Sexy Video.funscript". Everything in the file name such as capitalisation, symbols etc. needs to be exactly the same in order for the add-on to detect your funscript when you play the video.
+
+### Howl configuration
+
+Turn on the "Allow remote access" option on Howl's settings page. Howl will then allow the Kodi add-on to control it.
+
+### Usage
+
+Simply play the video you want in Kodi. Howl should automatically play the corresponding funscript (assuming you named it correctly), and follow along as you do operations in Kodi like skipping around. You don't need to do anything special on the playback side - once Howl Sync is properly configured, everything works automatically.
+
+### Tips
+
+Like everything else in Howl, remote funscript playback works even if you don't have your Coyote connected. So you can test playing files in Kodi and check if that triggers playback in Howl, without needing to set up your estim equipment.
+
+Howl has a "Remote funscript latency" option in the player options. You can adjust this value to compensate for the typical latency between Kodi and Howl, in order to achieve near perfect sync.
+
+The "Sync delay" option in Howl Sync is how long the add-on waits after a Kodi operation (like skipping forward or loading a file) before it syncs the playback position with Howl. The default value is generally good. Setting too short a delay can cause missed skips or very inconsistent sync, because we might read the position too early before Kodi's video playback has properly got going again. Lowering the delay does not improve sync, it just makes Howl follow Kodi's position a bit quicker after a skip. If Kodi is running on a slow device, you might find that increasing the delay from the default gives you better sync results.
+
+If your phone regularly changes IP address on your home network, you might find it helpful to assign it a static IP instead of using DHCP.
+
+### Troubleshooting
+
+The Howl Sync add-on logs various information to Kodi's main log file "kodi.log". See [this page](https://kodi.wiki/view/Template:LogfilePath) for where to find the log file on various platforms. Search the log for "[Howl]" to find the relevant lines. If something isn't working, the add-on will usually have logged some helpful information about what the problem is.
+
 
 ## About HWL files and how to make them
 

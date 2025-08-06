@@ -1,6 +1,7 @@
 package com.example.howl
 
 import android.util.Log
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.random.Random
@@ -8,9 +9,9 @@ import kotlin.random.Random
 sealed class Activity {
     val timerManager = TimerManager()
 
-    abstract val displayName: String
-    abstract val iconResId: Int
-
+    open fun initialise() {
+        // Default empty implementation
+    }
     open fun runSimulation(deltaSimulationTime: Double) {
         timerManager.update(deltaSimulationTime)
     }
@@ -18,8 +19,6 @@ sealed class Activity {
 }
 
 class LickActivity : Activity() {
-    override val displayName = "Infinite licks"
-    override val iconResId = R.drawable.grin_tongue
     enum class LickType {
         UNIDIRECTIONAL,
         BIDIRECTIONAL
@@ -31,7 +30,7 @@ class LickActivity : Activity() {
     var lickType = LickType.BIDIRECTIONAL
 
 
-    init {
+    override fun initialise() {
         val bidirectional = CyclicalWave(
             WaveShape(
                 name = "bidirectional",
@@ -103,8 +102,6 @@ class LickActivity : Activity() {
 }
 
 class PenetrationActivity : Activity() {
-    override val displayName = "Penetration"
-    override val iconResId = R.drawable.rocket
     var waveManager: WaveManager = WaveManager()
     val penetrationSpeedChangeSecsRange = 1.0..20.0
     val penetrationSpeedRange = 0.3..3.0
@@ -116,7 +113,7 @@ class PenetrationActivity : Activity() {
 
     private val penetrationFeelExponent = SmoothedValue(randomInRange(penetrationFeelExponentRange))
 
-    init {
+    override fun initialise() {
         val penetrationWave = CyclicalWave(
             WaveShape(
                 name = "penetration",
@@ -190,8 +187,6 @@ class PenetrationActivity : Activity() {
 
 
 class VibroActivity : Activity() {
-    override val displayName = "Sliding vibrator"
-    override val iconResId = R.drawable.vibration
     val vibeSpeedRange = 0.0..1.0
     val vibeMoveSpeedRange = 0.04..0.3
     val vibeHoldTimeRange = 0.0..3.0
@@ -205,7 +200,7 @@ class VibroActivity : Activity() {
     var vibeMoveSpeed = 0.1
     private val vibePosition = SmoothedValue(randomInRange(vibePositionRange))
 
-    init {
+    override fun initialise() {
         initializeWithRandomValues()
     }
 
@@ -264,8 +259,6 @@ class VibroActivity : Activity() {
 }
 
 class MilkerActivity : Activity() {
-    override val displayName = "Milkmaster 3000"
-    override val iconResId = R.drawable.cow
     val waveManager: WaveManager = WaveManager()
     val wompStartFreq = 0.0
     val wompEndFreq = 0.7
@@ -292,7 +285,7 @@ class MilkerActivity : Activity() {
         Buzz,
     }
 
-    init {
+    override fun initialise() {
         val wompWave = CyclicalWave(
             WaveShape(
                 name = "womp",
@@ -360,7 +353,7 @@ class MilkerActivity : Activity() {
         when (currentStage) {
             MilkerStage.Womp -> {
                 val position = waveManager.getPosition("womp")
-                var adjustedPosition = if (reverseWomp) 1 - position else position
+                val adjustedPosition = if (reverseWomp) 1 - position else position
                 val (posAmpA, posAmpB) = calculatePositionalEffect(0.9, adjustedPosition, 1.0)
                 ampA = posAmpA
                 ampB = posAmpB
@@ -390,8 +383,6 @@ class MilkerActivity : Activity() {
 }
 
 class ChaosActivity : Activity() {
-    override val displayName = "Chaos"
-    override val iconResId = R.drawable.chaos
     val freqRange = 0.0..1.0
     val ampRange = 0.0..1.0
     val randomiseEveryCyclesChangeSecsRange = 10.0..30.0
@@ -403,7 +394,7 @@ class ChaosActivity : Activity() {
     var freqA = 0.0
     var freqB = 0.0
 
-    init {
+    override fun initialise() {
         randomise()
         randomiseEveryCyclesChange()
     }
@@ -443,8 +434,6 @@ class ChaosActivity : Activity() {
 }
 
 class LuxuryHJActivity : Activity() {
-    override val displayName = "Luxury HJ"
-    override val iconResId = R.drawable.hand
     val hjWaveManager: WaveManager = WaveManager()
     val bonusWaveManager: WaveManager = WaveManager()
     val hjSpeedChangeSecsRange = 1.0..20.0
@@ -457,7 +446,7 @@ class LuxuryHJActivity : Activity() {
     val bonusStartFreq = 0.8
     val bonusEndFreq = 1.0
 
-    init {
+    override fun initialise() {
         val hjWave = CyclicalWave(
             WaveShape(
                 name = "hj",
@@ -507,11 +496,11 @@ class LuxuryHJActivity : Activity() {
         bonusWaveManager.update(deltaSimulationTime)
         val bonusAProbability = (0.7 * deltaSimulationTime) / 60.0
         val bonusBProbability = (0.7 * deltaSimulationTime) / 60.0
-        if (Random.nextDouble() < bonusAProbability && timerManager.hasTimer("bonusB") == false) {
+        if (Random.nextDouble() < bonusAProbability && !timerManager.hasTimer("bonusB")) {
             bonusWaveManager.setSpeed(randomInRange(bonusSpeedRange))
             timerManager.addTimer("bonusA", randomInRange(bonusTimeRange)) {}
         }
-        if (Random.nextDouble() < bonusBProbability && timerManager.hasTimer("bonusA") == false) {
+        if (Random.nextDouble() < bonusBProbability && !timerManager.hasTimer("bonusA")) {
             bonusWaveManager.setSpeed(randomInRange(bonusSpeedRange))
             timerManager.addTimer("bonusB", randomInRange(bonusTimeRange)) {}
         }
@@ -551,9 +540,6 @@ class LuxuryHJActivity : Activity() {
 }
 
 class OppositesActivity : Activity() {
-    override val displayName = "Opposites"
-    override val iconResId = R.drawable.yin_yang
-
     val ampRange = 0.0..1.0
     val freqRange = 0.0..1.0
     val overallSpeedRange = 0.5..3.0
@@ -565,7 +551,7 @@ class OppositesActivity : Activity() {
     private val freqA = SmoothedValue(randomInRange(freqRange))
     private val overallSpeed = SmoothedValue(randomInRange(overallSpeedRange))
 
-    init {
+    override fun initialise() {
         newRandomAmplitudeTarget(ampA)
         newRandomFrequencyTarget(freqA)
         speedChange()
@@ -627,14 +613,12 @@ class OppositesActivity : Activity() {
 }
 
 class Calibration1Activity : Activity() {
-    override val displayName = "Calibration 1"
-    override val iconResId = R.drawable.swapvert
     val calibrationWaveManager: WaveManager = WaveManager()
     val waveSpeed = 0.25
     val waveFrequency = 0.5
     val wavePower = 0.9
 
-    init {
+    override fun initialise() {
         val calibrationWave = CyclicalWave(
             WaveShape(
                 name = "calibration",
@@ -658,7 +642,7 @@ class Calibration1Activity : Activity() {
 
     override fun getPulse(): Pulse {
         val position = calibrationWaveManager.getPosition("calibration")
-        var (ampA, ampB) = calculatePositionalEffect(wavePower, position, 1.0)
+        val (ampA, ampB) = calculatePositionalEffect(wavePower, position, 1.0)
 
         return Pulse(
             freqA = waveFrequency.toFloat(),
@@ -670,8 +654,6 @@ class Calibration1Activity : Activity() {
 }
 
 class Calibration2Activity : Activity() {
-    override val displayName = "Calibration 2"
-    override val iconResId = R.drawable.calibration
     val calibrationWaveManager: WaveManager = WaveManager()
     val waveSpeed = 0.25
     val wavePower = 0.9
@@ -684,7 +666,7 @@ class Calibration2Activity : Activity() {
         BOTH,
     }
 
-    init {
+    override fun initialise() {
         val calibrationWave = CyclicalWave(
             WaveShape(
                 name = "calibration",
@@ -718,8 +700,8 @@ class Calibration2Activity : Activity() {
 
     override fun getPulse(): Pulse {
         val frequency = calibrationWaveManager.getPosition("calibration")
-        var ampA = if (currentPhase == Phase.CHANNEL_B) 0.0 else wavePower
-        var ampB = if (currentPhase == Phase.CHANNEL_A) 0.0 else wavePower
+        val ampA = if (currentPhase == Phase.CHANNEL_B) 0.0 else wavePower
+        val ampB = if (currentPhase == Phase.CHANNEL_A) 0.0 else wavePower
 
         return Pulse(
             freqA = frequency.toFloat(),
@@ -731,8 +713,6 @@ class Calibration2Activity : Activity() {
 }
 
 class BJActivity : Activity() {
-    override val displayName = "BJ megamix"
-    override val iconResId = R.drawable.lips
     val waveManager: WaveManager = WaveManager()
     val primaryDurationRange = 20.0..60.0
     val secondaryDurationRange = 6.0..20.0
@@ -773,7 +753,7 @@ class BJActivity : Activity() {
     }
     var currentStage = BJStage.entries.random()
 
-    init {
+    override fun initialise() {
         val positionWave = CyclicalWave(
             WaveShape(
                 name = "position",
@@ -823,7 +803,7 @@ class BJActivity : Activity() {
     fun nextStage() {
         var stageDuration = 1.0
 
-        var previousStage = currentStage
+        val previousStage = currentStage
         while(previousStage == currentStage)
             currentStage = BJStage.entries.random()
 
@@ -936,8 +916,6 @@ class BJActivity : Activity() {
 }
 
 class FastSlowActivity : Activity() {
-    override val displayName = "Fast/slow"
-    override val iconResId = R.drawable.speed
     val waveManager: WaveManager = WaveManager()
     val waveManager2: WaveManager = WaveManager()
 
@@ -996,7 +974,7 @@ class FastSlowActivity : Activity() {
     var currentWaveTypeA = possibleWaves.first()
     var currentWaveTypeB = possibleWaves.first()
 
-    init {
+    override fun initialise() {
         possibleWaves.forEach {
             waveManager.addWave(it)
             waveManager2.addWave(it)
@@ -1031,8 +1009,8 @@ class FastSlowActivity : Activity() {
     }
 
     override fun getPulse(): Pulse {
-        var phase = (waveManager.currentSpeed - minSpeed) / (maxSpeed - minSpeed)
-        var invPhase = 1.0 - phase
+        val phase = (waveManager.currentSpeed - minSpeed) / (maxSpeed - minSpeed)
+        val invPhase = 1.0 - phase
         var ampA = waveManager2.getPosition(currentWaveTypeA.name)
         var ampB = waveManager.getPosition(currentWaveTypeB.name)
 
@@ -1054,8 +1032,6 @@ class FastSlowActivity : Activity() {
 }
 
 class AdditiveActivity : Activity() {
-    override val displayName = "Additive"
-    override val iconResId = R.drawable.additive
     val waveManager1: WaveManager = WaveManager()
     val waveManager2: WaveManager = WaveManager()
     val waveManagers = listOf(waveManager1, waveManager2)
@@ -1077,7 +1053,7 @@ class AdditiveActivity : Activity() {
     val freqProportionA = SmoothedValue(randomInRange(proportionRange))
     val freqProportionB = SmoothedValue(randomInRange(proportionRange))
 
-    init {
+    override fun initialise() {
         waveManagers.forEach { wm ->
             wm.addWave(randomWave(), name="amp")
             wm.addWave(randomWave(), name="freq")
@@ -1180,4 +1156,106 @@ class AdditiveActivity : Activity() {
             ampB = ampB.toFloat()
         )
     }
+}
+
+abstract class BaseSimplexActivity : Activity() {
+    protected val noiseGenerator = NoiseGenerator()
+    protected var elapsedTime = 0.0
+    protected var phaseTime = 0.0
+    protected var phaseRotation = 0.0
+
+    open val ampTimeSpeedRange: ClosedRange<Double> = 0.2..4.0
+    open val ampRotationSpeedRange: ClosedRange<Double> = 0.0..PI * 0.2
+    open val changeRateRange: ClosedRange<Double> = 0.1..0.5
+    open val ampTimeChangeSecsRange: ClosedRange<Double> = 10.0..50.0
+    open val ampRotationSpeedChangeSecsRange: ClosedRange<Double> = 10.0..50.0
+
+    open val ampRadius: Double = 0.3
+    open val freqRadius: Double = 0.2
+    open val freqTimeSpeed: Double = 0.2
+    open val freqRotationSpeed: Double = 0.1
+
+    protected lateinit var ampTimeSpeed: SmoothedValue
+    protected lateinit var ampRotationSpeed: SmoothedValue
+
+    override fun initialise() {
+        super.initialise()
+        ampTimeSpeed = SmoothedValue(randomInRange(ampTimeSpeedRange))
+        ampRotationSpeed = SmoothedValue(randomInRange(ampRotationSpeedRange))
+        ampTimeSpeedChange()
+        ampRotationSpeedChange()
+    }
+
+    protected fun ampTimeSpeedChange() {
+        ampTimeSpeed.setTarget(randomInRange(ampTimeSpeedRange), randomInRange(changeRateRange))
+        Log.d("Activity", "ampTimeSpeedChange ${ampTimeSpeed.getTarget()}")
+        val nextAmpTimeSpeedChangeSecs = randomInRange(ampTimeChangeSecsRange)
+        timerManager.addTimer("ampTimeSpeedChange", nextAmpTimeSpeedChangeSecs) {
+            ampTimeSpeedChange()
+        }
+    }
+
+    protected fun ampRotationSpeedChange() {
+        ampRotationSpeed.setTarget(randomInRange(ampRotationSpeedRange), randomInRange(changeRateRange))
+        Log.d("Activity", "ampRotationSpeedChange ${ampRotationSpeed.getTarget()}")
+        val nextAmpRotationSpeedChangeSecs = randomInRange(ampRotationSpeedChangeSecsRange)
+        timerManager.addTimer("ampRotationSpeedChange", nextAmpRotationSpeedChangeSecs) {
+            ampRotationSpeedChange()
+        }
+    }
+
+    override fun runSimulation(deltaSimulationTime: Double) {
+        super.runSimulation(deltaSimulationTime)
+        ampTimeSpeed.update(deltaSimulationTime)
+        ampRotationSpeed.update(deltaSimulationTime)
+        elapsedTime += deltaSimulationTime
+
+        phaseTime += ampTimeSpeed.current * deltaSimulationTime
+        phaseRotation += ampRotationSpeed.current * deltaSimulationTime
+    }
+
+    override fun getPulse(): Pulse {
+        val (ampA, ampB) = noiseGenerator.getNoise(
+            time = phaseTime,
+            rotation = phaseRotation,
+            radius = ampRadius,
+            axis = 2,
+            shiftResult = true
+        )
+
+        val (freqA, freqB) = noiseGenerator.getNoise(
+            time = elapsedTime * freqTimeSpeed,
+            rotation = elapsedTime * freqRotationSpeed,
+            radius = freqRadius,
+            axis = 1,
+            shiftResult = true
+        )
+
+        return Pulse(
+            freqA = freqA.toFloat(),
+            freqB = freqB.toFloat(),
+            ampA = ampA.toFloat(),
+            ampB = ampB.toFloat()
+        )
+    }
+}
+
+class SimplexActivity : BaseSimplexActivity() {
+    // All parameters use default values from BaseSimplexActivity
+}
+
+class SimplexProActivity : BaseSimplexActivity() {
+    override val ampTimeSpeedRange = 0.2..0.8
+    override val ampRotationSpeedRange = PI * 0.5..PI * 4
+    override val changeRateRange = 0.2..0.5
+    override val ampRadius = 0.4
+    override val freqRadius = 0.3
+}
+
+class SimplexTurboActivity : BaseSimplexActivity() {
+    override val ampTimeSpeedRange = 0.1..0.5
+    override val ampRotationSpeedRange = PI * 3..PI * 6
+    override val changeRateRange = 0.2..0.5
+    override val ampRadius = 0.6
+    override val freqRadius = 0.3
 }

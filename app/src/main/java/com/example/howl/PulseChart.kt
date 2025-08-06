@@ -11,7 +11,6 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.produceState
 
 enum class PulseChartMode(val description: String) {
     Off("Off"),
@@ -35,13 +34,7 @@ fun PulsePlotter(
     modifier: Modifier = Modifier,
     mode: PulsePlotMode = PulsePlotMode.Combined
 ) {
-    val pulseHistoryVersion by DataRepository.pulseHistoryVersion.collectAsStateWithLifecycle()
-    val pulses by produceState<List<Pulse>>(initialValue = emptyList(), pulseHistoryVersion) {
-        value = DataRepository.getPulseHistory()
-    }
-    /*val pulses = remember(pulseHistoryVersion) {
-        DataRepository.getPulseHistory()
-    }*/
+    val pulses by DataRepository.pulseHistory.collectAsStateWithLifecycle()
     val backgroundColor = MaterialTheme.colorScheme.background
 
     Canvas(modifier = modifier.background(backgroundColor)) {

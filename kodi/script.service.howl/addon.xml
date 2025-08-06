@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addon id="script.service.howl" name="Howl Sync" version="0.1.0" provider-name="Amethyst-Sysadmin">
+	<requires>
+		<import addon="xbmc.python" version="3.0.0"/>
+	</requires>
+	<extension point="xbmc.service" library="service.py"/>
+	<extension point="xbmc.addon.metadata">
+		<summary lang="en_GB">Howl Sync</summary>
+		<description lang="en_GB">Synchronises haptic .funscript files with the Howl app running on a remote Android device.</description>
+		<platform>all</platform>
+		<license>MIT</license>
+		<website>https://github.com/Amethyst-Sysadmin/Howl</website>
+		<source>https://github.com/Amethyst-Sysadmin/Howl</source>
+		<assets>
+			<icon>resources/icon.png</icon>
+		</assets>
+	</extension>
+</addon>

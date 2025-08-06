@@ -34,30 +34,50 @@ import kotlinx.coroutines.launch
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.random.Random
-import kotlin.reflect.KClass
-import kotlin.reflect.full.createInstance
 
 object ActivityHost : PulseSource {
     val PROBABILITY_RANGE: ClosedFloatingPointRange<Float> = 0.0f..1.0f
+
+    data class ActivityInfo(
+        val displayName: String,
+        val iconResId: Int,
+        val randomlySelect: Boolean,
+        val factory: () -> Activity
+    )
 
     override var displayName: String = "Activity output"
     override var duration: Double? = null
     override val isFinite: Boolean = false
     override val shouldLoop: Boolean = false
     override var readyToPlay: Boolean = true
+    override var isRemote: Boolean = false
+    override var remoteLatency: Double = 0.0
 
     private val timerManager = TimerManager()
-
-    private var currentActivity = randomActivity()
 
     private var lastUpdateTime = -1.0
     private var lastSimulationTime = -1.0
 
-    data class ActivityInfo(
-        val displayName: String,
-        val iconResId: Int,
-        val klass: KClass<out Activity>
+    val availableActivities: List<ActivityInfo> = listOf(
+        ActivityInfo("Infinite licks", R.drawable.grin_tongue, true) { LickActivity() },
+        ActivityInfo("Penetration", R.drawable.rocket, true) { PenetrationActivity() },
+        ActivityInfo("Sliding vibrator", R.drawable.vibration, true) { VibroActivity() },
+        ActivityInfo("Milkmaster 3000", R.drawable.cow, true) { MilkerActivity() },
+        ActivityInfo("Chaos", R.drawable.chaos, true) { ChaosActivity() },
+        ActivityInfo("Luxury HJ", R.drawable.hand, true) { LuxuryHJActivity() },
+        ActivityInfo("Opposites", R.drawable.yin_yang, true) { OppositesActivity() },
+        ActivityInfo("Calibration 1", R.drawable.swapvert, false) { Calibration1Activity() },
+        ActivityInfo("Calibration 2", R.drawable.calibration, false) { Calibration2Activity() },
+        ActivityInfo("BJ megamix", R.drawable.lips, true) { BJActivity() },
+        ActivityInfo("Fast/slow", R.drawable.speed, true) { FastSlowActivity() },
+        ActivityInfo("Additive", R.drawable.additive, true) { AdditiveActivity() },
+        ActivityInfo("Simplex", R.drawable.wave_triangle, true) { SimplexActivity() },
+        ActivityInfo("Simplex Pro", R.drawable.waveform, true) { SimplexProActivity() },
+        ActivityInfo("Simplex Turbo", R.drawable.waveform_path, true) { SimplexTurboActivity() }
     )
+    private val randomActivities = availableActivities.filter { it.randomlySelect }
+    private var currentActivityInfo: ActivityInfo? = null
+    private var currentActivity: Activity? = null
 
     init {
         changeActivity()
@@ -86,41 +106,28 @@ object ActivityHost : PulseSource {
         lastSimulationTime = time
         timerManager.update(simulationTimeDelta)
 
-        currentActivity.runSimulation(simulationTimeDelta)
-        return currentActivity.getPulse()
+        currentActivity?.runSimulation(simulationTimeDelta)
+        return currentActivity?.getPulse() ?: Pulse()
     }
 
-    val availableActivities: List<ActivityInfo> by lazy {
-        Activity::class.sealedSubclasses
-            .filterNot { it.isAbstract }
-            .map { klass ->
-                val instance = klass.createInstance()
-                ActivityInfo(instance.displayName, instance.iconResId, klass)
-            }
-            .sortedBy { it.displayName }
-    }
-
-    fun setCurrentActivity(newActivity: Activity) {
-        currentActivity = newActivity
+    fun setCurrentActivity(newActivityInfo: ActivityInfo) {
+        currentActivityInfo = newActivityInfo
+        currentActivity = newActivityInfo.factory().apply { initialise() }
         lastSimulationTime = -1.0
         lastUpdateTime = -1.0
-        DataRepository.setActivityState(DataRepository.activityState.value.copy(currentActivityDisplayName = newActivity.displayName))
-    }
-
-    fun randomActivity(): Activity {
-        val subclasses = Activity::class.sealedSubclasses
-            .filterNot { it.isAbstract }
-        return subclasses.random().createInstance()
+        DataRepository.setActivityState(DataRepository.activityState.value.copy(currentActivityDisplayName = newActivityInfo.displayName))
     }
 
     fun changeActivity() {
-        var newActivity = randomActivity()
-        while(newActivity.displayName == currentActivity.displayName || newActivity.displayName.contains("Calibration"))
-            newActivity = randomActivity()
-        currentActivity = newActivity
-        lastSimulationTime = -1.0
-        lastUpdateTime = -1.0
-        DataRepository.setActivityState(DataRepository.activityState.value.copy(currentActivityDisplayName = currentActivity.displayName))
+        val current = currentActivityInfo
+        val candidates = if (current != null) {
+            randomActivities.filter { it != current }
+        } else {
+            randomActivities
+        }
+
+        val newInfo = candidates.randomOrNull() ?: randomActivities.random()
+        setCurrentActivity(newInfo)
     }
 }
 
@@ -131,8 +138,8 @@ class ActivityHostViewModel() : ViewModel() {
     fun setActivityChangeProbability(probability: Float) {
         updateActivityState(DataRepository.activityState.value.copy(activityChangeProbability = probability))
     }
-    fun setCurrentActivity(activity: Activity) {
-        ActivityHost.setCurrentActivity(activity)
+    fun setCurrentActivity(activityInfo: ActivityHost.ActivityInfo) {
+        ActivityHost.setCurrentActivity(activityInfo)
     }
     fun stop() {
         Player.stopPlayer()
@@ -204,16 +211,15 @@ fun ActivityHostPanel(
         )
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
-            modifier = Modifier.fillMaxWidth().height(360.dp),
+            modifier = Modifier.fillMaxWidth().height(440.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(ActivityHost.availableActivities) { info ->
+            items(ActivityHost.availableActivities.sortedBy { it.displayName }) { info ->
                 val isCurrent = info.displayName == activityState.currentActivityDisplayName
                 Button(
                     onClick = {
-                        val activity = info.klass.createInstance()
-                        viewModel.setCurrentActivity(activity)
+                        viewModel.setCurrentActivity(info)
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (isCurrent) Color.Red else ButtonDefaults.buttonColors().containerColor

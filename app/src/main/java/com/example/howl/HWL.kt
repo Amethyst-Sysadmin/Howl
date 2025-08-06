@@ -11,6 +11,8 @@ class HWLPulseSource : PulseSource {
     override val isFinite: Boolean = true
     override val shouldLoop: Boolean = true
     override var readyToPlay: Boolean = false
+    override var isRemote: Boolean = false
+    override var remoteLatency: Double = 0.0
     val HWLPulseTime = 0.025
     var pulseData: MutableList<Pulse> = mutableListOf<Pulse>()
 

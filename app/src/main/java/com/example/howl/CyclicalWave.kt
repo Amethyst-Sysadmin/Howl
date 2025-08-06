@@ -1,7 +1,9 @@
 package com.example.howl
 
 import kotlin.collections.zipWithNext
+import kotlin.math.cos
 import kotlin.math.floor
+import kotlin.math.sin
 import kotlin.random.Random
 
 class CyclicalWave(private val shape: WaveShape) {
@@ -255,5 +257,37 @@ class WaveManager {
 
     fun getTargetSpeed(): Double {
         return baseSpeed.getTarget()
+    }
+}
+
+class NoiseGenerator {
+    private val noise = OpenSimplexNoise(System.currentTimeMillis())
+
+    fun getNoise(time: Double, rotation: Double, radius: Double, axis: Int, shiftResult: Boolean): Pair<Double, Double> {
+        val circleX = radius * cos(rotation)
+        val circleY = radius * sin(rotation)
+
+        val (x0, y0, z0) = when (axis) {
+            0 -> Triple(time, circleX, circleY)
+            1 -> Triple(circleX, time, circleY)
+            2 -> Triple(circleX, circleY, time)
+            else -> throw IllegalArgumentException("Axis must be 0, 1, or 2")
+        }
+
+        val (x1, y1, z1) = when (axis) {
+            0 -> Triple(time, -circleX, -circleY)
+            1 -> Triple(-circleX, time, -circleY)
+            2 -> Triple(-circleX, -circleY, time)
+            else -> throw IllegalArgumentException("Axis must be 0, 1, or 2")
+        }
+
+        val noiseA = noise.random3D(x0, y0, z0)
+        val noiseB = noise.random3D(x1, y1, z1)
+
+        return if (shiftResult) {
+            Pair((noiseA + 1) / 2, (noiseB + 1) / 2)
+        } else {
+            Pair(noiseA, noiseB)
+        }
     }
 }

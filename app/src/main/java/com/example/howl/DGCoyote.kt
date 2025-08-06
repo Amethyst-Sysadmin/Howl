@@ -451,7 +451,7 @@ object DGCoyote {
         }
     }
 
-    fun initialize(context: Context,
+    fun initialise(context: Context,
                    onConnectionStatusUpdate: ((status: ConnectionStatus) -> Unit)?,
                    onBatteryLevelUpdate: ((batteryPercent: Int) -> Unit)?,
                    onPowerLevelUpdate: ((channel: Int, power: Int) -> Unit)?

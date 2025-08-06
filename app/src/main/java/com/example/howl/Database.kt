@@ -24,13 +24,25 @@ data class SavedSettings(
     val channelAIntensityBalance: Int = 0,
     val channelBIntensityBalance: Int = 0,
     //Player advanced controls
+    val showSyncFineTune: Boolean = false,
     val playbackSpeed: Float = 1.0f,
+    var funscriptVolume: Float = 0.75f,
+    val funscriptPositionalEffectStrength: Float = 1.0f,
+    var funscriptFrequencyTimeOffset: Float = 0.1f,
+    var funscriptFrequencyVarySpeed: Float = 0.5f,
+    var funscriptFrequencyBlendRatio: Float = 0.5f,
+    val funscriptFrequencyAlgorithm: FrequencyAlgorithmType = FrequencyAlgorithmType.BLEND,
+    val funscriptAmplitudeAlgorithm: AmplitudeAlgorithmType = AmplitudeAlgorithmType.DEFAULT,
+    val funscriptRemoteLatency: Float = 0.2f,
+    //Player special effects
+    val specialEffectsEnabled: Boolean = false,
     val frequencyInversionA: Boolean = false,
     val frequencyInversionB: Boolean = false,
-    var funscriptVolume: Float = 0.5f,
-    val funscriptPositionalEffectStrength: Float = 1.0f,
-    var funscriptFeel: Float = 1.0f,
-    var funscriptFrequencyTimeOffset: Float = 0.1f,
+    var frequencyFeel: Float = 1.0f,
+    val amplitudeNoiseSpeed: Float = 5.0f,
+    val amplitudeNoiseAmount: Float = 0.0f,
+    val frequencyNoiseSpeed: Float = 5.0f,
+    val frequencyNoiseAmount: Float = 0.0f,
     //Generator controls
     val autoChange: Boolean = true,
     val speedChangeProbability: Double = 0.2,
@@ -40,6 +52,7 @@ data class SavedSettings(
     //Activity settings
     val activityChangeProbability: Float = 0.0f,
     //Misc options
+    val remoteAccess: Boolean = false,
     val showPowerMeter: Boolean = true,
     val smootherCharts: Boolean = true,
     val showDebugLog: Boolean = false,
@@ -61,7 +74,7 @@ interface SavedSettingsDao {
 
 @Database(
     entities = [SavedSettings::class],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class HowlDatabase : RoomDatabase() {
@@ -76,7 +89,7 @@ abstract class HowlDatabase : RoomDatabase() {
             // if the Instance is not null, return it, otherwise create a new database instance.
             return Instance ?: synchronized(this) {
                 Room.databaseBuilder(context, HowlDatabase::class.java, DB_NAME)
-                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigration(true)
                     .build()
                     .also { Instance = it }
             }

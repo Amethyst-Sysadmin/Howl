@@ -194,6 +194,19 @@ fun calculatePositionalEffect(
     return Pair(amplitudeA, amplitudeB)
 }
 
+fun calculatePositionalEffectLinear(
+    amplitude: Double,
+    position: Double,
+    positionalEffectStrength: Double
+): Pair<Double, Double> {
+    //calculate the "effective position" by interpolating between the original position and the neutral position based on the effect strength
+    val effectivePosition = 0.5 * (1 - positionalEffectStrength) + position * positionalEffectStrength
+
+    val amplitudeA = amplitude * (1 - effectivePosition)
+    val amplitudeB = amplitude * (effectivePosition)
+    return Pair(amplitudeA, amplitudeB)
+}
+
 fun calculateEngulfEffect(
     amplitude: Double,
     position: Double,
@@ -214,11 +227,18 @@ fun calculateEngulfEffect(
     return Pair(ampA, ampB)
 }
 
-fun calculateFeelAdjustment(
+/*fun calculateFeelAdjustment(
     frequency: Double,
     feelExponent: Double,
 ): Double {
     return frequency.pow(feelExponent).coerceIn(0.0,1.0)
+}*/
+
+fun calculateFeelAdjustment(
+    frequency: Float,
+    exponent: Float,
+): Float {
+    return frequency.pow(1.0f / exponent).coerceIn(0.0f,1.0f)
 }
 
 class TimerManager {
@@ -404,6 +424,66 @@ class FrequencyConverter(
                 val h = (position - lower.position) / (upper.position - lower.position)
                 val smoothH = smoothstep(h)
                 lower.frequency + smoothH * (upper.frequency - lower.frequency)
+            }
+        }
+    }
+}
+
+class CircularBuffer<T>(val capacity: Int): Iterable<T> {
+    private val buffer: Array<Any?>
+    private var start = 0
+    private var size = 0
+
+    init {
+        require(capacity > 0) { "Capacity must be positive" }
+        buffer = arrayOfNulls(capacity)
+    }
+
+    fun first(): T {
+        if (size == 0) throw NoSuchElementException("Buffer is empty")
+        @Suppress("UNCHECKED_CAST")
+        return buffer[start] as T
+    }
+
+    fun last(): T {
+        if (size == 0) throw NoSuchElementException("Buffer is empty")
+        @Suppress("UNCHECKED_CAST")
+        return buffer[(start + size - 1) % capacity] as T
+    }
+
+    fun add(element: T) {
+        if (size < capacity) {
+            buffer[(start + size) % capacity] = element
+            size++
+        } else {
+            buffer[start] = element
+            start = (start + 1) % capacity
+        }
+    }
+
+    fun toList(): List<T> {
+        return List(size) { i ->
+            @Suppress("UNCHECKED_CAST")
+            buffer[(start + i) % capacity] as T
+        }
+    }
+
+    override fun toString(): String {
+        return toList().toString()
+    }
+
+    override fun iterator(): Iterator<T> {
+        return object : Iterator<T> {
+            private var index = 0
+
+            override fun hasNext(): Boolean {
+                return index < size
+            }
+
+            override fun next(): T {
+                if (!hasNext()) throw NoSuchElementException()
+                @Suppress("UNCHECKED_CAST")
+                return buffer[(start + index++) % capacity] as T
             }
         }
     }

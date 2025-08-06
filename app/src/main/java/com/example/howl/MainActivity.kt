@@ -43,12 +43,14 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(true) {
                     val androidVersion = Build.VERSION.RELEASE
                     val androidSDK = Build.VERSION.SDK_INT
-                    HLog.d("Howl", "Howl ${howlVersion} running on Android $androidVersion (SDK $androidSDK)")
+                    HLog.d("Howl", "Howl $howlVersion running on Android $androidVersion (SDK $androidSDK)")
                     DataRepository.loadSettings()
+                    if (DataRepository.miscOptionsState.value.remoteAccess)
+                        RemoteControlServer.start()
                 }
                 Generator.initialise()
                 Player.initialise(context = this)
-                DGCoyote.initialize(context = this,
+                DGCoyote.initialise(context = this,
                     onConnectionStatusUpdate = { DataRepository.setCoyoteConnectionStatus(it) },
                     onBatteryLevelUpdate = { DataRepository.setCoyoteBatteryLevel(it) },
                     onPowerLevelUpdate = { channel:Int, power:Int ->

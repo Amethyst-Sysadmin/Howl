@@ -5,14 +5,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlin.Boolean
 import kotlin.time.TimeMark
 import kotlin.Float
 
 const val showDeveloperOptions = false
-const val howlVersion = "0.4"
+const val howlVersion = "0.5"
 
 object DataRepository {
     var database: HowlDatabase? = null
@@ -20,18 +18,19 @@ object DataRepository {
     private val _lastPulse = MutableStateFlow(Pulse())
     val lastPulse: StateFlow<Pulse> = _lastPulse.asStateFlow()
 
-    private val _pulseHistoryVersion = MutableStateFlow(0)
-    val pulseHistoryVersion: StateFlow<Int> = _pulseHistoryVersion.asStateFlow()
-
     const val PULSE_HISTORY_SIZE = 200
-    val pulseHistoryDeque: ArrayDeque<Pulse> = ArrayDeque(PULSE_HISTORY_SIZE)
-    private val pulseHistoryMutex = Mutex()
+    private val _pulseHistoryBuffer: CircularBuffer<Pulse> = CircularBuffer(PULSE_HISTORY_SIZE)
+    private val _pulseHistory = MutableStateFlow<List<Pulse>>(emptyList())
+    val pulseHistory: StateFlow<List<Pulse>> = _pulseHistory.asStateFlow()
 
     private val _playerState = MutableStateFlow(PlayerState())
     val playerState: StateFlow<PlayerState> = _playerState.asStateFlow()
 
     private val _playerAdvancedControlsState = MutableStateFlow(PlayerAdvancedControlsState())
     val playerAdvancedControlsState: StateFlow<PlayerAdvancedControlsState> = _playerAdvancedControlsState.asStateFlow()
+
+    private val _playerSpecialEffectsState = MutableStateFlow(PlayerSpecialEffectsState())
+    val playerSpecialEffectsState: StateFlow<PlayerSpecialEffectsState> = _playerSpecialEffectsState.asStateFlow()
 
     private val _mainOptionsState = MutableStateFlow(MainOptionsState())
     val mainOptionsState: StateFlow<MainOptionsState> = _mainOptionsState.asStateFlow()
@@ -71,6 +70,10 @@ object DataRepository {
 
     fun setPlayerAdvancedControlsState(newPlayerAdvancedControlsState: PlayerAdvancedControlsState) {
         _playerAdvancedControlsState.update { newPlayerAdvancedControlsState }
+    }
+
+    fun setPlayerSpecialEffectsState(newPlayerSpecialEffectsState: PlayerSpecialEffectsState) {
+        _playerSpecialEffectsState.update { newPlayerSpecialEffectsState }
     }
 
     fun setMainOptionsState(newMainOptionsState: MainOptionsState) {
@@ -135,29 +138,10 @@ object DataRepository {
         _generatorState.update { newGeneratorState }
     }
 
-    suspend fun addPulsesToHistory(newPulses: List<Pulse>) {
-        pulseHistoryMutex.withLock {
-            pulseHistoryDeque.addAll(newPulses)
-            while (pulseHistoryDeque.size > PULSE_HISTORY_SIZE) {
-                pulseHistoryDeque.removeFirst()
-            }
-            _lastPulse.update { pulseHistoryDeque.last() }
-            _pulseHistoryVersion.update { it + 1 }
-        }
-    }
-
-    suspend fun clearPulseHistory() {
-        pulseHistoryMutex.withLock {
-            pulseHistoryDeque.clear()
-            _lastPulse.value = Pulse()
-            _pulseHistoryVersion.update { it + 1 }
-        }
-    }
-
-    suspend fun getPulseHistory(): List<Pulse> {
-        return pulseHistoryMutex.withLock {
-            pulseHistoryDeque.toList()
-        }
+    fun addPulsesToHistory(newPulses: List<Pulse>) {
+        newPulses.forEach { _pulseHistoryBuffer.add(it) }
+        _pulseHistory.update { _pulseHistoryBuffer.toList() }
+        _lastPulse.update { _pulseHistoryBuffer.last() }
     }
 
     fun initialise(db: HowlDatabase) {
@@ -173,19 +157,31 @@ object DataRepository {
             channelBIntensityBalance = coyoteParametersState.value.channelBIntensityBalance,
             channelAFrequencyBalance = coyoteParametersState.value.channelAFrequencyBalance,
             channelBFrequencyBalance = coyoteParametersState.value.channelBFrequencyBalance,
+            showSyncFineTune = playerAdvancedControlsState.value.showSyncFineTune,
             playbackSpeed = playerAdvancedControlsState.value.playbackSpeed,
-            frequencyInversionA = playerAdvancedControlsState.value.frequencyInversionA,
-            frequencyInversionB = playerAdvancedControlsState.value.frequencyInversionB,
             funscriptVolume = playerAdvancedControlsState.value.funscriptVolume,
             funscriptPositionalEffectStrength = playerAdvancedControlsState.value.funscriptPositionalEffectStrength,
-            funscriptFeel = playerAdvancedControlsState.value.funscriptFeel,
             funscriptFrequencyTimeOffset = playerAdvancedControlsState.value.funscriptFrequencyTimeOffset,
+            funscriptFrequencyVarySpeed = playerAdvancedControlsState.value.funscriptFrequencyVarySpeed,
+            funscriptFrequencyBlendRatio = playerAdvancedControlsState.value.funscriptFrequencyBlendRatio,
+            funscriptFrequencyAlgorithm = playerAdvancedControlsState.value.funscriptFrequencyAlgorithm,
+            funscriptAmplitudeAlgorithm = playerAdvancedControlsState.value.funscriptAmplitudeAlgorithm,
+            funscriptRemoteLatency = playerAdvancedControlsState.value.funscriptRemoteLatency,
+            specialEffectsEnabled = playerSpecialEffectsState.value.specialEffectsEnabled,
+            frequencyInversionA = playerSpecialEffectsState.value.frequencyInversionA,
+            frequencyInversionB = playerSpecialEffectsState.value.frequencyInversionB,
+            frequencyFeel = playerSpecialEffectsState.value.frequencyFeel,
+            amplitudeNoiseSpeed = playerSpecialEffectsState.value.amplitudeNoiseSpeed,
+            amplitudeNoiseAmount = playerSpecialEffectsState.value.amplitudeNoiseAmount,
+            frequencyNoiseSpeed = playerSpecialEffectsState.value.frequencyNoiseSpeed,
+            frequencyNoiseAmount = playerSpecialEffectsState.value.frequencyNoiseAmount,
             autoChange = generatorState.value.autoChange,
             speedChangeProbability = generatorState.value.speedChangeProbability,
             amplitudeChangeProbability = generatorState.value.amplitudeChangeProbability,
             frequencyChangeProbability = generatorState.value.frequencyChangeProbability,
             waveChangeProbability = generatorState.value.waveChangeProbability,
             activityChangeProbability = activityState.value.activityChangeProbability,
+            remoteAccess = miscOptionsState.value.remoteAccess,
             showPowerMeter = miscOptionsState.value.showPowerMeter,
             smootherCharts = miscOptionsState.value.smootherCharts,
             showDebugLog = miscOptionsState.value.showDebugLog,
@@ -211,13 +207,26 @@ object DataRepository {
             channelBFrequencyBalance = settings.channelBFrequencyBalance
         ))
         setPlayerAdvancedControlsState(PlayerAdvancedControlsState(
+            showSyncFineTune = settings.showSyncFineTune,
             playbackSpeed = settings.playbackSpeed,
-            frequencyInversionA = settings.frequencyInversionA,
-            frequencyInversionB = settings.frequencyInversionB,
             funscriptVolume = settings.funscriptVolume,
             funscriptPositionalEffectStrength = settings.funscriptPositionalEffectStrength,
-            funscriptFeel = settings.funscriptFeel,
-            funscriptFrequencyTimeOffset = settings.funscriptFrequencyTimeOffset
+            funscriptFrequencyTimeOffset = settings.funscriptFrequencyTimeOffset,
+            funscriptFrequencyVarySpeed = settings.funscriptFrequencyVarySpeed,
+            funscriptFrequencyBlendRatio = settings.funscriptFrequencyBlendRatio,
+            funscriptFrequencyAlgorithm = settings.funscriptFrequencyAlgorithm,
+            funscriptAmplitudeAlgorithm = settings.funscriptAmplitudeAlgorithm,
+            funscriptRemoteLatency = settings.funscriptRemoteLatency
+        ))
+        setPlayerSpecialEffectsState(PlayerSpecialEffectsState(
+            specialEffectsEnabled = settings.specialEffectsEnabled,
+            frequencyInversionA = settings.frequencyInversionA,
+            frequencyInversionB = settings.frequencyInversionB,
+            frequencyFeel = settings.frequencyFeel,
+            amplitudeNoiseSpeed = settings.amplitudeNoiseSpeed,
+            amplitudeNoiseAmount = settings.amplitudeNoiseAmount,
+            frequencyNoiseSpeed = settings.frequencyNoiseSpeed,
+            frequencyNoiseAmount = settings.frequencyNoiseAmount
         ))
         setGeneratorState(generatorState.value.copy(
             autoChange = settings.autoChange,
@@ -227,6 +236,7 @@ object DataRepository {
             waveChangeProbability = settings.waveChangeProbability,
         ))
         setMiscOptionsState(MiscOptionsState(
+            remoteAccess = settings.remoteAccess,
             showPowerMeter = settings.showPowerMeter,
             smootherCharts = settings.smootherCharts,
             showDebugLog = settings.showDebugLog,
@@ -261,17 +271,32 @@ object DataRepository {
         val currentPosition: Double = 0.0,
         val startPosition: Double = 0.0,
         val isPlaying: Boolean = false,
-        val startTime: TimeMark? = null
+        val startTime: TimeMark? = null,
+        val syncFineTune: Float = 0.0f,
+    )
+
+    data class PlayerSpecialEffectsState (
+        val specialEffectsEnabled: Boolean = false,
+        val frequencyInversionA: Boolean = false,
+        val frequencyInversionB: Boolean = false,
+        var frequencyFeel: Float = 1.0f,
+        val amplitudeNoiseSpeed: Float = 5.0f,
+        val amplitudeNoiseAmount: Float = 0.0f,
+        val frequencyNoiseSpeed: Float = 5.0f,
+        val frequencyNoiseAmount: Float = 0.0f,
     )
 
     data class PlayerAdvancedControlsState (
+        val showSyncFineTune: Boolean = false,
         val playbackSpeed: Float = 1.0f,
-        val frequencyInversionA: Boolean = false,
-        val frequencyInversionB: Boolean = false,
-        var funscriptVolume: Float = 0.5f,
+        var funscriptVolume: Float = 0.75f,
         val funscriptPositionalEffectStrength: Float = 1.0f,
-        var funscriptFeel: Float = 1.0f,
         var funscriptFrequencyTimeOffset: Float = 0.1f,
+        var funscriptFrequencyVarySpeed: Float = 0.5f,
+        var funscriptFrequencyBlendRatio: Float = 0.5f,
+        val funscriptAmplitudeAlgorithm: AmplitudeAlgorithmType = AmplitudeAlgorithmType.DEFAULT,
+        val funscriptFrequencyAlgorithm: FrequencyAlgorithmType = FrequencyAlgorithmType.BLEND,
+        val funscriptRemoteLatency: Float = 0.2f,
     )
 
     data class MainOptionsState (
@@ -285,6 +310,7 @@ object DataRepository {
     )
 
     data class MiscOptionsState (
+        val remoteAccess: Boolean = false,
         val showPowerMeter: Boolean = true,
         val smootherCharts: Boolean = true,
         val showDebugLog: Boolean = false,

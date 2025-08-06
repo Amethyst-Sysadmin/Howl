@@ -127,7 +127,7 @@ class GeneratorChannel(
         }
 
         val waveChange = (waveChangeProbability * baseProbability * timeDelta) / 60.0
-        if (Random.nextDouble() < waveChange && doingWaveChange == false) {
+        if (Random.nextDouble() < waveChange && !doingWaveChange) {
             doingWaveChange = true
             waveManager.stopAtEndOfCycle {
                 changeAmpWave()
@@ -136,7 +136,7 @@ class GeneratorChannel(
         }
 
         val freqWaveChange = (waveChangeProbability * baseProbability * timeDelta) / 60.0
-        if (Random.nextDouble() < freqWaveChange && doingWaveChange == false) {
+        if (Random.nextDouble() < freqWaveChange && !doingWaveChange) {
             doingWaveChange = true
             waveManager.stopAtEndOfCycle {
                 changeFreqWave()
@@ -224,6 +224,8 @@ object Generator : PulseSource {
     override val isFinite: Boolean = false
     override val shouldLoop: Boolean = false
     override var readyToPlay: Boolean = false
+    override var isRemote: Boolean = false
+    override var remoteLatency: Double = 0.0
 
     private var lastSimulationTime = -1.0
     private var lastUpdateTime = -1.0
@@ -243,7 +245,7 @@ object Generator : PulseSource {
     }
 
     fun initialise() {
-        if(DataRepository.generatorState.value.initialised == false) {
+        if(!DataRepository.generatorState.value.initialised) {
             channelA.randomise()
             channelB.randomise()
             updateInfo()
@@ -639,7 +641,7 @@ fun GeneratorParametersInfo(
             )
             val ampLow = String.format(Locale.US, "%.1f", generatorChannelInfo.minAmp * 100.0)
             val ampHigh = String.format(Locale.US, "%.1f", generatorChannelInfo.maxAmp * 100.0)
-            var ampText = if (generatorChannelInfo.ampWaveName == "Constant") "$ampHigh%" else "$ampLow% - $ampHigh%"
+            val ampText = if (generatorChannelInfo.ampWaveName == "Constant") "$ampHigh%" else "$ampLow% - $ampHigh%"
             GeneratorParametersInfoRow(
                 category = "Power",
                 value = ampText
