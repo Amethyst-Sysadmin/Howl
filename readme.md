@@ -18,7 +18,9 @@ All features take advantage of the full capabilities of the Coyote 3, sending fr
 
 ## Installation
 
-Pre-built APK files have been provided under "Releases". You simply need to install the APK on your Android device.
+A pre-built APK file for the latest version can be <a href="releases/latest/download/howl.apk">found here</a>. You simply need to install the APK file on your Android device.
+
+Additional downloads, including older versions and the Kodi add-on, may be found on the main <a href="releases/">Releases page</a>.
 
 ## Device support
 
@@ -368,11 +370,13 @@ Kodi add-on features: -
 
 ### Howl Sync installation
 
-Obtain the latest Kodi add-on .zip file from the Github "Releases" section. You can install this in Kodi in either of two ways.
+Obtain the latest Kodi add-on ("howl_sync.zip") from the <a href="releases/">Releases page</a>. You can install this in Kodi in either of two ways.
 
-1) In Kodi select "Add-ons / Install from zip file" and select the .zip file you downloaded from its location on your machine. Since the add-on isn't in Kodi's official repository, you will first have to allow the installation of add-ons from unknown sources. Kodi should prompt for this when you try to install, or you can find the setting under "Settings / System / Add-ons".
+**Method 1**
+In Kodi select "Add-ons / Install from zip file" and select the .zip file you downloaded from its location on your machine. Since the add-on isn't in Kodi's official repository, you will first have to allow the installation of add-ons from unknown sources. Kodi should prompt for this when you try to install, or you can find the setting under "Settings / System / Add-ons".
 
-or 2) You can alternatively extract the "script.service.howl" folder from the .zip file you downloaded, and place it in Kodi's "addons" directory. See [this page](https://kodi.wiki/view/Kodi_data_folder) for where to find that directory on different platforms. (Re)start Kodi and the add-on should be available. It will probably be marked as disabled initially, but you can enable it in the next step.
+**Method 2**
+You can alternatively extract the "script.service.howl" folder from the .zip file you downloaded, and place it in Kodi's "addons" directory. See [this page](https://kodi.wiki/view/Kodi_data_folder) for where to find that directory on different platforms. (Re)start Kodi and the add-on should be available. It will probably be marked as disabled initially, but you can enable it in the next step.
 
 Please note that Kodi version 19 (Matrix) or higher is required to install Howl Sync.
 
@@ -441,12 +445,13 @@ HWL conversion is done using a Python script on a PC, which is checked in to thi
 2) Make a folder wherever you want the HWL converter to live. Download the "hwl.py" script and put it in inside your new folder. Make another folder called "audio", also inside your new folder. It should look similar to the following.
 ![Converter folder](https://i.imgur.com/lKmucPG.png)
 3) Launch "Anaconda Prompt" (under "Anaconda" on the start menu).
-4) In the Anaconda prompt, run the command `conda create -n hwl python numpy aubio` This should create a new conda environment called "hwl" with all the dependencies that the converter script needs installed.
+4) In the Anaconda prompt, run the command `conda config --add channels conda-forge` This allows conda to fetch packages from the conda-forge community repository (needed for Aubio).
+5) In the Anaconda prompt, run the command `conda create -n hwl python numpy aubio` This should create a new conda environment called "hwl" with all the dependencies that the converter script needs installed.
 
 After installing, do the following whenever you want to run the converter script.
 1) Put all the audio files you want to convert inside the "audio" folder you created earlier (this is where the script looks by default for audio files to convert). Currently it will convert .mp3 .flac and .wav files.
 2) Launch "Anaconda Prompt" (under "Anaconda" on the start menu).
-3) In the Anaconda prompt, run the command `activate hwl`
+3) In the Anaconda prompt, run the command `conda activate hwl`
 4) Run the command `cd "[path to the script folder you created earlier]"` e.g. `cd "c:\users\your_username\documents\hwl"` if you placed the script in a folder called "hwl" in your documents directory.
 5) Run the command `python hwl.py`
 6) You should see various output from the converter script as it runs and converts your audio files.
