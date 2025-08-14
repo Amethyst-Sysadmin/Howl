@@ -18,9 +18,9 @@ All features take advantage of the full capabilities of the Coyote 3, sending fr
 
 ## Installation
 
-A pre-built APK file for the latest version can be <a href="releases/latest/download/howl.apk">found here</a>. You simply need to install the APK file on your Android device.
+A pre-built APK file for the latest version can be <a href="https://github.com/Amethyst-Sysadmin/Howl/releases/latest/download/howl.apk">found here</a>. You simply need to install the APK file on your Android device.
 
-Additional downloads, including older versions and the Kodi add-on, may be found on the main <a href="releases/">Releases page</a>.
+Additional downloads, including older versions and the Kodi add-on, may be found on the main <a href="https://github.com/Amethyst-Sysadmin/Howl/releases">Releases page</a>.
 
 ## Device support
 
@@ -370,7 +370,7 @@ Kodi add-on features: -
 
 ### Howl Sync installation
 
-Obtain the latest Kodi add-on ("howl_sync.zip") from the <a href="releases/">Releases page</a>. You can install this in Kodi in either of two ways.
+Obtain the latest Kodi add-on ("howl_sync.zip") from the <a href="https://github.com/Amethyst-Sysadmin/Howl/releases">Releases page</a>. You can install this in Kodi in either of two ways.
 
 **Method 1**
 In Kodi select "Add-ons / Install from zip file" and select the .zip file you downloaded from its location on your machine. Since the add-on isn't in Kodi's official repository, you will first have to allow the installation of add-ons from unknown sources. Kodi should prompt for this when you try to install, or you can find the setting under "Settings / System / Add-ons".
