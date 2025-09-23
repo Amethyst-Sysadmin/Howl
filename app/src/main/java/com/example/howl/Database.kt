@@ -38,6 +38,8 @@ data class SavedSettings(
     val specialEffectsEnabled: Boolean = false,
     val frequencyInversionA: Boolean = false,
     val frequencyInversionB: Boolean = false,
+    val scaleAmplitudeA: Float = 1.0f,
+    val scaleAmplitudeB: Float = 1.0f,
     var frequencyFeel: Float = 1.0f,
     val amplitudeNoiseSpeed: Float = 5.0f,
     val amplitudeNoiseAmount: Float = 0.0f,
@@ -60,6 +62,12 @@ data class SavedSettings(
     val powerStepSizeB: Int = 1,
     val powerAutoIncrementDelayA: Int = 120,
     val powerAutoIncrementDelayB: Int = 120,
+    //Output options
+    val audioCarrierType: CarrierWaveType = CarrierWaveType.SINE,
+    val audioEnvelopeType: EnvelopeType = EnvelopeType.SINE2,
+    val audioPhaseType: PhaseType = PhaseType.INDEPENDENT,
+    val audioCarrierFrequency: Int = 690,
+    val audioAllowHighFrequencyCarrier: Boolean = false,
 )
 
 @Dao
@@ -74,7 +82,7 @@ interface SavedSettingsDao {
 
 @Database(
     entities = [SavedSettings::class],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class HowlDatabase : RoomDatabase() {

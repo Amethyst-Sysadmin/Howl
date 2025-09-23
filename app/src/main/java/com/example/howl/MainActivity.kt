@@ -15,6 +15,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -39,26 +42,27 @@ class MainActivity : ComponentActivity() {
                 val playerViewModel: PlayerViewModel = viewModel()
                 val generatorViewModel: GeneratorViewModel = viewModel()
                 val activityHostViewModel: ActivityHostViewModel = viewModel()
-                val coyoteParametersViewModel: CoyoteParametersViewModel = viewModel()
-                LaunchedEffect(true) {
-                    val androidVersion = Build.VERSION.RELEASE
-                    val androidSDK = Build.VERSION.SDK_INT
-                    HLog.d("Howl", "Howl $howlVersion running on Android $androidVersion (SDK $androidSDK)")
-                    DataRepository.loadSettings()
-                    if (DataRepository.miscOptionsState.value.remoteAccess)
-                        RemoteControlServer.start()
+                val settingsViewModel: SettingsViewModel = viewModel()
+                var isInitialised by rememberSaveable { mutableStateOf(false) }
+
+                LaunchedEffect(Unit) {
+                    if (!isInitialised) {
+                        isInitialised = true
+                        val androidVersion = Build.VERSION.RELEASE
+                        val androidSDK = Build.VERSION.SDK_INT
+                        HLog.d("Howl", "Howl $howlVersion running on Android $androidVersion (SDK $androidSDK)")
+                        DataRepository.loadSettings()
+                        Player.switchOutput(DataRepository.outputState.value.outputType)
+                        if (DataRepository.miscOptionsState.value.remoteAccess)
+                            RemoteControlServer.start()
+                    }
                 }
+
                 Generator.initialise()
                 Player.initialise(context = this)
-                DGCoyote.initialise(context = this,
+                BluetoothHandler.initialise(context = this,
                     onConnectionStatusUpdate = { DataRepository.setCoyoteConnectionStatus(it) },
-                    onBatteryLevelUpdate = { DataRepository.setCoyoteBatteryLevel(it) },
-                    onPowerLevelUpdate = { channel:Int, power:Int ->
-                        if(channel == 0)
-                            DataRepository.setChannelAPower(power)
-                        else if (channel == 1)
-                            DataRepository.setChannelBPower(power)
-                    } )
+                    )
 
                 val connectionStatus by DataRepository.coyoteConnectionStatus.collectAsStateWithLifecycle()
                 val batteryPercent by DataRepository.coyoteBatteryLevel.collectAsStateWithLifecycle()
@@ -67,7 +71,7 @@ class MainActivity : ComponentActivity() {
                     bottomBar = {
                         ConnectionStatusBar(connectionStatus,
                             batteryPercent,
-                            { DGCoyote.connect(DataRepository.coyoteParametersState.value) },
+                            { BluetoothHandler.attemptConnection() },
                             modifier = Modifier.navigationBarsPadding()
                         )
                     }
@@ -84,10 +88,9 @@ class MainActivity : ComponentActivity() {
                         TabLayout (
                             tabLayoutViewModel = tabLayoutViewModel,
                             playerViewModel = playerViewModel,
-                            coyoteParametersViewModel = coyoteParametersViewModel,
+                            settingsViewModel = settingsViewModel,
                             generatorViewModel = generatorViewModel,
                             activityHostViewModel = activityHostViewModel,
-                            frequencyRange = mainOptionsViewModel.mainOptionsState.collectAsStateWithLifecycle().value.frequencyRange
                         )
                     }
                 }

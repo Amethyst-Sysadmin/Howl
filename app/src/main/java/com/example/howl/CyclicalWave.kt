@@ -6,7 +6,7 @@ import kotlin.math.floor
 import kotlin.math.sin
 import kotlin.random.Random
 
-class CyclicalWave(private val shape: WaveShape) {
+class CyclicalWave(val shape: WaveShape) {
     val name: String get() = shape.name
     val numPoints: Int get() = shape.points.count()
     init {
@@ -19,15 +19,15 @@ class CyclicalWave(private val shape: WaveShape) {
     fun getPositionAndVelocity(simulationTime: Double): Pair<Double, Double> {
         val phase = simulationTime % 1.0
         val (previousPoint, nextPoint) = findSurroundingPoints(phase)
-        return when (shape.interpolationType) {
+        val (position, velocity) = when (shape.interpolationType) {
             InterpolationType.HERMITE -> hermiteInterpolateWithVelocity(
                 t = phase,
                 t0 = previousPoint.time,
                 p0 = previousPoint.position,
-                m0 = previousPoint.slope,
+                m0 = previousPoint.slope!!,
                 t1 = nextPoint.time,
                 p1 = nextPoint.position,
-                m1 = nextPoint.slope
+                m1 = nextPoint.slope!!
             )
             InterpolationType.LINEAR -> linearInterpolateWithVelocity(
                 t = phase,
@@ -37,19 +37,20 @@ class CyclicalWave(private val shape: WaveShape) {
                 p1 = nextPoint.position
             )
         }
+        return Pair(position.coerceIn(0.0, 1.0), velocity)
     }
     fun getPosition(simulationTime: Double): Double {
         val phase = simulationTime % 1.0
         val (previousPoint, nextPoint) = findSurroundingPoints(phase)
-        return when (shape.interpolationType) {
+        val position = when (shape.interpolationType) {
             InterpolationType.HERMITE -> hermiteInterpolate(
                 t = phase,
                 t0 = previousPoint.time,
                 p0 = previousPoint.position,
-                m0 = previousPoint.slope,
+                m0 = previousPoint.slope!!,
                 t1 = nextPoint.time,
                 p1 = nextPoint.position,
-                m1 = nextPoint.slope
+                m1 = nextPoint.slope!!
             )
             InterpolationType.LINEAR -> linearInterpolate(
                 t = phase,
@@ -59,6 +60,7 @@ class CyclicalWave(private val shape: WaveShape) {
                 p1 = nextPoint.position
             )
         }
+        return position.coerceIn(0.0, 1.0)
     }
     private fun findSurroundingPoints(
         phase: Double
@@ -87,6 +89,39 @@ class CyclicalWave(private val shape: WaveShape) {
     }
     private fun WavePoint.withTimeWrappedForwards() = copy(time = time + 1.0)
     private fun WavePoint.withTimeWrappedBackwards() = copy(time = time - 1.0)
+}
+
+fun CyclicalWave.createRepeatedWave(repeats: Int, newName: String): CyclicalWave {
+    require(repeats > 0) { "Repeats must be positive" }
+
+    val newPoints = mutableListOf<WavePoint>()
+    val timeScale = 1.0 / repeats
+
+    for (i in 0 until repeats) {
+        val timeOffset = i * timeScale
+        for (point in this.shape.points) {
+            val newTime = point.time * timeScale + timeOffset
+            if (newTime < 1.0) {
+                // Scale the slope by the time compression factor
+                val newSlope = point.slope?.let { it * repeats }
+                newPoints.add(WavePoint(newTime, point.position, newSlope))
+            }
+        }
+    }
+
+    // Ensure we have at least 2 points
+    if (newPoints.size < 2) {
+        // Fallback: add the first point again at the end if needed
+        newPoints.add(WavePoint(1.0 - SMALL_AMOUNT, newPoints.first().position, newPoints.first().slope))
+    }
+
+    return CyclicalWave(
+        WaveShape(
+            name = newName,
+            points = newPoints.sortedBy { it.time },
+            interpolationType = this.shape.interpolationType
+        )
+    )
 }
 
 class VarianceHandler(

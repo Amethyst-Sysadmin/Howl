@@ -385,10 +385,10 @@ class MilkerActivity : Activity() {
 class ChaosActivity : Activity() {
     val freqRange = 0.0..1.0
     val ampRange = 0.0..1.0
-    val randomiseEveryCyclesChangeSecsRange = 10.0..30.0
-    val randomiseEveryCyclesRange = 1..10
-    var randomiseEveryCycles = 1
-    var cycleCounter = 0
+    val randomisePulseTimeSecsRange = 10.0..30.0
+    val pulseTimeRange = 0.025..0.25
+    var pulseTime = 0.025
+    var pulseTimeCounter = 0.0
     var ampA = 0.0
     var ampB = 0.0
     var freqA = 0.0
@@ -396,7 +396,7 @@ class ChaosActivity : Activity() {
 
     override fun initialise() {
         randomise()
-        randomiseEveryCyclesChange()
+        randomisePulseTime()
     }
 
     fun randomise() {
@@ -406,20 +406,20 @@ class ChaosActivity : Activity() {
         freqB = randomInRange(freqRange)
     }
 
-    fun randomiseEveryCyclesChange() {
-        randomiseEveryCycles = randomInRange(randomiseEveryCyclesRange)
-        val nextChangeSecs = randomInRange(randomiseEveryCyclesChangeSecsRange)
-        timerManager.addTimer("randomiseEveryCyclesChange", nextChangeSecs) {
-            randomiseEveryCyclesChange()
+    fun randomisePulseTime() {
+        pulseTime = randomInRange(pulseTimeRange)
+        val nextChangeSecs = randomInRange(randomisePulseTimeSecsRange)
+        timerManager.addTimer("randomisePulseTime", nextChangeSecs) {
+            randomisePulseTime()
         }
     }
 
     override fun runSimulation(deltaSimulationTime: Double) {
         super.runSimulation(deltaSimulationTime)
-        cycleCounter += 1
-        if (cycleCounter >= randomiseEveryCycles) {
-            cycleCounter = 0
+        pulseTimeCounter += deltaSimulationTime
+        if(pulseTimeCounter > pulseTime) {
             randomise()
+            pulseTimeCounter -= pulseTime
         }
     }
 
@@ -1258,4 +1258,213 @@ class SimplexTurboActivity : BaseSimplexActivity() {
     override val changeRateRange = 0.2..0.5
     override val ampRadius = 0.6
     override val freqRadius = 0.3
+}
+
+class RelentlessActivity : Activity() {
+    val waveManager: WaveManager = WaveManager()
+    val iterationSecsRange = 1.0..30.0
+    val speedRange = 0.2..0.4
+    val speedBias = 2.5
+    val frequencyRange = 0.0..1.0
+    val wavePowerRange = 0.8..0.95
+    val repeatOptions = listOf(1, 2, 3, 4)
+    var currentSpeed = randomInRange(speedRange, speedBias)
+    var currentFrequencyA = randomInRange(frequencyRange)
+    var currentFrequencyB = randomInRange(frequencyRange)
+    var swapChannels = Random.nextBoolean()
+
+    override fun initialise() {
+        nextIteration()
+    }
+
+    fun createRandomWaveShape(): WaveShape {
+        val hasHold = Random.nextDouble() < 0.3 // chance of having a hold period
+        val splitAttack = Random.nextDouble() < 0.5 // chance to split attack into two segments
+        val splitDecay = Random.nextDouble() < 0.5 // chance to split decay into two segments
+        val points = mutableListOf<WavePoint>()
+        val peak = randomInRange(wavePowerRange)
+
+        // Calculate phase weights
+        val attackWeight = randomInRange(0.5..3.0)
+        val decayWeight = randomInRange(0.5..3.0)
+        val holdWeight = if (hasHold) randomInRange(0.25..1.5) else 0.0
+        val totalWeight = attackWeight + decayWeight + holdWeight
+        val attackProportion = attackWeight / totalWeight
+        val decayProportion = decayWeight / totalWeight
+        val holdProportion = holdWeight / totalWeight
+
+        var currentX = 0.0
+        // Start point
+        points.add(WavePoint(currentX, 0.0))
+        // Attack phase
+        if (splitAttack) {
+            val splitRatio = randomInRange(0.3..0.7)
+            val midX = currentX + attackProportion * splitRatio
+            val midY = peak * randomInRange(0.2..0.8)
+            points.add(WavePoint(midX, midY))
+        }
+        currentX += attackProportion
+        points.add(WavePoint(currentX, peak))
+        // Hold phase (if any)
+        if (hasHold) {
+            currentX += holdProportion
+            points.add(WavePoint(currentX, peak))
+        }
+        // Decay phase
+        if (splitDecay) {
+            val splitRatio = randomInRange(0.3..0.7)
+            val midX = currentX + decayProportion  * splitRatio
+            val midY = peak * randomInRange(0.2..0.8)
+            points.add(WavePoint(midX, midY))
+        }
+        // We do not need to explicitly specify the final section of the decay since our wave shapes
+        // are assumed to be cyclical and will automatically interpolate back to the starting point
+
+        return WaveShape(
+            name = "randomWave",
+            points = points,
+            interpolationType = InterpolationType.HERMITE
+        )
+    }
+
+    fun nextIteration() {
+        currentSpeed = randomInRange(speedRange, speedBias)
+        currentFrequencyA = randomInRange(frequencyRange)
+        currentFrequencyB = randomInRange(frequencyRange)
+        swapChannels = Random.nextBoolean()
+
+        val longWave = CyclicalWave(createRandomWaveShape())
+        //val longWave = randomLongWave()
+        //val longWave = testWave()
+        val repeats = repeatOptions.random()
+        val shortWave = longWave.createRepeatedWave(repeats, "shortWave")
+
+        waveManager.addWave(longWave, name = "longWave")
+        waveManager.addWave(shortWave, name = "shortWave")
+
+        waveManager.setSpeed(currentSpeed)
+        waveManager.restart()
+        val nextIterationSecs = randomInRange(iterationSecsRange)
+        timerManager.addTimer("nextIteration", nextIterationSecs) {
+            waveManager.stopAtEndOfCycle { nextIteration() }
+        }
+    }
+
+    override fun runSimulation(deltaSimulationTime: Double) {
+        super.runSimulation(deltaSimulationTime)
+        waveManager.update(deltaSimulationTime)
+    }
+
+    override fun getPulse(): Pulse {
+        val longAmp = waveManager.getPosition("longWave")
+        val shortAmp = waveManager.getPosition("shortWave")
+
+        val (ampA, ampB) = if (swapChannels) {
+            Pair(longAmp, shortAmp)
+        } else {
+            Pair(shortAmp, longAmp)
+        }
+
+        return Pulse(
+            freqA = currentFrequencyA.toFloat(),
+            freqB = currentFrequencyB.toFloat(),
+            ampA = ampA.toFloat(),
+            ampB = ampB.toFloat()
+        )
+    }
+}
+
+class RandomShapesActivity : Activity() {
+    val waveManager: WaveManager = WaveManager()
+    val iterationSecsRange = 10.0..40.0
+    val speedRange = 0.2..0.8
+    val speedBias = 1.8
+    val frequencyRange = 0.0..1.0
+    var currentSpeed = randomInRange(speedRange, speedBias)
+    var currentFrequencyA = randomInRange(frequencyRange)
+    var currentFrequencyB = randomInRange(frequencyRange)
+    var swapChannels = Random.nextBoolean()
+    val wavePointsRange = 2..5
+
+    override fun initialise() {
+        nextIteration()
+    }
+
+    fun createRandomWaveShape(numPoints: Int): WaveShape {
+        val points = mutableListOf<WavePoint>()
+        val times = mutableListOf<Double>()
+        val maxPower = 0.95
+        val powerLowerBound = 0.8
+        val minTimeSpacing = 0.05
+
+        times.add(0.0)
+        times.add(1.0)
+
+        repeat(numPoints) {
+            var t: Double
+            do {
+                t = randomInRange(0.0..TMAX)
+            } while (times.any { abs(it - t) < minTimeSpacing })
+
+            times.add(t)
+            val pos = randomInRange(0.0..maxPower)
+            points.add(WavePoint(t, pos))
+        }
+
+        val allBelowThreshold = points.all { it.position < powerLowerBound }
+        if (allBelowThreshold) {
+            // Select a random point and set it to a position in powerLowerBound..maxPower
+            val randomIndex = (0 until numPoints).random()
+            val newPosition = randomInRange(powerLowerBound..maxPower)
+            points[randomIndex] = WavePoint(points[randomIndex].time, newPosition)
+        }
+
+        points.add(WavePoint(0.0,0.0))
+
+        return WaveShape(
+            name = "randomWave",
+            points = points,
+            interpolationType = InterpolationType.HERMITE
+        )
+    }
+
+    fun nextIteration() {
+        currentSpeed = randomInRange(speedRange, speedBias)
+        currentFrequencyA = randomInRange(frequencyRange)
+        currentFrequencyB = randomInRange(frequencyRange)
+        swapChannels = Random.nextBoolean()
+
+        val waveAPoints = randomInRange(wavePointsRange)
+        val waveBPoints = randomInRange(wavePointsRange)
+
+        val waveA = CyclicalWave(createRandomWaveShape(waveAPoints))
+        val waveB = CyclicalWave(createRandomWaveShape(waveBPoints))
+
+        waveManager.addWave(waveA, name = "waveA")
+        waveManager.addWave(waveB, name = "waveB")
+
+        waveManager.setSpeed(currentSpeed)
+        waveManager.restart()
+        val nextIterationSecs = randomInRange(iterationSecsRange)
+        timerManager.addTimer("nextIteration", nextIterationSecs) {
+            waveManager.stopAtEndOfCycle { nextIteration() }
+        }
+    }
+
+    override fun runSimulation(deltaSimulationTime: Double) {
+        super.runSimulation(deltaSimulationTime)
+        waveManager.update(deltaSimulationTime)
+    }
+
+    override fun getPulse(): Pulse {
+        val ampA = waveManager.getPosition("waveA")
+        val ampB = waveManager.getPosition("waveB")
+
+        return Pulse(
+            freqA = currentFrequencyA.toFloat(),
+            freqB = currentFrequencyB.toFloat(),
+            ampA = ampA.toFloat(),
+            ampB = ampB.toFloat()
+        )
+    }
 }

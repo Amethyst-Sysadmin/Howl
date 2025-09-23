@@ -78,8 +78,8 @@ class MainOptionsViewModel() : ViewModel() {
         DataRepository.setSwapChannels(swap)
     }
 
-    fun setFrequencyRange(range: ClosedFloatingPointRange<Float>) {
-        DataRepository.setFrequencyRange(range)
+    fun setFrequencyRangeSelectedSubset(range: ClosedFloatingPointRange<Float>) {
+        DataRepository.setFrequencyRangeSelectedSubset(range)
     }
 
     fun cyclePulseChart() {
@@ -229,27 +229,23 @@ fun MainOptionsPanel(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = "${mainOptionsState.frequencyRange.start.roundToInt()}Hz", modifier = modifier.widthIn(40.dp), style = MaterialTheme.typography.labelMedium)
+            Text(text = "${mainOptionsState.minFrequency}Hz", modifier = modifier.widthIn(40.dp), style = MaterialTheme.typography.labelMedium)
             RangeSlider(
                 modifier = Modifier.weight(1f),
-                value = mainOptionsState.frequencyRange,
-                steps = 0, //there's a crash due to an Android bug if we set the steps we actually want
-                //steps = (DGCoyote.FREQUENCY_RANGE.endInclusive - DGCoyote.FREQUENCY_RANGE.start) - 1,
-                //make it continuous and round to integer values in onValueChange instead as a workaround
+                value = mainOptionsState.frequencyRangeSelectedSubset,
+                steps = 0, // there's a crash due to an Android bug if we set the steps we actually want
+                // https://issuetracker.google.com/issues/324934900
+                // make it continuous and round in onValueChange instead as a workaround
+                //onValueChange = { viewModel.setFrequencyRangeSelectedSubset(it) },
                 onValueChange = { newRange ->
-                    val newStart = newRange.start
-                    val newEnd = newRange.endInclusive
-                    if (newEnd - newStart >= minSeparation) {
-                        viewModel.setFrequencyRange(
-                            newRange.start.roundToInt()
-                                .toFloat()..newRange.endInclusive.roundToInt().toFloat()
-                        )
+                    if (newRange.endInclusive - newRange.start >= 0.05) {
+                        viewModel.setFrequencyRangeSelectedSubset(newRange)
                     }
                 },
-                valueRange = DGCoyote.FREQUENCY_RANGE.toClosedFloatingPointRange(),
+                valueRange = 0.0f..1.0f,
                 onValueChangeFinished = { },
             )
-            Text(text = "${mainOptionsState.frequencyRange.endInclusive.roundToInt()}Hz", modifier = modifier.widthIn(40.dp), style = MaterialTheme.typography.labelMedium)
+            Text(text = "${mainOptionsState.maxFrequency}Hz", modifier = modifier.widthIn(40.dp), style = MaterialTheme.typography.labelMedium)
         }
         when (mainOptionsState.pulseChartMode) {
             PulseChartMode.Combined -> {
@@ -344,95 +340,6 @@ fun PowerLevelPanel(
                 }
             }
         }
-    }
-}
-
-/*@Composable
-fun PowerLevelMeter(
-    powerLevel: Float,
-    barColor: Color,
-) {
-    val clampedLevel = powerLevel.coerceIn(0f, 1f)
-    Box(
-        modifier = Modifier
-            .width(5.dp)
-            .fillMaxHeight(),
-        contentAlignment = Alignment.BottomCenter
-    ) {
-        if (clampedLevel > 0f) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight(clampedLevel)
-                    .background(barColor)
-            )
-        }
-    }
-}*/
-
-@Composable
-fun PowerLevelMeter(
-    powerLevel: Float,
-    barColor: Color,
-) {
-    val clampedLevel = powerLevel.coerceIn(0f, 1f)
-    Box(
-        modifier = Modifier
-            .width(12.dp)
-            .fillMaxHeight()
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outline,
-                shape = MaterialTheme.shapes.extraSmall
-            )
-            .padding(1.dp)
-            .drawBehind {
-                if (clampedLevel > 0f) {
-                    val barHeight = size.height * clampedLevel
-                    drawRect(
-                        color = barColor,
-                        topLeft = Offset(0f, size.height - barHeight),
-                        size = Size(size.width, barHeight)
-                    )
-                }
-            }
-    )
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-fun LongPressButton(
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(16.dp),
-    content: @Composable RowScope.() -> Unit
-) {
-    Surface(
-        modifier = modifier
-            .clip(shape)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick,
-                indication = ripple(),
-                interactionSource = remember { MutableInteractionSource() }
-            ),
-        color = MaterialTheme.colorScheme.primary,
-        contentColor = MaterialTheme.colorScheme.onPrimary,
-        /*color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,*/
-        shape = shape,
-        tonalElevation = 2.dp,
-        shadowElevation = 4.dp
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-            content = content
-        )
     }
 }
 

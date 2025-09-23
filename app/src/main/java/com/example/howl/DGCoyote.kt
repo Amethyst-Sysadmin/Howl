@@ -1,6 +1,6 @@
 package com.example.howl
 
-import android.bluetooth.BluetoothDevice
+/*import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothManager
 import android.content.Context
@@ -50,13 +50,6 @@ enum class ConnectionStage {
     SyncParameters,
     Connected
 }
-
-data class Pulse (
-    val ampA: Float = 0.0f,
-    val ampB: Float = 0.0f,
-    val freqA: Float = 0.0f,
-    val freqB: Float = 0.0f
-)
 
 @Suppress("DEPRECATION")
 object DGCoyote {
@@ -570,3 +563,4 @@ object DGCoyote {
         runConnectionProcess()
     }
 }
+*/

@@ -2,14 +2,17 @@ package com.example.howl
 
 import android.util.Log
 import kotlin.math.abs
+import kotlin.math.hypot
 import kotlin.math.pow
+import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 import kotlin.math.sqrt
 import kotlin.random.Random
 
 data class WavePoint(
     val time: Double,
     val position: Double,
-    val slope: Double
+    val slope: Double? = null
 )
 
 enum class InterpolationType {
@@ -26,11 +29,100 @@ enum class FrequencyInterpolationType {
 }
 
 
-data class WaveShape(
+class WaveShape(
+    val name: String,
+    points: List<WavePoint>,
+    val interpolationType: InterpolationType = InterpolationType.HERMITE
+) {
+    val points: List<WavePoint>
+
+    init {
+        require(points.all { it.time in 0.0..<1.0 }) { "All times must be in [0.0, 1.0)" }
+        val sortedPoints = points.sortedBy { it.time }.distinctBy { it.time }
+        require(sortedPoints.size >= 2) { "Shape must contain at least two unique points" }
+
+
+        this.points = when (interpolationType) {
+            InterpolationType.HERMITE -> {
+                // For hermite, use provided slopes if available, otherwise compute monotone slopes
+                if (sortedPoints.all { it.slope != null }) {
+                    sortedPoints // All slopes provided, use as-is
+                } else {
+                    // Some slopes are null, compute monotone slopes and fill them in
+                    val slopes = computeMonotoneSlopes(sortedPoints)
+                    sortedPoints.mapIndexed { i, pt ->
+                        pt.copy(slope = pt.slope ?: slopes[i])
+                    }
+                }
+            }
+            InterpolationType.LINEAR -> {
+                // Slopes are not used for linear interpolation
+                sortedPoints
+            }
+        }
+    }
+
+    private fun computeMonotoneSlopes(points: List<WavePoint>): List<Double> {
+        val n = points.size
+        val slopes = MutableList(n) { 0.0 }
+
+        // Calculate secants between points, including the cyclical wrap-around
+        val d = DoubleArray(n)
+        for (i in 0 until n) {
+            val nextIndex = if (i == n - 1) 0 else i + 1
+            val h = if (i == n - 1)
+                (1.0 + points[nextIndex].time) - points[i].time  // Wrap around
+            else
+                points[nextIndex].time - points[i].time
+
+            val deltaPos = if (i == n - 1)
+                points[nextIndex].position - points[i].position
+            else
+                points[nextIndex].position - points[i].position
+
+            d[i] = deltaPos / h
+        }
+
+        // Initialize slopes using the Fritsch-Carlson method
+        for (i in 0 until n) {
+            val prevIndex = if (i == 0) n - 1 else i - 1
+            val nextIndex = if (i == n - 1) 0 else i + 1
+
+            if (d[prevIndex] * d[i] <= 0.0) {
+                slopes[i] = 0.0
+            } else {
+                slopes[i] = (d[prevIndex] + d[i]) / 2.0
+            }
+        }
+
+        // Fritsch–Carlson adjustment to ensure monotonicity
+        for (i in 0 until n) {
+            val nextIndex = if (i == n - 1) 0 else i + 1
+
+            if (d[i] == 0.0) {
+                slopes[i] = 0.0
+                slopes[nextIndex] = 0.0
+            } else {
+                val a = slopes[i] / d[i]
+                val b = slopes[nextIndex] / d[i]
+                val h = hypot(a, b)
+                if (h > 9.0) {
+                    val t = 3.0 / h
+                    slopes[i] = t * a * d[i]
+                    slopes[nextIndex] = t * b * d[i]
+                }
+            }
+        }
+
+        return slopes
+    }
+}
+
+/*data class WaveShape(
     val name: String,
     val points: List<WavePoint>,
     val interpolationType: InterpolationType = InterpolationType.HERMITE
-)
+)*/
 
 data class Quadruple<T1, T2, T3, T4>(
     val first: T1,
@@ -38,6 +130,32 @@ data class Quadruple<T1, T2, T3, T4>(
     val third: T3,
     val fourth: T4
 )
+
+fun lerp(start: Double, end: Double, fraction: Double): Double {
+    return start + (end - start) * fraction
+}
+
+fun lerp(start: Float, end: Float, fraction: Float): Float {
+    return start + (end - start) * fraction
+}
+
+fun lerp(start: Int, end: Int, fraction: Double): Int {
+    return (start + (end - start) * fraction).roundToInt()
+}
+
+fun lerp(start: Long, end: Long, fraction: Double): Long {
+    return (start + (end - start) * fraction).roundToLong()
+}
+
+fun ClosedRange<Double>.lerp(fraction: Double): Double = lerp(start, endInclusive, fraction)
+fun ClosedRange<Float>.lerp(fraction: Float): Float = lerp(start, endInclusive, fraction)
+fun ClosedRange<Int>.lerp(fraction: Double): Int = lerp(start, endInclusive, fraction)
+fun ClosedRange<Long>.lerp(fraction: Double): Long = lerp(start, endInclusive, fraction)
+
+fun IntRange.toProportionOf(parent: IntRange): ClosedFloatingPointRange<Float> {
+    val parentSize = (parent.last - parent.first).toFloat()
+    return ((this.first - parent.first) / parentSize)..((this.last - parent.first) / parentSize)
+}
 
 fun Float.roughlyEqual(other: Float) : Boolean {
     return (abs(this-other) < 1e-6)
@@ -56,8 +174,48 @@ fun Double.scaleBetween(range: ClosedRange<Double>): Double {
     return (a + (b - a) * this).coerceIn(minOf(a, b), maxOf(a, b))
 }
 
+fun Float.scaleBetween(range: ClosedRange<Double>): Double {
+    val (a, b) = range.start to range.endInclusive
+    return (a + (b - a) * this).coerceIn(minOf(a, b), maxOf(a, b))
+}
+
 val ClosedRange<Double>.toFloatRange: ClosedFloatingPointRange<Float>
     get() = this.start.toFloat()..this.endInclusive.toFloat()
+
+// Helper extension function to clamp an IntRange to another range while enforcing minimum separation
+fun IntRange.clamp(bounds: IntRange, minSep: Int): IntRange {
+    require(minSep >= 0) { "minSep must be non-negative" }
+
+    // First, clamp start and end within bounds
+    var start = start.coerceIn(bounds.first, bounds.last)
+    var end = endInclusive.coerceIn(bounds.first, bounds.last)
+
+    // Ensure start <= end
+    if (start > end) start = end
+
+    // Check if we already satisfy minSep
+    if (end - start >= minSep) {
+        return start..end
+    }
+
+    // Try to expand minimally while staying in bounds
+    val needed = minSep - (end - start)
+
+    // Option 1: expand end to the right
+    val expandRight = (end + needed).coerceAtMost(bounds.last)
+    if (expandRight - start >= minSep) {
+        return start..expandRight
+    }
+
+    // Option 2: expand start to the left
+    val expandLeft = (start - needed).coerceAtLeast(bounds.first)
+    if (end - expandLeft >= minSep) {
+        return expandLeft..end
+    }
+
+    // If neither works, fallback to full bounds
+    return bounds
+}
 
 fun randomInRange(range: ClosedRange<Double>, bias: Double = 1.0): Double {
     /*
@@ -430,43 +588,63 @@ class FrequencyConverter(
 }
 
 class CircularBuffer<T>(val capacity: Int): Iterable<T> {
-    private val buffer: Array<Any?>
+    private val buffer: Array<T?> = arrayOfNulls(capacity)
+
     private var start = 0
-    private var size = 0
+    var size = 0
+        private set
 
     init {
         require(capacity > 0) { "Capacity must be positive" }
-        buffer = arrayOfNulls(capacity)
     }
 
-    fun first(): T {
-        if (size == 0) throw NoSuchElementException("Buffer is empty")
-        @Suppress("UNCHECKED_CAST")
-        return buffer[start] as T
+    val isEmpty get() = size == 0
+    val isFull get() = size == capacity
+    fun first(): T? = if (isEmpty) null else buffer[start]
+    fun last(): T? = if (isEmpty) null else buffer[(start + size - 1) % capacity]
+
+    fun clear() {
+        start = 0
+        size = 0
+        buffer.fill(null) // Optional: Clear references to help garbage collection
     }
 
-    fun last(): T {
-        if (size == 0) throw NoSuchElementException("Buffer is empty")
-        @Suppress("UNCHECKED_CAST")
-        return buffer[(start + size - 1) % capacity] as T
-    }
-
-    fun add(element: T) {
-        if (size < capacity) {
-            buffer[(start + size) % capacity] = element
-            size++
-        } else {
+    fun add(element: T, overwrite: Boolean = false) {
+        if (isFull) {
+            if (!overwrite) {
+                throw IllegalStateException("Cannot perform add operation since buffer is full and overwrite=false")
+            }
             buffer[start] = element
             start = (start + 1) % capacity
+        } else {
+            buffer[(start + size) % capacity] = element
+            size++
         }
     }
 
-    fun toList(): List<T> {
-        return List(size) { i ->
-            @Suppress("UNCHECKED_CAST")
-            buffer[(start + i) % capacity] as T
-        }
+    fun addAll(elements: Collection<T>, overwrite: Boolean = false) {
+        elements.forEach { add(it, overwrite) }
     }
+
+    fun removeFirstOrNull(): T? {
+        if (isEmpty) return null
+        val element = buffer[start]
+        buffer[start] = null
+        start = (start + 1) % capacity
+        size--
+        return element
+    }
+
+    fun removeLastOrNull(): T? {
+        if (isEmpty) return null
+        val index = (start + size - 1) % capacity
+        val element = buffer[index]
+        buffer[index] = null
+        size--
+        return element
+    }
+
+    fun toList(): List<T> = List(size) { i -> buffer[(start + i) % capacity]!! }
 
     override fun toString(): String {
         return toList().toString()
@@ -482,8 +660,7 @@ class CircularBuffer<T>(val capacity: Int): Iterable<T> {
 
             override fun next(): T {
                 if (!hasNext()) throw NoSuchElementException()
-                @Suppress("UNCHECKED_CAST")
-                return buffer[(start + index++) % capacity] as T
+                return buffer[(start + index++) % capacity]!!
             }
         }
     }

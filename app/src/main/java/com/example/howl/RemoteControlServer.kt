@@ -1,5 +1,6 @@
 package com.example.howl
 
+import android.os.Looper
 import android.util.Log
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
@@ -10,6 +11,9 @@ import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.request.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -31,6 +35,8 @@ object RemoteControlServer {
     const val SERVER_PORT = 4695
     private var server: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
 
+    private val uiScope = CoroutineScope(Dispatchers.Main)
+
     fun start(port: Int = SERVER_PORT) {
         if (server != null) return
         HLog.d("RemoteControlServer","Starting remote control server")
@@ -44,20 +50,26 @@ object RemoteControlServer {
                     val body = call.receive<StartPlayerRequest>()
                     val from = body.from
                     HLog.d("RemoteControlServer", "Received command start_player($from)")
-                    Player.startPlayer(from)
+                    uiScope.launch {
+                        Player.startPlayer(from)
+                    }
                     call.respond(HttpStatusCode.OK, "started")
                 }
                 post("/seek") {
                     val body = call.receive<SeekRequest>()
                     val position = body.position
                     HLog.d("RemoteControlServer", "Received command seek($position)")
-                    Player.seek(position)
+                    uiScope.launch {
+                        Player.seek(position)
+                    }
                     call.respond(HttpStatusCode.OK, "seek")
                 }
                 post("/stop_player") {
                     call.receive<StopPlayerRequest>()
                     HLog.d("RemoteControlServer", "Received command stop_player")
-                    Player.stopPlayer()
+                    uiScope.launch {
+                        Player.stopPlayer()
+                    }
                     call.respond(HttpStatusCode.OK, "stopped")
                 }
                 post("/load_funscript") {
@@ -68,7 +80,9 @@ object RemoteControlServer {
                     try {
                         val pulseSource = FunscriptPulseSource()
                         pulseSource.loadFromString(funscript, title)
-                        Player.switchPulseSource(pulseSource)
+                        uiScope.launch {
+                            Player.switchPulseSource(pulseSource)
+                        }
                         call.respond(HttpStatusCode.OK, "funscript loaded")
                     }
                     catch (_: BadFileException) {

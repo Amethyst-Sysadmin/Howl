@@ -10,7 +10,12 @@ import kotlin.time.TimeMark
 import kotlin.Float
 
 const val showDeveloperOptions = false
-const val howlVersion = "0.5"
+const val howlVersion = "0.6 alpha 3"
+
+enum class OutputType(val displayName: String) {
+    COYOTE3("Coyote 3"),
+    AUDIO("Audio"),
+}
 
 object DataRepository {
     var database: HowlDatabase? = null
@@ -38,6 +43,9 @@ object DataRepository {
     private val _miscOptionsState = MutableStateFlow(MiscOptionsState())
     val miscOptionsState: StateFlow<MiscOptionsState> = _miscOptionsState.asStateFlow()
 
+    private val _outputState = MutableStateFlow(OutputState())
+    val outputState: StateFlow<OutputState> = _outputState.asStateFlow()
+
     private val _developerOptionsState = MutableStateFlow(DeveloperOptionsState())
     val developerOptionsState: StateFlow<DeveloperOptionsState> = _developerOptionsState.asStateFlow()
 
@@ -53,10 +61,10 @@ object DataRepository {
     private val _coyoteConnectionStatus = MutableStateFlow(ConnectionStatus.Disconnected)
     val coyoteConnectionStatus: StateFlow<ConnectionStatus> = _coyoteConnectionStatus.asStateFlow()
 
-    private val _coyoteParametersState = MutableStateFlow(DGCoyote.Parameters())
-    val coyoteParametersState: StateFlow<DGCoyote.Parameters> = _coyoteParametersState.asStateFlow()
+    private val _coyoteParametersState = MutableStateFlow(Coyote3Parameters())
+    val coyoteParametersState: StateFlow<Coyote3Parameters> = _coyoteParametersState.asStateFlow()
 
-    fun setCoyoteParametersState(newCoyoteParametersState: DGCoyote.Parameters) {
+    fun setCoyoteParametersState(newCoyoteParametersState: Coyote3Parameters) {
         _coyoteParametersState.update { newCoyoteParametersState }
     }
 
@@ -82,6 +90,10 @@ object DataRepository {
 
     fun setMiscOptionsState(newMiscOptionsState: MiscOptionsState) {
         _miscOptionsState.update { newMiscOptionsState }
+    }
+
+    fun setOutputState(newOutputState: OutputState) {
+        _outputState.update { newOutputState }
     }
 
     fun setDeveloperOptionsState(newDeveloperOptionsState: DeveloperOptionsState) {
@@ -122,8 +134,28 @@ object DataRepository {
         _mainOptionsState.update { it.copy(swapChannels = swap)}
     }
 
-    fun setFrequencyRange(range: ClosedFloatingPointRange<Float>) {
-        _mainOptionsState.update { it.copy(frequencyRange = range) }
+    fun setFrequencyRange(range: IntRange) {
+        _mainOptionsState.update { currentState ->
+            val minFreq = range.lerp(currentState.frequencyRangeSelectedSubset.start.toDouble())
+            val maxFreq = range.lerp(currentState.frequencyRangeSelectedSubset.endInclusive.toDouble())
+            currentState.copy(
+                frequencyRange = range,
+                minFrequency = minFreq,
+                maxFrequency = maxFreq
+            )
+        }
+    }
+
+    fun setFrequencyRangeSelectedSubset(range: ClosedFloatingPointRange<Float>) {
+        _mainOptionsState.update { currentState ->
+            val minFreq = currentState.frequencyRange.lerp(range.start.toDouble())
+            val maxFreq = currentState.frequencyRange.lerp(range.endInclusive.toDouble())
+            currentState.copy(
+                frequencyRangeSelectedSubset = range,
+                minFrequency = minFreq,
+                maxFrequency = maxFreq
+            )
+        }
     }
 
     fun setPlayerPosition(position: Double) {
@@ -139,9 +171,9 @@ object DataRepository {
     }
 
     fun addPulsesToHistory(newPulses: List<Pulse>) {
-        newPulses.forEach { _pulseHistoryBuffer.add(it) }
+        newPulses.forEach { _pulseHistoryBuffer.add(it, overwrite = true) }
         _pulseHistory.update { _pulseHistoryBuffer.toList() }
-        _lastPulse.update { _pulseHistoryBuffer.last() }
+        _lastPulse.update { _pulseHistoryBuffer.last()!! }
     }
 
     fun initialise(db: HowlDatabase) {
@@ -170,6 +202,8 @@ object DataRepository {
             specialEffectsEnabled = playerSpecialEffectsState.value.specialEffectsEnabled,
             frequencyInversionA = playerSpecialEffectsState.value.frequencyInversionA,
             frequencyInversionB = playerSpecialEffectsState.value.frequencyInversionB,
+            scaleAmplitudeA = playerSpecialEffectsState.value.scaleAmplitudeA,
+            scaleAmplitudeB = playerSpecialEffectsState.value.scaleAmplitudeB,
             frequencyFeel = playerSpecialEffectsState.value.frequencyFeel,
             amplitudeNoiseSpeed = playerSpecialEffectsState.value.amplitudeNoiseSpeed,
             amplitudeNoiseAmount = playerSpecialEffectsState.value.amplitudeNoiseAmount,
@@ -188,7 +222,12 @@ object DataRepository {
             powerStepSizeA = miscOptionsState.value.powerStepSizeA,
             powerStepSizeB = miscOptionsState.value.powerStepSizeB,
             powerAutoIncrementDelayA = miscOptionsState.value.powerAutoIncrementDelayA,
-            powerAutoIncrementDelayB = miscOptionsState.value.powerAutoIncrementDelayB
+            powerAutoIncrementDelayB = miscOptionsState.value.powerAutoIncrementDelayB,
+            audioCarrierType = outputState.value.audioCarrierType,
+            audioEnvelopeType = outputState.value.audioEnvelopeType,
+            audioPhaseType = outputState.value.audioPhaseType,
+            audioCarrierFrequency = outputState.value.audioCarrierFrequency,
+            audioAllowHighFrequencyCarrier = outputState.value.audioAllowHighFrequencyCarrier,
         )
         database?.savedSettingsDao()?.updateSettings(settings)
     }
@@ -198,7 +237,7 @@ object DataRepository {
         var settings = database?.savedSettingsDao()?.getSettings()
         if (settings==null)
             settings = SavedSettings()
-        setCoyoteParametersState(DGCoyote.Parameters(
+        setCoyoteParametersState(Coyote3Parameters(
             channelALimit = settings.channelALimit,
             channelBLimit = settings.channelBLimit,
             channelAIntensityBalance = settings.channelAIntensityBalance,
@@ -222,6 +261,8 @@ object DataRepository {
             specialEffectsEnabled = settings.specialEffectsEnabled,
             frequencyInversionA = settings.frequencyInversionA,
             frequencyInversionB = settings.frequencyInversionB,
+            scaleAmplitudeA = settings.scaleAmplitudeA,
+            scaleAmplitudeB = settings.scaleAmplitudeB,
             frequencyFeel = settings.frequencyFeel,
             amplitudeNoiseSpeed = settings.amplitudeNoiseSpeed,
             amplitudeNoiseAmount = settings.amplitudeNoiseAmount,
@@ -248,7 +289,23 @@ object DataRepository {
         setActivityState(activityState.value.copy(
             activityChangeProbability = settings.activityChangeProbability
         ))
+        setOutputState(outputState.value.copy(
+            audioCarrierType = settings.audioCarrierType,
+            audioEnvelopeType = settings.audioEnvelopeType,
+            audioPhaseType = settings.audioPhaseType,
+            audioCarrierFrequency = settings.audioCarrierFrequency,
+            audioAllowHighFrequencyCarrier = settings.audioAllowHighFrequencyCarrier,
+        ))
     }
+
+    data class OutputState(
+        val outputType: OutputType = OutputType.AUDIO,
+        val audioCarrierType: CarrierWaveType = CarrierWaveType.SINE,
+        val audioEnvelopeType: EnvelopeType = EnvelopeType.SINE2,
+        val audioPhaseType: PhaseType = PhaseType.INDEPENDENT,
+        val audioCarrierFrequency: Int = 690,
+        val audioAllowHighFrequencyCarrier: Boolean = false,
+    )
 
     data class ActivityState(
         val currentActivityDisplayName: String = "",
@@ -279,6 +336,8 @@ object DataRepository {
         val specialEffectsEnabled: Boolean = false,
         val frequencyInversionA: Boolean = false,
         val frequencyInversionB: Boolean = false,
+        val scaleAmplitudeA: Float = 1.0f,
+        val scaleAmplitudeB: Float = 1.0f,
         var frequencyFeel: Float = 1.0f,
         val amplitudeNoiseSpeed: Float = 5.0f,
         val amplitudeNoiseAmount: Float = 0.0f,
@@ -305,7 +364,10 @@ object DataRepository {
         val globalMute: Boolean = false,
         val autoIncreasePower: Boolean = false,
         val swapChannels: Boolean = false,
-        val frequencyRange: ClosedFloatingPointRange<Float> = 10f..100f,
+        val frequencyRange: IntRange = 100..1000,
+        val frequencyRangeSelectedSubset: ClosedFloatingPointRange<Float> = 0.0f..1.0f,
+        val minFrequency: Int = 100,
+        val maxFrequency: Int = 1000,
         val pulseChartMode: PulseChartMode = PulseChartMode.Off
     )
 

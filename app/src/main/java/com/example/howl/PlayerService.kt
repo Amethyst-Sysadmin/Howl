@@ -19,11 +19,16 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.DurationUnit
 import kotlin.time.toDuration
 import android.util.Log
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.time.Duration.Companion.seconds
 
 class PlayerService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var playerJob: Job? = null
+    private var smootherJob: Job? = null
+    private val pulseQueueMutex = Mutex()
+    private val pulseQueue = CircularBuffer<Pulse>(capacity = 100)
 
     companion object {
         const val NOTIFICATION_CHANNEL_ID = "PlayerServiceChannel"
@@ -35,6 +40,7 @@ class PlayerService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         //Log.d("PlayerService", "onStartCommand")
         startForegroundService()
+        startSmootherJob()
         startPlayerLoop()
         return START_STICKY
     }
@@ -72,6 +78,42 @@ class PlayerService : Service() {
             .build()
     }
 
+    private fun startSmootherJob() {
+        if (smootherJob?.isActive == true) return
+        Log.d("PlayerService", "Starting smoother job")
+        smootherJob = serviceScope.launch {
+            try {
+                while (isActive) {
+                    val pulse = pulseQueueMutex.withLock {
+                        pulseQueue.removeFirstOrNull()
+                    }
+                    if (pulse != null) {
+                        DataRepository.addPulsesToHistory(listOf(pulse))
+                        val waitTime = Player.output.pulseTime
+                        delay(waitTime.seconds)
+                    } else {
+                        delay(10) // Avoid busy waiting
+                    }
+                }
+            } catch (e: CancellationException) {
+                Log.d("PlayerService", "Smoother job cancelled")
+                // Normal cancellation
+            } catch (e: Exception) {
+                Log.d("PlayerService", "Smoother job exception")
+                // Log or handle exception
+            } finally {
+                pulseQueueMutex.withLock {
+                    if (!pulseQueue.isEmpty) {
+                        Log.d("PlayerService", "Adding ${pulseQueue.size} remaining pulses")
+                        val remainingPulses = pulseQueue.toList()
+                        DataRepository.addPulsesToHistory(remainingPulses)
+                        pulseQueue.clear()
+                    }
+                }
+            }
+        }
+    }
+
     private fun startPlayerLoop() {
         if (playerJob?.isActive == true) return
         HLog.d("PlayerService", "Starting foreground service loop")
@@ -80,6 +122,8 @@ class PlayerService : Service() {
                 while (isActive) {
                     val startTime = System.nanoTime()
                     //Log.d("PlayerService", "Player loop running in service, start time=$startTime")
+                    val output = Player.output
+                    val pulseBatchSize = output.pulseBatchSize
                     val playerState = DataRepository.playerState.value
                     val advancedControlState = DataRepository.playerAdvancedControlsState.value
                     if (!playerState.isPlaying) break
@@ -111,7 +155,35 @@ class PlayerService : Service() {
                     val times = Player.getNextTimes(currentPosition)
                     val pulses = times.map { Player.getPulseAtTime(it) }
 
-                    if (connected && !mainOptionsState.globalMute) {
+                    if (output.ready) {
+                        val pulsesToSend = when {
+                            !mainOptionsState.globalMute -> pulses
+                            output.sendSilenceWhenMuted -> List(pulseBatchSize) { Pulse() }
+                            else -> null
+                        }
+
+                        pulsesToSend?.let {
+                            output.sendPulses(
+                                mainOptionsState.channelAPower,
+                                mainOptionsState.channelBPower,
+                                mainOptionsState.minFrequency.toDouble(),
+                                mainOptionsState.maxFrequency.toDouble(),
+                                it
+                            )
+                        }
+                    }
+
+                    /*if (output.ready && !mainOptionsState.globalMute) {
+                        output.sendPulses(
+                            mainOptionsState.channelAPower,
+                            mainOptionsState.channelBPower,
+                            mainOptionsState.frequencyRange.start.toDouble(),
+                            mainOptionsState.frequencyRange.endInclusive.toDouble(),
+                            pulses
+                        )
+                    }*/
+
+                    /*if (connected && !mainOptionsState.globalMute) {
                         DGCoyote.sendPulse(
                             mainOptionsState.channelAPower,
                             mainOptionsState.channelBPower,
@@ -119,36 +191,43 @@ class PlayerService : Service() {
                             mainOptionsState.frequencyRange.endInclusive,
                             pulses
                         )
-                    }
+                    }*/
 
                     val nextPosition =
-                        currentPosition + (Player.mainTimerDelay * advancedControlState.playbackSpeed)
+                        currentPosition + (output.timerDelay * advancedControlState.playbackSpeed)
                     DataRepository.setPlayerPosition(nextPosition)
                     currentSource.updateState(nextPosition)
 
                     Player.handlePowerAutoIncrement()
 
-                    // The loop delay is adjusted slightly to try and hit the target, taking into
-                    // account our own processing time. But always waiting for at least 90% of the
-                    // configured delay to avoid overwhelming a busy system, or calling Bluetooth
-                    // devices faster than intended.
                     val smootherCharts = DataRepository.miscOptionsState.value.smootherCharts
-                    val desiredDelay = Player.mainTimerDelay.seconds
-                    val minDelay = (desiredDelay * 0.9)
-                    val elapsed = (System.nanoTime() - startTime).toDuration(DurationUnit.NANOSECONDS)
-                    val waitTime = (desiredDelay - elapsed).coerceAtLeast(minDelay)
-                    val waitChunk = waitTime / Player.pulseBatchSize
-                    //Log.d("Player service", "Wait time - $waitTime     Wait chunk - $waitChunk")
-                    if(smootherCharts) {
-                        for (pulse in pulses) {
-                            DataRepository.addPulsesToHistory(listOf(pulse))
-                            delay(waitChunk)
+
+                    if(smootherCharts && pulseBatchSize > 1) {
+                        pulseQueueMutex.withLock {
+                            // Clear existing pulses in queue
+                            if (!pulseQueue.isEmpty) {
+                                val oldPulses = pulseQueue.toList()
+                                pulseQueue.clear()
+                                DataRepository.addPulsesToHistory(oldPulses)
+                            }
+                            // Add new pulses to queue
+                            pulseQueue.addAll(pulses)
                         }
                     }
                     else {
                         DataRepository.addPulsesToHistory(pulses)
-                        delay(waitTime)
                     }
+
+                    // The loop delay is adjusted slightly to try and hit the target, taking into
+                    // account our own processing time. But always waiting for at least 90% of the
+                    // configured delay to avoid overwhelming a busy system, or calling Bluetooth
+                    // devices faster than intended.
+                    val desiredDelay = output.timerDelay.seconds
+                    val minDelay = (desiredDelay * 0.9)
+                    val elapsed = (System.nanoTime() - startTime).toDuration(DurationUnit.NANOSECONDS)
+                    val waitTime = (desiredDelay - elapsed).coerceAtLeast(minDelay)
+                    //Log.d("Player service", "Wait time - $waitTime")
+                    delay(waitTime)
                 }
             } catch (_: CancellationException) {
                 // Normal cancellation

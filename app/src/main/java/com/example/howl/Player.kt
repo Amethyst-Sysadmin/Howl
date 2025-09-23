@@ -53,6 +53,7 @@ import kotlin.time.TimeSource.Monotonic.markNow
 import java.util.Locale
 import kotlin.math.pow
 import java.lang.ref.WeakReference
+import java.util.UUID
 import kotlin.math.roundToInt
 
 fun formatTime(position: Double): String {
@@ -60,6 +61,13 @@ fun formatTime(position: Double): String {
     val seconds = position % 60
     return String.format(Locale.US, "%02d:%04.1f", minutes, seconds)
 }
+
+data class Pulse (
+    val ampA: Float = 0.0f,
+    val ampB: Float = 0.0f,
+    val freqA: Float = 0.0f,
+    val freqB: Float = 0.0f
+)
 
 interface PulseSource {
     val displayName: String
@@ -73,30 +81,78 @@ interface PulseSource {
     fun updateState(currentTime: Double)
 }
 
+interface Output {
+    val timerDelay: Double
+    val pulseBatchSize: Int
+    val sendSilenceWhenMuted: Boolean
+    var allowedFrequencyRange: IntRange
+    var defaultFrequencyRange: IntRange
+    var ready: Boolean
+    var latency: Double
+
+    val pulseTime: Double
+        get() = timerDelay / pulseBatchSize
+    fun initialise()
+    fun end()
+    fun start()
+    fun stop()
+    fun sendPulses(channelAPower: Int,
+                  channelBPower: Int,
+                  minFrequency: Double,
+                  maxFrequency: Double,
+                  pulses: List<Pulse>
+    )
+
+    fun handleBluetoothEvent(event: BluetoothEvent)
+}
+
 object Player {
     private var contextRef: WeakReference<Context>? = null
-    val mainTimerDelay: Double = 0.1
-    val pulseBatchSize: Int = 4
-    val pulseTime = mainTimerDelay / pulseBatchSize
     private var autoIncrementPowerCounterA: Int = 0
     private var autoIncrementPowerCounterB: Int = 0
+    var output: Output = AudioOutput()
     private val noiseGenerator = NoiseGenerator()
 
     fun initialise(context: Context) {
-        this.contextRef = WeakReference(context)
+        contextRef = WeakReference(context)
+    }
+    fun switchOutput(outputType: OutputType) {
+        stopPlayer()
+        output.end()
+        DataRepository.setChannelAPower(0)
+        DataRepository.setChannelBPower(0)
+        output = when (outputType) {
+            OutputType.COYOTE3 -> Coyote3Output()
+            OutputType.AUDIO -> AudioOutput()
+        }
+        output.initialise()
+
+        val frequencyRangeSubset = output.defaultFrequencyRange.toProportionOf(output.allowedFrequencyRange)
+        val minFreq = output.allowedFrequencyRange.lerp(frequencyRangeSubset.start.toDouble())
+        val maxFreq = output.allowedFrequencyRange.lerp(frequencyRangeSubset.endInclusive.toDouble())
+        DataRepository.setMainOptionsState(DataRepository.mainOptionsState.value.copy(
+            frequencyRange = output.allowedFrequencyRange,
+            frequencyRangeSelectedSubset = frequencyRangeSubset,
+            minFrequency = minFreq,
+            maxFrequency = maxFreq
+        ))
+        DataRepository.setOutputState(DataRepository.outputState.value.copy(outputType = outputType))
     }
     fun getNextTimes(time: Double): List<Double> {
         val syncFineTune = DataRepository.playerState.value.syncFineTune
         val playbackSpeed = DataRepository.playerAdvancedControlsState.value.playbackSpeed
         val isRemote = DataRepository.playerState.value.activePulseSource?.isRemote ?: false
         val latency = if (isRemote) DataRepository.playerState.value.activePulseSource?.remoteLatency ?: 0.0 else 0.0
+        val outputLatency = output.latency
 
         // Convert real-world offsets to media time
         val adjustedSyncFineTune = syncFineTune * playbackSpeed
         val adjustedLatency = latency * playbackSpeed
-        val adjustedPulseTime = pulseTime * playbackSpeed
+        val adjustedPulseTime = output.pulseTime * playbackSpeed
+        //val adjustedOutputLatency = outputLatency * playbackSpeed
 
-        return List(pulseBatchSize) { index ->
+        return List(output.pulseBatchSize) { index ->
+            //(time + adjustedPulseTime * index.toDouble() + adjustedSyncFineTune + adjustedLatency + adjustedOutputLatency).coerceAtLeast(0.0)
             (time + adjustedPulseTime * index.toDouble() + adjustedSyncFineTune + adjustedLatency).coerceAtLeast(0.0)
         }
     }
@@ -148,7 +204,7 @@ object Player {
     fun applySpecialEffects(time: Double, pulse: Pulse, specialEffectsState: DataRepository.PlayerSpecialEffectsState): Pulse {
         var modifiedPulse = pulse.copy(
             freqA = if (specialEffectsState.frequencyInversionA) 1.0f - pulse.freqA else pulse.freqA,
-            freqB = if (specialEffectsState.frequencyInversionB) 1.0f - pulse.freqB else pulse.freqB
+            freqB = if (specialEffectsState.frequencyInversionB) 1.0f - pulse.freqB else pulse.freqB,
         )
 
         modifiedPulse = modifiedPulse.copy(
@@ -175,6 +231,11 @@ object Player {
                 freqNoiseSpeed = specialEffectsState.frequencyNoiseSpeed.toDouble()
             )
         }
+
+        modifiedPulse = modifiedPulse.copy(
+            ampA = (pulse.ampA * specialEffectsState.scaleAmplitudeA).coerceAtMost(1.0f),
+            ampB = (pulse.ampB * specialEffectsState.scaleAmplitudeB).coerceAtMost(1.0f)
+        )
 
         return modifiedPulse
     }
@@ -207,6 +268,7 @@ object Player {
     }
     fun stopPlayer() {
         updatePlayerState(DataRepository.playerState.value.copy(isPlaying = false))
+        output.stop()
     }
     fun startPlayer(from: Double? = null) {
         val playerState = DataRepository.playerState.value
@@ -214,6 +276,7 @@ object Player {
         if(playerState.activePulseSource?.readyToPlay != true)
             return
         updatePlayerState(playerState.copy(isPlaying = true, startTime = markNow(), startPosition = playFrom))
+        output.start()
 
         val context = contextRef?.get() ?: return
         val serviceIntent = Intent(context, PlayerService::class.java)
@@ -581,6 +644,26 @@ fun SpecialEffectsPanel(
                 )
                 viewModel.saveSettings()
             },
+            enabled = enabled
+        )
+        SliderWithLabel(
+            label = "Scale amplitude (channel A)",
+            value = specialEffectsState.scaleAmplitudeA,
+            onValueChange = {viewModel.updateSpecialEffectsState(specialEffectsState.copy(scaleAmplitudeA = it))},
+            onValueChangeFinished = { viewModel.saveSettings() },
+            valueRange = 0.0f..2.0f,
+            steps = 39,
+            valueDisplay = { String.format(Locale.US, "%03.2f", it) },
+            enabled = enabled
+        )
+        SliderWithLabel(
+            label = "Scale amplitude (channel B)",
+            value = specialEffectsState.scaleAmplitudeB,
+            onValueChange = {viewModel.updateSpecialEffectsState(specialEffectsState.copy(scaleAmplitudeB = it))},
+            onValueChangeFinished = { viewModel.saveSettings() },
+            valueRange = 0.0f..2.0f,
+            steps = 39,
+            valueDisplay = { String.format(Locale.US, "%03.2f", it) },
             enabled = enabled
         )
         SliderWithLabel(

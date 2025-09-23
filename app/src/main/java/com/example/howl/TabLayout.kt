@@ -58,10 +58,9 @@ class TabLayoutViewModel : ViewModel() {
 fun TabLayout(
     tabLayoutViewModel: TabLayoutViewModel,
     playerViewModel: PlayerViewModel,
-    coyoteParametersViewModel: CoyoteParametersViewModel,
+    settingsViewModel: SettingsViewModel,
     generatorViewModel: GeneratorViewModel,
     activityHostViewModel: ActivityHostViewModel,
-    frequencyRange: ClosedFloatingPointRange<Float>,
     modifier: Modifier = Modifier
 ) {
     val tabIndex by tabLayoutViewModel.tabIndex.collectAsState()
@@ -104,12 +103,9 @@ fun TabLayout(
         visibleTabs.getOrNull(tabIndex)?.let { currentTab ->
             when (currentTab) {
                 "Player" -> PlayerPanel(viewModel = playerViewModel)
-                "Generator" -> GeneratorPanel(
-                    viewModel = generatorViewModel,
-                    frequencyRange = frequencyRange
-                )
+                "Generator" -> GeneratorPanel(viewModel = generatorViewModel)
                 "Activity" -> ActivityHostPanel(viewModel = activityHostViewModel)
-                "Settings" -> CoyoteParametersPanel(viewModel = coyoteParametersViewModel)
+                "Settings" -> SettingsPanel(viewModel = settingsViewModel)
                 "Debug" -> LogViewer()
             }
         }
@@ -122,16 +118,15 @@ fun TabLayoutPreview() {
     HowlTheme {
         val viewModel: TabLayoutViewModel = viewModel()
         val playerViewModel: PlayerViewModel = viewModel()
-        val coyoteParametersViewModel: CoyoteParametersViewModel = viewModel()
+        val settingsViewModel: SettingsViewModel = viewModel()
         val generatorViewModel: GeneratorViewModel = viewModel()
         val activityHostViewModel: ActivityHostViewModel = viewModel()
         TabLayout (
             tabLayoutViewModel = viewModel,
             playerViewModel = playerViewModel,
-            coyoteParametersViewModel = coyoteParametersViewModel,
+            settingsViewModel = settingsViewModel,
             generatorViewModel = generatorViewModel,
             activityHostViewModel = activityHostViewModel,
-            frequencyRange = 0f..100f,
             modifier = Modifier.fillMaxHeight()
         )
     }

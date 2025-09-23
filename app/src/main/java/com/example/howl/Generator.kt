@@ -368,12 +368,13 @@ class GeneratorViewModel() : ViewModel() {
 @Composable
 fun GeneratorPanel(
     viewModel: GeneratorViewModel,
-    frequencyRange: ClosedFloatingPointRange<Float>,
     modifier: Modifier = Modifier
 ) {
     val generatorState by viewModel.generatorState.collectAsStateWithLifecycle()
     val playerState by DataRepository.playerState.collectAsStateWithLifecycle()
+    val mainOptionsState by DataRepository.mainOptionsState.collectAsStateWithLifecycle()
     val isPlaying = playerState.isPlaying && playerState.activePulseSource == Generator
+    val frequencyRange = mainOptionsState.minFrequency..mainOptionsState.maxFrequency
     var showChannelASettings by remember { mutableStateOf(false) }
     var showChannelBSettings by remember { mutableStateOf(false) }
 
@@ -613,7 +614,7 @@ fun GeneratorParametersSettings(
 fun GeneratorParametersInfo(
     title: String,
     generatorChannelInfo: GeneratorChannelInfo,
-    frequencyRange: ClosedFloatingPointRange<Float>,
+    frequencyRange: IntRange,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -688,40 +689,6 @@ fun GeneratorParametersInfoRow(
     }
 }
 
-@Composable
-fun <T> OptionPicker(
-    currentValue: T,
-    onValueChange: (T) -> Unit,
-    options: List<T>,
-    getText: (T) -> String,
-    modifier: Modifier = Modifier
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val sortedOptions = remember(options, getText) {
-        options.sortedBy { getText(it) }
-    }
-
-    Box(modifier = modifier.wrapContentSize(Alignment.TopStart)) {
-        OutlinedButton(onClick = { expanded = true }) {
-            Text(text = getText(currentValue))
-        }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            sortedOptions.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(getText(option)) },
-                    onClick = {
-                        onValueChange(option)
-                        expanded = false
-                    }
-                )
-            }
-        }
-    }
-}
-
 @Preview
 @Composable
 fun GeneratorPreview() {
@@ -729,7 +696,6 @@ fun GeneratorPreview() {
         val viewModel: GeneratorViewModel = viewModel()
         GeneratorPanel(
             viewModel = viewModel,
-            frequencyRange = 10f..100f,
             modifier = Modifier.fillMaxHeight()
         )
     }
