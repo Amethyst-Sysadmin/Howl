@@ -97,15 +97,10 @@ fun MainOptionsPanel(
 ) {
     val mainOptionsState by viewModel.mainOptionsState.collectAsStateWithLifecycle()
     val miscOptionsState by viewModel.miscOptionsState.collectAsStateWithLifecycle()
-    val playerState by DataRepository.playerState.collectAsStateWithLifecycle()
-    val lastPulse by DataRepository.lastPulse.collectAsStateWithLifecycle()
-    val powerBarStartColor = Color(0xFFFF0000)
-    val powerBarEndColor = Color(0xFFFFFF00)
     val minSeparation = 5f
     val muted = mainOptionsState.globalMute
     val autoIncreasePower = mainOptionsState.autoIncreasePower
     val swapChannels = mainOptionsState.swapChannels
-    val playing = playerState.isPlaying
     val toolbarButtonHeight = 50.dp
     val activeButtonColour = Color.Red
 
@@ -118,45 +113,53 @@ fun MainOptionsPanel(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(IntrinsicSize.Min),
+                .height(IntrinsicSize.Max),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row() {
-                PowerLevelPanel(
-                    channel = "A",
-                    power = mainOptionsState.channelAPower,
-                    onPowerChange = viewModel::setChannelAPower,
-                    stepSize = miscOptionsState.powerStepSizeA
-                )
-                if(miscOptionsState.showPowerMeter) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    PowerLevelMeter(
+            // Left side: Channel A controls
+            PowerLevelPanel(
+                channel = "A",
+                power = mainOptionsState.channelAPower,
+                onPowerChange = viewModel::setChannelAPower,
+                stepSize = miscOptionsState.powerStepSizeA
+            )
+
+            // Center: Power meters (grouped together)
+            if (miscOptionsState.showPowerMeter) {
+                Row(
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    PowerLevelMeters()
+                    /*PowerLevelMeter(
                         barColor = lerp(
                             powerBarStartColor,
                             powerBarEndColor,
                             lastPulse.freqA
-                        ), powerLevel = if (playing) lastPulse.ampA else 0.0f
+                        ),
+                        powerLevel = if (playing) lastPulse.ampA else 0.0f
                     )
-                }
-            }
-            Row() {
-                if(miscOptionsState.showPowerMeter) {
+                    Spacer(modifier = Modifier.width(8.dp))
                     PowerLevelMeter(
                         barColor = lerp(
                             powerBarStartColor,
                             powerBarEndColor,
                             lastPulse.freqB
-                        ), powerLevel = if (playing) lastPulse.ampB else 0.0f
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
+                        ),
+                        powerLevel = if (playing) lastPulse.ampB else 0.0f
+                    )*/
                 }
-                PowerLevelPanel(
-                    channel = "B",
-                    power = mainOptionsState.channelBPower,
-                    onPowerChange = viewModel::setChannelBPower,
-                    stepSize = miscOptionsState.powerStepSizeB
-                )
+            } else {
+                // Empty spacer when power meters are hidden to maintain layout
+                Spacer(modifier = Modifier.width(12.dp + 8.dp + 12.dp)) // width of two meters + spacer
             }
+
+            // Right side: Channel B controls
+            PowerLevelPanel(
+                channel = "B",
+                power = mainOptionsState.channelBPower,
+                onPowerChange = viewModel::setChannelBPower,
+                stepSize = miscOptionsState.powerStepSizeB
+            )
         }
         Spacer(modifier = Modifier.height(16.dp))
         Row(

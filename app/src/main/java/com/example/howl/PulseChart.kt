@@ -34,7 +34,7 @@ fun PulsePlotter(
     modifier: Modifier = Modifier,
     mode: PulsePlotMode = PulsePlotMode.Combined
 ) {
-    val pulses by DataRepository.pulseHistory.collectAsStateWithLifecycle()
+    val pulses by DataRepository.throttledPulseHistory.collectAsStateWithLifecycle(initialValue = emptyList())
     val backgroundColor = MaterialTheme.colorScheme.background
 
     Canvas(modifier = modifier.background(backgroundColor)) {

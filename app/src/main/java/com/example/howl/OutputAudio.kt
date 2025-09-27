@@ -9,6 +9,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlin.concurrent.thread
 import kotlin.math.PI
 import kotlin.math.max
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 enum class PlaybackState {
@@ -25,19 +26,10 @@ enum class CarrierWaveType(val displayName: String) {
     SAWTOOTH("Sawtooth")
 }
 
-enum class EnvelopeType(val displayName: String) {
-    SINE1("Sine 1"),
-    SINE2("Sine 2"),
-    TRIANGLE("Triangle"),
-    TRAPEZOID("Trapezoid"),
-    SQUARE("Square"),
-    SAWTOOTH("Sawtooth")
-}
-
-enum class PhaseType(val displayName: String) {
-    TOGETHER("Together"),       // both channels in-phase
-    ALTERNATING("Alternating"), // one fires when the other rests
-    INDEPENDENT("Independent")  // keep as-is (default)
+enum class CarrierPhaseType(val displayName: String) {
+    SAME("Same"), // Identical carrier phase on both channels
+    OFFSET("Offset"), // Pi/2 offset
+    OPPOSITE("Opposite"), // Pi offset
 }
 
 class AudioOutput : Output {
@@ -77,11 +69,18 @@ class AudioOutput : Output {
 
     // Phase accumulators for continuous waveform
     private var carrierPhase: Double = 0.0
-    private var modPhaseA: Double = 0.0
-    private var modPhaseB: Double = 0.0
 
-    private val twoPiOverSampleRate = 2.0 * PI / sampleRate
-    private val shortMax = Short.MAX_VALUE.toFloat()
+    private enum class ChannelStage { REST, WAVELET }
+    private data class ChannelState(
+        var stage: ChannelStage = ChannelStage.REST,
+        var stageCounter: Int = 0,               // samples elapsed in current stage
+        var currentWaveletLength: Int = 0,
+        var currentWaveletAmplitude: Double = 0.0,
+        var currentWaveletPhaseOffset: Double = 0.0
+    )
+
+    private var channelA = ChannelState()
+    private var channelB = ChannelState()
 
     override fun initialise() {
         bufferSizeFrames = initialiseAudioTrack()
@@ -143,14 +142,9 @@ class AudioOutput : Output {
         }
     }
 
-    private fun squareCarrier(phase: Double): Double {
+    private fun squareWave(phase: Double): Double {
         // Audio waveform: -1 or +1
-        return if (sin(phase) >= 0.0) 1.0 else -1.0
-    }
-
-    private fun squareEnvelope(phase: Double): Double {
-        // Envelope multiplier: 0 or 1
-        return if (sin(phase) >= 0.0) 1.0 else 0.0
+        return if ((phase % (2 * PI)) < PI) 1.0 else -1.0
     }
 
     private fun sawtoothWave(phase: Double): Double {
@@ -159,16 +153,79 @@ class AudioOutput : Output {
         return 2.0 * norm - 1.0
     }
 
-    private fun generateModulatedStereo(
+    private inline fun generateSample(
+        ch: ChannelState,
+        carrierType: CarrierWaveType,
+        carrierPhase: Double,
+        amplitude: Double,
+        waveletLengthSamples: Int,
+        restLengthSamples: Int,
+        waveletFade: Double
+    ): Short {
+        ch.stageCounter++
+
+        return when (ch.stage) {
+            ChannelStage.WAVELET -> {
+                //val phase = carrierPhase + ch.currentWaveletPhaseOffset
+                val phase = carrierPhase
+                val carrier  = when (carrierType) {
+                    CarrierWaveType.SINE -> sin(phase)
+                    CarrierWaveType.SQUARE -> squareWave(phase)
+                    CarrierWaveType.TRIANGLE -> triangleWave(phase)
+                    CarrierWaveType.TRAPEZOID -> trapezoidWave(phase)
+                    CarrierWaveType.SAWTOOTH -> sawtoothWave(phase)
+                }
+
+                // Linear envelope
+                val n = ch.stageCounter
+                val fadeLength = (waveletLengthSamples * 0.5 * waveletFade).toInt()
+                val sustainStart = fadeLength
+                val sustainEnd = waveletLengthSamples - fadeLength
+
+                val envelope = when {
+                    fadeLength == 0 -> 1.0
+                    n <= sustainStart -> n.toDouble() / fadeLength            // Linear fade-in
+                    n >= sustainEnd -> (waveletLengthSamples - n).toDouble() / fadeLength  // Linear fade-out
+                    else -> 1.0
+                }.coerceIn(0.0, 1.0) // safety clamp
+
+                if (ch.stageCounter >= ch.currentWaveletLength) {
+                    ch.stage = ChannelStage.REST
+                    ch.stageCounter = 0
+                }
+                (carrier * ch.currentWaveletAmplitude * envelope * Short.MAX_VALUE).toInt().toShort()
+            }
+
+            ChannelStage.REST -> {
+                if (ch.stageCounter >= restLengthSamples && restLengthSamples != Int.MAX_VALUE) {
+                    ch.stage = ChannelStage.WAVELET
+                    ch.stageCounter = 0
+                    ch.currentWaveletLength = waveletLengthSamples
+                    ch.currentWaveletAmplitude = amplitude
+                    ch.currentWaveletPhaseOffset = randomInRange(0.0..PI)
+                }
+                0
+            }
+        }
+    }
+
+    private fun generateStereoSamples(
         out: ShortArray,
         startPulse: Pulse,
         endPulse: Pulse
     ) {
         val carrierType = DataRepository.outputState.value.audioCarrierType
         val carrierFrequency = DataRepository.outputState.value.audioCarrierFrequency
-        val envelopeType = DataRepository.outputState.value.audioEnvelopeType
-        val phaseType = DataRepository.outputState.value.audioPhaseType
+        val carrierPhaseType = DataRepository.outputState.value.audioCarrierPhaseType
+        val waveletWidth = DataRepository.outputState.value.audioWaveletWidth
+        val waveletFade = DataRepository.outputState.value.audioWaveletFade.toDouble()
         val carrierPhaseInc = 2.0 * PI * carrierFrequency / sampleRate
+        val carrierPhaseChannelOffset = when (carrierPhaseType) {
+            CarrierPhaseType.SAME -> 0.0
+            CarrierPhaseType.OFFSET -> PI/2.0
+            CarrierPhaseType.OPPOSITE -> PI
+        }
+        val minimumRestSamples = 100
 
         val minFreq = currentMinFreq
         val freqRange = currentMaxFreq - currentMinFreq
@@ -176,79 +233,28 @@ class AudioOutput : Output {
         val frameCount = out.size / 2 // stereo = 2 samples per frame
         if (frameCount == 0) return
 
-        val invFrameCount = if (frameCount > 1) 1f / (frameCount - 1) else 0f
+        val ampA = (lerp(startPulse.ampA, endPulse.ampA, 0.5f) * currentPowerA).coerceIn(0.0,1.0)
+        val ampB = (lerp(startPulse.ampB, endPulse.ampB, 0.5f) * currentPowerB).coerceIn(0.0,1.0)
+        val freqA = minFreq + freqRange * lerp(startPulse.freqA, endPulse.freqA, 0.5f)
+        val freqB = minFreq + freqRange * lerp(startPulse.freqB, endPulse.freqB, 0.5f)
+        val periodSamplesA = sampleRate / freqA
+        val periodSamplesB = sampleRate / freqB
+        val waveletLength =  if (carrierFrequency > 0.0)
+            max(1, (waveletWidth * (sampleRate / carrierFrequency)).toInt())
+        else 1
+        val restLengthA =  max(minimumRestSamples, (periodSamplesA - waveletLength).roundToInt())
+        val restLengthB =  max(minimumRestSamples, (periodSamplesB - waveletLength).roundToInt())
 
         var idx = 0
         for (frame in 0 until frameCount) {
-            val t = frame * invFrameCount
+            val sampleA = generateSample(channelA, carrierType, carrierPhase, ampA, waveletLength, restLengthA, waveletFade)
+            val sampleB = generateSample(channelB, carrierType, carrierPhase + carrierPhaseChannelOffset, ampB, waveletLength, restLengthB, waveletFade)
 
-            // Interpolated amplitudes (scale to 16-bit PCM)
-            val ampA = lerp(startPulse.ampA, endPulse.ampA, t) * currentPowerA * shortMax
-            val ampB = lerp(startPulse.ampB, endPulse.ampB, t) * currentPowerB * shortMax
+            out[idx++] = sampleA
+            out[idx++] = sampleB
 
-            // Interpolated modulation frequencies (Hz)
-            val modFreqA = minFreq + freqRange * lerp(startPulse.freqA, endPulse.freqA, t)
-            val modFreqB = minFreq + freqRange * lerp(startPulse.freqB, endPulse.freqB, t)
-
-            val modPhaseIncA = 2.0 * PI * modFreqA / sampleRate
-            val modPhaseIncB = 2.0 * PI * modFreqB / sampleRate
-
-            // Phase adjustments based on channel mode
-            val effectivePhaseA = modPhaseA
-            val effectivePhaseB = when (phaseType) {
-                PhaseType.ALTERNATING -> modPhaseA + PI
-                PhaseType.TOGETHER -> modPhaseA
-                PhaseType.INDEPENDENT -> modPhaseB
-            }
-
-            val (modSignalA, modSignalB) = when (envelopeType) {
-                EnvelopeType.SINE1 -> Pair(
-                    0.5 * (1.0 + sin(effectivePhaseA)),
-                    0.5 * (1.0 + sin(effectivePhaseB))
-                )
-                EnvelopeType.SINE2 -> Pair(
-                    max(0.0, sin(effectivePhaseA)),
-                    max(0.0, sin(effectivePhaseB))
-                )
-                EnvelopeType.TRIANGLE -> Pair(
-                    0.5 * (triangleWave(effectivePhaseA) + 1.0),
-                    0.5 * (triangleWave(effectivePhaseB) + 1.0)
-                )
-                EnvelopeType.TRAPEZOID -> Pair(
-                    0.5 * (trapezoidWave(effectivePhaseA, duty = 0.3) + 1.0),
-                    0.5 * (trapezoidWave(effectivePhaseB, duty = 0.3) + 1.0)
-                )
-                EnvelopeType.SQUARE -> Pair(
-                    squareEnvelope(effectivePhaseA),
-                    squareEnvelope(effectivePhaseB)
-                )
-                EnvelopeType.SAWTOOTH -> Pair(
-                    0.5 * (sawtoothWave(effectivePhaseA) + 1.0),
-                    0.5 * (sawtoothWave(effectivePhaseB) + 1.0)
-                )
-            }
-
-            val carrier = when (carrierType) {
-                CarrierWaveType.SINE -> sin(carrierPhase)
-                CarrierWaveType.SQUARE -> squareCarrier(carrierPhase)
-                CarrierWaveType.TRIANGLE -> triangleWave(carrierPhase)
-                CarrierWaveType.TRAPEZOID -> trapezoidWave(carrierPhase, duty = 0.3)
-                CarrierWaveType.SAWTOOTH -> sawtoothWave(carrierPhase)
-            }
-
-            // Final output samples
-            out[idx++] = (carrier * ampA * modSignalA).toInt().toShort()
-            out[idx++] = (carrier * ampB * modSignalB).toInt().toShort()
-
-            // Advance phases
-            modPhaseA += modPhaseIncA
-            modPhaseB += modPhaseIncB
             carrierPhase += carrierPhaseInc
         }
-
-        // Keep phases bounded
-        modPhaseA %= 2.0 * Math.PI
-        modPhaseB %= 2.0 * Math.PI
         carrierPhase %= 2.0 * Math.PI
     }
 
@@ -270,9 +276,9 @@ class AudioOutput : Output {
 
     private fun resetState() {
         synchronized(updateLock) {
-            modPhaseA = 0.0
-            modPhaseB = 0.0
             carrierPhase = 0.0
+            channelA = ChannelState()
+            channelB = ChannelState()
             lastPulse = Pulse()
             pulseQueue.clear()
         }
@@ -358,7 +364,7 @@ class AudioOutput : Output {
                 }
 
                 //Log.d("AudioOutput", "Generating audio")
-                generateModulatedStereo(buffer, startPulse = startPulse, endPulse = endPulse)
+                generateStereoSamples(buffer, startPulse = startPulse, endPulse = endPulse)
                 val writtenFrames = track.write(buffer, 0, buffer.size, AudioTrack.WRITE_BLOCKING) / 2
                 if (writtenFrames > 0) {
                     framesWritten += writtenFrames

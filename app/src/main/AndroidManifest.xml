@@ -46,6 +46,8 @@
             android:name=".PlayerService"
             android:foregroundServiceType="mediaPlayback"
             android:exported="false" />
+        <profileable android:shell="true"
+            tools:targetApi="29" />
     </application>
 
 </manifest>

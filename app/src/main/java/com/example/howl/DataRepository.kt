@@ -1,16 +1,20 @@
 package com.example.howl
 
 import android.util.Log
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.flow.update
 import kotlin.Boolean
 import kotlin.time.TimeMark
 import kotlin.Float
 
+const val howlVersion = "0.6 alpha 4"
 const val showDeveloperOptions = false
-const val howlVersion = "0.6 alpha 3"
 
 enum class OutputType(val displayName: String) {
     COYOTE3("Coyote 3"),
@@ -20,6 +24,9 @@ enum class OutputType(val displayName: String) {
 object DataRepository {
     var database: HowlDatabase? = null
 
+    const val chartUpdatesPerSecond = 50
+    const val chartUpdateMillis = 1000L / chartUpdatesPerSecond
+
     private val _lastPulse = MutableStateFlow(Pulse())
     val lastPulse: StateFlow<Pulse> = _lastPulse.asStateFlow()
 
@@ -27,9 +34,16 @@ object DataRepository {
     private val _pulseHistoryBuffer: CircularBuffer<Pulse> = CircularBuffer(PULSE_HISTORY_SIZE)
     private val _pulseHistory = MutableStateFlow<List<Pulse>>(emptyList())
     val pulseHistory: StateFlow<List<Pulse>> = _pulseHistory.asStateFlow()
+    @OptIn(FlowPreview::class)
+    val throttledPulseHistory: Flow<List<Pulse>> = _pulseHistory.sample(chartUpdateMillis)
 
     private val _playerState = MutableStateFlow(PlayerState())
     val playerState: StateFlow<PlayerState> = _playerState.asStateFlow()
+
+    // split out of playerState because it changes very frequently and most observers don't
+    // actually need it (helps reduce UI recompositions)
+    private val _playerPosition = MutableStateFlow(0.0)
+    val playerPosition: StateFlow<Double> = _playerPosition.asStateFlow()
 
     private val _playerAdvancedControlsState = MutableStateFlow(PlayerAdvancedControlsState())
     val playerAdvancedControlsState: StateFlow<PlayerAdvancedControlsState> = _playerAdvancedControlsState.asStateFlow()
@@ -63,6 +77,14 @@ object DataRepository {
 
     private val _coyoteParametersState = MutableStateFlow(Coyote3Parameters())
     val coyoteParametersState: StateFlow<Coyote3Parameters> = _coyoteParametersState.asStateFlow()
+
+    @OptIn(FlowPreview::class)
+    val throttledlastPulse: Flow<Pulse> = combine(
+        _lastPulse,
+        _playerState
+    ) { pulse, playerState ->
+        if (playerState.isPlaying) pulse else Pulse()
+    }.sample(chartUpdateMillis)
 
     fun setCoyoteParametersState(newCoyoteParametersState: Coyote3Parameters) {
         _coyoteParametersState.update { newCoyoteParametersState }
@@ -159,7 +181,7 @@ object DataRepository {
     }
 
     fun setPlayerPosition(position: Double) {
-        _playerState.update { it.copy(currentPosition = position) }
+        _playerPosition.update { position }
     }
 
     fun setPlayerPulseSource(source: PulseSource?) {
@@ -224,10 +246,10 @@ object DataRepository {
             powerAutoIncrementDelayA = miscOptionsState.value.powerAutoIncrementDelayA,
             powerAutoIncrementDelayB = miscOptionsState.value.powerAutoIncrementDelayB,
             audioCarrierType = outputState.value.audioCarrierType,
-            audioEnvelopeType = outputState.value.audioEnvelopeType,
-            audioPhaseType = outputState.value.audioPhaseType,
+            audioCarrierPhaseType = outputState.value.audioCarrierPhaseType,
             audioCarrierFrequency = outputState.value.audioCarrierFrequency,
-            audioAllowHighFrequencyCarrier = outputState.value.audioAllowHighFrequencyCarrier,
+            audioWaveletWidth = outputState.value.audioWaveletWidth,
+            audioWaveletFade = outputState.value.audioWaveletFade,
         )
         database?.savedSettingsDao()?.updateSettings(settings)
     }
@@ -291,20 +313,20 @@ object DataRepository {
         ))
         setOutputState(outputState.value.copy(
             audioCarrierType = settings.audioCarrierType,
-            audioEnvelopeType = settings.audioEnvelopeType,
-            audioPhaseType = settings.audioPhaseType,
+            audioCarrierPhaseType = settings.audioCarrierPhaseType,
             audioCarrierFrequency = settings.audioCarrierFrequency,
-            audioAllowHighFrequencyCarrier = settings.audioAllowHighFrequencyCarrier,
+            audioWaveletWidth = settings.audioWaveletWidth,
+            audioWaveletFade = settings.audioWaveletFade,
         ))
     }
 
     data class OutputState(
         val outputType: OutputType = OutputType.AUDIO,
         val audioCarrierType: CarrierWaveType = CarrierWaveType.SINE,
-        val audioEnvelopeType: EnvelopeType = EnvelopeType.SINE2,
-        val audioPhaseType: PhaseType = PhaseType.INDEPENDENT,
-        val audioCarrierFrequency: Int = 690,
-        val audioAllowHighFrequencyCarrier: Boolean = false,
+        val audioCarrierPhaseType: CarrierPhaseType = CarrierPhaseType.SAME,
+        val audioCarrierFrequency: Int = 1000,
+        val audioWaveletWidth: Int = 5,
+        val audioWaveletFade: Float = 0.5f,
     )
 
     data class ActivityState(
@@ -325,7 +347,6 @@ object DataRepository {
 
     data class PlayerState(
         val activePulseSource: PulseSource? = null,
-        val currentPosition: Double = 0.0,
         val startPosition: Double = 0.0,
         val isPlaying: Boolean = false,
         val startTime: TimeMark? = null,
@@ -355,7 +376,7 @@ object DataRepository {
         var funscriptFrequencyBlendRatio: Float = 0.5f,
         val funscriptAmplitudeAlgorithm: AmplitudeAlgorithmType = AmplitudeAlgorithmType.DEFAULT,
         val funscriptFrequencyAlgorithm: FrequencyAlgorithmType = FrequencyAlgorithmType.BLEND,
-        val funscriptRemoteLatency: Float = 0.2f,
+        val funscriptRemoteLatency: Float = 0.18f,
     )
 
     data class MainOptionsState (

@@ -1,6 +1,8 @@
 package com.example.howl
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,7 +42,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 fun SliderWithLabel(
@@ -135,11 +140,30 @@ fun <T> OptionPicker(
 }
 
 @Composable
-fun PowerLevelMeter(
-    powerLevel: Float,
-    barColor: Color,
+fun PowerLevelMeters(
 ) {
-    val clampedLevel = powerLevel.coerceIn(0f, 1f)
+    val lastPulse by DataRepository.throttledlastPulse.collectAsStateWithLifecycle(initialValue = Pulse())
+
+    Row {
+        PowerLevelMeter(
+            powerLevelProvider = { lastPulse.ampA },
+            frequencyProvider = { lastPulse.freqA },
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        PowerLevelMeter(
+            powerLevelProvider = { lastPulse.ampB },
+            frequencyProvider = { lastPulse.freqB },
+        )
+    }
+}
+
+@Composable
+fun PowerLevelMeter(
+    powerLevelProvider: () -> Float,
+    frequencyProvider: () -> Float,
+) {
+    val powerBarStartColor = Color(0xFFFF0000)
+    val powerBarEndColor = Color(0xFFFFFF00)
     Box(
         modifier = Modifier
             .width(12.dp)
@@ -151,8 +175,15 @@ fun PowerLevelMeter(
             )
             .padding(1.dp)
             .drawBehind {
-                if (clampedLevel > 0f) {
-                    val barHeight = size.height * clampedLevel
+                val powerLevel = powerLevelProvider().coerceIn(0f, 1f)
+                if (powerLevel  > 0f) {
+                    val barHeight = size.height * powerLevel
+                    val frequency = frequencyProvider()
+                    val barColor = lerp(
+                        powerBarStartColor,
+                        powerBarEndColor,
+                        frequency
+                    )
                     drawRect(
                         color = barColor,
                         topLeft = Offset(0f, size.height - barHeight),
@@ -162,6 +193,32 @@ fun PowerLevelMeter(
             }
     )
 }
+
+/*@Composable
+fun PowerLevelMeter(
+    powerLevel: Float,
+    barColor: Color
+) {
+    Box(
+        modifier = Modifier
+            .width(12.dp)
+            .fillMaxHeight()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline,
+                shape = MaterialTheme.shapes.extraSmall
+            )
+            .padding(1.dp),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(fraction = powerLevel.coerceIn(0f, 1f))
+                .background(barColor)
+        )
+    }
+}*/
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

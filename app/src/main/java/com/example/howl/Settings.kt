@@ -22,6 +22,7 @@ import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.Arrangement
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 fun IntRange.toClosedFloatingPointRange(): ClosedFloatingPointRange<Float> {
     return this.start.toFloat()..this.endInclusive.toFloat()
@@ -61,12 +62,8 @@ class SettingsViewModel() : ViewModel() {
         setOutputState(outputState.value.copy(audioCarrierType = type))
         saveSettings()
     }
-    fun setAudioEnvelopeType(type: EnvelopeType) {
-        setOutputState(outputState.value.copy(audioEnvelopeType = type))
-        saveSettings()
-    }
-    fun setAudioPhaseType(type: PhaseType) {
-        setOutputState(outputState.value.copy(audioPhaseType = type))
+    fun setAudioCarrierPhaseType(type: CarrierPhaseType) {
+        setOutputState(outputState.value.copy(audioCarrierPhaseType = type))
         saveSettings()
     }
     /*fun setAudioOutputMinFrequency(newFrequency: Int) {
@@ -170,26 +167,24 @@ fun SettingsPanel(
                     getText = { it.displayName }
                 )
             }
-            val carrierSliderRange = if (outputState.audioAllowHighFrequencyCarrier) 200.0f..20000.0f else 200.0f..1000.0f
-            val carrierSliderSteps = if (outputState.audioAllowHighFrequencyCarrier) 197 else 79
             SliderWithLabel(
                 label = "Carrier wave frequency (Hz)",
                 value = outputState.audioCarrierFrequency.toFloat(),
                 onValueChange = { viewModel.setOutputState(outputState.copy(audioCarrierFrequency = it.roundToInt())) },
                 onValueChangeFinished = { viewModel.saveSettings() },
-                valueRange = carrierSliderRange,
-                steps = carrierSliderSteps,
+                valueRange = 600.0f..2000.0f,
+                steps = 139,
                 valueDisplay = { it.roundToInt().toString() }
             )
-            SwitchWithLabel(
+            /*SwitchWithLabel(
                 label = "Allow higher carrier frequencies",
                 checked = outputState.audioAllowHighFrequencyCarrier,
                 onCheckedChange = {
                     viewModel.setOutputState(outputState.copy(audioAllowHighFrequencyCarrier = it))
                     viewModel.saveSettings()
                 }
-            )
-            Row(
+            )*/
+            /*Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -203,21 +198,49 @@ fun SettingsPanel(
                     options = EnvelopeType.entries,
                     getText = { it.displayName }
                 )
+            }*/
+            val waveletWidthRange = 3..10
+            SliderWithLabel(
+                label = "Wavelet width (in carrier wave cycles)",
+                value = outputState.audioWaveletWidth.toFloat(),
+                onValueChange = { viewModel.setOutputState(outputState.copy(audioWaveletWidth = it.roundToInt())) },
+                onValueChangeFinished = { viewModel.saveSettings() },
+                valueRange = waveletWidthRange.start.toFloat()..waveletWidthRange.endInclusive.toFloat(),
+                steps = (waveletWidthRange.endInclusive - waveletWidthRange.start) - 1,
+                valueDisplay = { it.roundToInt().toString() }
+            )
+            SliderWithLabel(
+                label = "Wavelet fade in/out proportion",
+                value = outputState.audioWaveletFade,
+                onValueChange = { viewModel.setOutputState(outputState.copy(audioWaveletFade = it)) },
+                onValueChangeFinished = { viewModel.saveSettings() },
+                valueRange = 0.0f..1.0f,
+                steps = 99,
+                valueDisplay = { String.format(Locale.US, "%03.2f", it) }
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "Carrier phase on each channel", style = MaterialTheme.typography.labelLarge)
+                OptionPicker(
+                    currentValue = outputState.audioCarrierPhaseType,
+                    onValueChange = {
+                        viewModel.setAudioCarrierPhaseType(it)
+                    },
+                    options = CarrierPhaseType.entries,
+                    getText = { it.displayName }
+                )
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(text = "Channel phase control", style = MaterialTheme.typography.labelLarge)
-                OptionPicker(
-                    currentValue = outputState.audioPhaseType,
-                    onValueChange = {
-                        viewModel.setAudioPhaseType(it)
-                    },
-                    options = PhaseType.entries,
-                    getText = { it.displayName }
-                )
+                val dutyCycle = ((1.0 / outputState.audioCarrierFrequency) * outputState.audioWaveletWidth) / 0.01
+                val displayDutyCycle = (dutyCycle * 100.0).coerceIn(0.0..100.0).roundToInt()
+                Text(text = "Estimated duty cycle at 100Hz: $displayDutyCycle%", style = MaterialTheme.typography.labelLarge)
             }
             /*val FREQUENCY_SLIDER_RANGE = 50..4000
             SliderWithLabel(

@@ -272,7 +272,8 @@ object Player {
     }
     fun startPlayer(from: Double? = null) {
         val playerState = DataRepository.playerState.value
-        val playFrom = from ?: playerState.currentPosition
+        val currentPosition = DataRepository.playerPosition.value
+        val playFrom = from ?: currentPosition
         if(playerState.activePulseSource?.readyToPlay != true)
             return
         updatePlayerState(playerState.copy(isPlaying = true, startTime = markNow(), startPosition = playFrom))
@@ -341,15 +342,17 @@ object Player {
         // May also be called with null position to resync the player, for example when changing
         // playback speed
         val playerState = DataRepository.playerState.value
+        val currentPosition = DataRepository.playerPosition.value
+
         val finite = playerState.activePulseSource?.isFinite ?: false
-        val pos = if (!finite || position == null) playerState.currentPosition else position
+        val pos = if (!finite || position == null) currentPosition else position
         updatePlayerState(
             playerState.copy(
-                currentPosition = pos,
                 startTime = markNow(),
                 startPosition = pos
             )
         )
+        DataRepository.setPlayerPosition(pos)
     }
     fun setCurrentPosition(position: Double) {
         DataRepository.setPlayerPosition(position)
@@ -818,11 +821,61 @@ fun SpecialEffectsPanel(
 }
 
 @Composable
+fun PlayerPositionDisplay(
+    duration: Double,
+    onSeek: (Double) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val currentPosition by DataRepository.playerPosition.collectAsStateWithLifecycle()
+
+    // Temporary variables that we use to ensure the player position only gets
+    // updated once the user finishes dragging the drag handle on the seek bar.
+    // This prevents sending garbled output when the user drags during playback.
+    var isDragging by remember { mutableStateOf(false) }
+    var tempPosition by remember { mutableDoubleStateOf(currentPosition) }
+
+    // Update tempPosition when currentPosition changes but user is not dragging
+    /*LaunchedEffect(currentPosition) {
+        if (!isDragging) {
+            tempPosition = currentPosition
+        }
+    }*/
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        // Position Display
+        val pos = if (isDragging) tempPosition else currentPosition
+        Text(text = formatTime(pos))
+        Spacer(modifier = Modifier.width(4.dp))
+
+        // Seek Bar
+        Slider(
+            value = pos.toFloat(),
+            onValueChange = {
+                tempPosition = it.toDouble()
+                if (!isDragging) isDragging = true
+            },
+            valueRange = 0f..duration.toFloat(),
+            onValueChangeFinished = {
+                isDragging = false
+                onSeek(tempPosition)
+            }
+        )
+    }
+}
+
+@Composable
 fun PlayerPanel(
     viewModel: PlayerViewModel,
     modifier: Modifier = Modifier
 ) {
     val playerState by viewModel.playerState.collectAsStateWithLifecycle()
+    //val currentPosition by DataRepository.playerPosition.collectAsStateWithLifecycle()
     val advancedControlsState by viewModel.advancedControlsState.collectAsStateWithLifecycle()
     val specialEffectsState by viewModel.specialEffectsState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -830,12 +883,11 @@ fun PlayerPanel(
     var showSpecialEffects by remember { mutableStateOf(false) }
     val activeButtonColour = Color.Red
 
-
     // Temporary variables that we use to ensure the player position only gets
     // updated once the user finishes dragging the drag handle on the seek bar.
     // This prevents sending garbled output when the user drags during playback.
-    var isDragging by remember { mutableStateOf(false) }
-    var tempPosition by remember { mutableDoubleStateOf(playerState.currentPosition) }
+    //var isDragging by remember { mutableStateOf(false) }
+    //var tempPosition by remember { mutableDoubleStateOf(currentPosition) }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
@@ -856,37 +908,11 @@ fun PlayerPanel(
         val duration = playerState.activePulseSource?.duration ?: 0.0
         Text(text = displayName, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelLarge)
 
-        Row(
-            modifier = Modifier.fillMaxWidth()
-                .padding(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            // Position Display
-            val pos = if (isDragging) tempPosition else playerState.currentPosition
-            Text(text = formatTime(pos))
-            Spacer(modifier = Modifier.width(4.dp))
+        PlayerPositionDisplay(
+            duration = playerState.activePulseSource?.duration ?: 0.0,
+            onSeek = { viewModel.seek(it) }
+        )
 
-            // Seek Bar
-            Slider(
-                value = pos.toFloat(),
-                onValueChange = {
-                    tempPosition = it.toDouble()
-                    if (!isDragging) isDragging = true
-                },
-                valueRange = 0f..duration.toFloat(),
-                onValueChangeFinished = {
-                    isDragging = false
-                    viewModel.seek(tempPosition)
-                }
-            )
-            /*Slider(
-                value = playerState.currentPosition.toFloat(),
-                onValueChange = { viewModel.seek(it.toDouble()) },
-                valueRange = 0f..duration.toFloat(),
-                onValueChangeFinished = { }
-            )*/
-        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,

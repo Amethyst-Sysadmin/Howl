@@ -33,7 +33,7 @@ data class SavedSettings(
     var funscriptFrequencyBlendRatio: Float = 0.5f,
     val funscriptFrequencyAlgorithm: FrequencyAlgorithmType = FrequencyAlgorithmType.BLEND,
     val funscriptAmplitudeAlgorithm: AmplitudeAlgorithmType = AmplitudeAlgorithmType.DEFAULT,
-    val funscriptRemoteLatency: Float = 0.2f,
+    val funscriptRemoteLatency: Float = 0.18f,
     //Player special effects
     val specialEffectsEnabled: Boolean = false,
     val frequencyInversionA: Boolean = false,
@@ -64,10 +64,10 @@ data class SavedSettings(
     val powerAutoIncrementDelayB: Int = 120,
     //Output options
     val audioCarrierType: CarrierWaveType = CarrierWaveType.SINE,
-    val audioEnvelopeType: EnvelopeType = EnvelopeType.SINE2,
-    val audioPhaseType: PhaseType = PhaseType.INDEPENDENT,
-    val audioCarrierFrequency: Int = 690,
-    val audioAllowHighFrequencyCarrier: Boolean = false,
+    val audioCarrierPhaseType: CarrierPhaseType = CarrierPhaseType.OFFSET,
+    val audioCarrierFrequency: Int = 1000,
+    val audioWaveletWidth: Int = 5,
+    val audioWaveletFade: Float = 0.5f,
 )
 
 @Dao
