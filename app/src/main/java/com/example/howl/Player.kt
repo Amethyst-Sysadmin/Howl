@@ -53,7 +53,6 @@ import kotlin.time.TimeSource.Monotonic.markNow
 import java.util.Locale
 import kotlin.math.pow
 import java.lang.ref.WeakReference
-import java.util.UUID
 import kotlin.math.roundToInt
 
 fun formatTime(position: Double): String {
@@ -110,7 +109,7 @@ object Player {
     private var contextRef: WeakReference<Context>? = null
     private var autoIncrementPowerCounterA: Int = 0
     private var autoIncrementPowerCounterB: Int = 0
-    var output: Output = AudioOutput()
+    var output: Output = DummyOutput()
     private val noiseGenerator = NoiseGenerator()
 
     fun initialise(context: Context) {
@@ -123,7 +122,8 @@ object Player {
         DataRepository.setChannelBPower(0)
         output = when (outputType) {
             OutputType.COYOTE3 -> Coyote3Output()
-            OutputType.AUDIO -> AudioOutput()
+            OutputType.AUDIO_WAVELET -> AudioOutput()
+            OutputType.AUDIO_CONTINUOUS -> ContinuousAudioOutput()
         }
         output.initialise()
 
@@ -233,8 +233,8 @@ object Player {
         }
 
         modifiedPulse = modifiedPulse.copy(
-            ampA = (pulse.ampA * specialEffectsState.scaleAmplitudeA).coerceAtMost(1.0f),
-            ampB = (pulse.ampB * specialEffectsState.scaleAmplitudeB).coerceAtMost(1.0f)
+            ampA = (modifiedPulse.ampA * specialEffectsState.scaleAmplitudeA).coerceAtMost(1.0f),
+            ampB = (modifiedPulse.ampB * specialEffectsState.scaleAmplitudeB).coerceAtMost(1.0f)
         )
 
         return modifiedPulse
@@ -305,6 +305,7 @@ object Player {
         val playerState = DataRepository.playerState.value
         if (source == null || playerState.activePulseSource != source) {
             updatePlayerState(DataRepository.PlayerState(activePulseSource = source))
+            DataRepository.setPlayerPosition(0.0)
         }
     }
     fun getCurrentPosition(): Double {

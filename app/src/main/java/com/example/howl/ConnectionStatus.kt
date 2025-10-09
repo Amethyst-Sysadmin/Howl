@@ -66,34 +66,36 @@ fun ConnectionStatusBar(
                 )
             }
 
-            if (status == ConnectionStatus.Disconnected) {
-                Button(
-                    onClick = connectFunction,
-                    modifier = Modifier.align(Alignment.CenterVertically)
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.bluetooth),
-                        contentDescription = "Connect",
-                    )
-                    Text(text = "Connect", modifier = Modifier.padding(start = 8.dp))
-                }
-            }
-            else if (status == ConnectionStatus.Connecting) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                )
-            }
-            else if (status == ConnectionStatus.Connected) {
-                Row {
-                    Text(
-                        text = "$batteryLevel%",
-                        style = MaterialTheme.typography.bodyLarge,
+            when (status) {
+                ConnectionStatus.Disconnected -> {
+                    Button(
+                        onClick = connectFunction,
                         modifier = Modifier.align(Alignment.CenterVertically)
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.bluetooth),
+                            contentDescription = "Connect",
+                        )
+                        Text(text = "Connect", modifier = Modifier.padding(start = 8.dp))
+                    }
+                }
+                ConnectionStatus.Connecting -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
                     )
-                    Icon(
-                        painter = painterResource(R.drawable.battery),
-                        contentDescription = "Battery level",
-                    )
+                }
+                ConnectionStatus.Connected -> {
+                    Row {
+                        Text(
+                            text = "$batteryLevel%",
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.align(Alignment.CenterVertically)
+                        )
+                        Icon(
+                            painter = painterResource(R.drawable.battery),
+                            contentDescription = "Battery level",
+                        )
+                    }
                 }
             }
         }

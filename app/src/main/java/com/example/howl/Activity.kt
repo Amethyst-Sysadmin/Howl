@@ -262,9 +262,6 @@ class MilkerActivity : Activity() {
     val waveManager: WaveManager = WaveManager()
     val wompStartFreq = 0.0
     val wompEndFreq = 0.7
-    /*val wompStartSpeed = 0.2
-    val wompEndSpeed = 3.0
-    val wompRateChangeSpeedRange = 0.15..0.2*/
     val wompStartSpeed = 0.3
     val wompEndSpeed = 2.5
     val wompRateChangeSpeedRange = 0.1..0.15
@@ -1188,7 +1185,7 @@ abstract class BaseSimplexActivity : Activity() {
 
     protected fun ampTimeSpeedChange() {
         ampTimeSpeed.setTarget(randomInRange(ampTimeSpeedRange), randomInRange(changeRateRange))
-        Log.d("Activity", "ampTimeSpeedChange ${ampTimeSpeed.getTarget()}")
+        //Log.d("Activity", "ampTimeSpeedChange ${ampTimeSpeed.getTarget()}")
         val nextAmpTimeSpeedChangeSecs = randomInRange(ampTimeChangeSecsRange)
         timerManager.addTimer("ampTimeSpeedChange", nextAmpTimeSpeedChangeSecs) {
             ampTimeSpeedChange()
@@ -1197,7 +1194,7 @@ abstract class BaseSimplexActivity : Activity() {
 
     protected fun ampRotationSpeedChange() {
         ampRotationSpeed.setTarget(randomInRange(ampRotationSpeedRange), randomInRange(changeRateRange))
-        Log.d("Activity", "ampRotationSpeedChange ${ampRotationSpeed.getTarget()}")
+        //Log.d("Activity", "ampRotationSpeedChange ${ampRotationSpeed.getTarget()}")
         val nextAmpRotationSpeedChangeSecs = randomInRange(ampRotationSpeedChangeSecsRange)
         timerManager.addTimer("ampRotationSpeedChange", nextAmpRotationSpeedChangeSecs) {
             ampRotationSpeedChange()
@@ -1334,8 +1331,6 @@ class RelentlessActivity : Activity() {
         swapChannels = Random.nextBoolean()
 
         val longWave = CyclicalWave(createRandomWaveShape())
-        //val longWave = randomLongWave()
-        //val longWave = testWave()
         val repeats = repeatOptions.random()
         val shortWave = longWave.createRepeatedWave(repeats, "shortWave")
 

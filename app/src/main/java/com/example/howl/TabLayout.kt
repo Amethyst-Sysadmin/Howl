@@ -27,8 +27,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
-import kotlin.Float
-import kotlin.ranges.ClosedFloatingPointRange
 
 class TabLayoutViewModel : ViewModel() {
     private val fixedTabs = listOf("Player", "Generator", "Activity", "Settings")

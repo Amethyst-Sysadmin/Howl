@@ -149,9 +149,6 @@ class PlayerService : Service() {
                     }
 
                     val mainOptionsState = DataRepository.mainOptionsState.value
-                    val connected =
-                        DataRepository.coyoteConnectionStatus.value == ConnectionStatus.Connected
-
                     val times = Player.getNextTimes(currentPosition)
                     val pulses = times.map { Player.getPulseAtTime(it) }
 
@@ -172,26 +169,6 @@ class PlayerService : Service() {
                             )
                         }
                     }
-
-                    /*if (output.ready && !mainOptionsState.globalMute) {
-                        output.sendPulses(
-                            mainOptionsState.channelAPower,
-                            mainOptionsState.channelBPower,
-                            mainOptionsState.frequencyRange.start.toDouble(),
-                            mainOptionsState.frequencyRange.endInclusive.toDouble(),
-                            pulses
-                        )
-                    }*/
-
-                    /*if (connected && !mainOptionsState.globalMute) {
-                        DGCoyote.sendPulse(
-                            mainOptionsState.channelAPower,
-                            mainOptionsState.channelBPower,
-                            mainOptionsState.frequencyRange.start,
-                            mainOptionsState.frequencyRange.endInclusive,
-                            pulses
-                        )
-                    }*/
 
                     val nextPosition =
                         currentPosition + (output.timerDelay * advancedControlState.playbackSpeed)

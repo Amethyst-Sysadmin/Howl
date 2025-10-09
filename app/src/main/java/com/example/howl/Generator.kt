@@ -4,7 +4,6 @@ import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -12,15 +11,11 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -198,7 +193,7 @@ class GeneratorChannel(
     }
 }
 
-class GeneratorChannelInfo(
+data class GeneratorChannelInfo(
     val ampWaveName: String = "",
     val freqWaveName: String = "",
     val minFreq: Double = 0.0,
@@ -260,10 +255,21 @@ object Generator : PulseSource {
         DataRepository.setGeneratorState(newGeneratorState)
     }
     fun updateInfo() {
-        updateGeneratorState(DataRepository.generatorState.value.copy(
+        val generatorState = DataRepository.generatorState.value
+        val newA = channelA.getInfo()
+        val newB = channelB.getInfo()
+
+        if (generatorState.channelAInfo != newA || generatorState.channelBInfo != newB) {
+            updateGeneratorState(generatorState.copy(
+                channelAInfo = newA,
+                channelBInfo = newB
+            ))
+        }
+
+        /*updateGeneratorState(DataRepository.generatorState.value.copy(
             channelAInfo = channelA.getInfo(),
             channelBInfo = channelB.getInfo()
-        ))
+        ))*/
     }
     fun randomise() {
         channelA.randomise()

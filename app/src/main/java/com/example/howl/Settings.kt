@@ -58,15 +58,19 @@ class SettingsViewModel() : ViewModel() {
         BluetoothHandler.disconnect()
         Player.switchOutput(outputType)
     }
-    fun setAudioCarrierType(type: CarrierWaveType) {
-        setOutputState(outputState.value.copy(audioCarrierType = type))
+    fun setAudioWaveShape(shape: AudioWaveShape) {
+        setOutputState(outputState.value.copy(audioWaveShape = shape))
         saveSettings()
     }
-    fun setAudioCarrierPhaseType(type: CarrierPhaseType) {
+    fun setAudioCarrierShape(shape: AudioWaveShape) {
+        setOutputState(outputState.value.copy(audioCarrierShape = shape))
+        saveSettings()
+    }
+    fun setAudioCarrierPhaseType(type: AudioPhaseType) {
         setOutputState(outputState.value.copy(audioCarrierPhaseType = type))
         saveSettings()
     }
-    /*fun setAudioOutputMinFrequency(newFrequency: Int) {
+    fun setAudioOutputMinFrequency(newFrequency: Int) {
         val currentMax = outputState.value.audioOutputMaxFrequency
         val clampedMin = newFrequency.coerceAtMost(currentMax - 50).coerceAtLeast(10)
         setOutputState(outputState.value.copy(audioOutputMinFrequency = clampedMin))
@@ -82,7 +86,7 @@ class SettingsViewModel() : ViewModel() {
         val newRange = outputState.value.audioOutputMinFrequency .. outputState.value.audioOutputMaxFrequency
         Player.output.allowedFrequencyRange = newRange
         DataRepository.setFrequencyRange(newRange)
-    }*/
+    }
     fun syncParameters() {
         viewModelScope.launch {
             DataRepository.saveSettings()
@@ -144,13 +148,13 @@ fun SettingsPanel(
             )
         }
 
-        if(outputState.outputType == OutputType.AUDIO) {
+        if(outputState.outputType == OutputType.AUDIO_WAVELET) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
-                Text(text = "Audio output", style = MaterialTheme.typography.headlineSmall)
+                Text(text = "Audio (wavelet)", style = MaterialTheme.typography.headlineSmall)
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -159,46 +163,29 @@ fun SettingsPanel(
             ) {
                 Text(text = "Carrier wave shape", style = MaterialTheme.typography.labelLarge)
                 OptionPicker(
-                    currentValue = outputState.audioCarrierType,
+                    currentValue = outputState.audioCarrierShape,
                     onValueChange = {
-                        viewModel.setAudioCarrierType(it)
+                        viewModel.setAudioCarrierShape(it)
                     },
-                    options = CarrierWaveType.entries,
+                    options = AudioWaveShape.entries,
                     getText = { it.displayName }
                 )
             }
             SliderWithLabel(
                 label = "Carrier wave frequency (Hz)",
                 value = outputState.audioCarrierFrequency.toFloat(),
-                onValueChange = { viewModel.setOutputState(outputState.copy(audioCarrierFrequency = it.roundToInt())) },
+                onValueChange = {
+                    viewModel.setOutputState(
+                        outputState.copy(
+                            audioCarrierFrequency = it.roundToInt()
+                        )
+                    )
+                },
                 onValueChangeFinished = { viewModel.saveSettings() },
                 valueRange = 600.0f..2000.0f,
                 steps = 139,
                 valueDisplay = { it.roundToInt().toString() }
             )
-            /*SwitchWithLabel(
-                label = "Allow higher carrier frequencies",
-                checked = outputState.audioAllowHighFrequencyCarrier,
-                onCheckedChange = {
-                    viewModel.setOutputState(outputState.copy(audioAllowHighFrequencyCarrier = it))
-                    viewModel.saveSettings()
-                }
-            )*/
-            /*Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "Envelope shape", style = MaterialTheme.typography.labelLarge)
-                OptionPicker(
-                    currentValue = outputState.audioEnvelopeType,
-                    onValueChange = {
-                        viewModel.setAudioEnvelopeType(it)
-                    },
-                    options = EnvelopeType.entries,
-                    getText = { it.displayName }
-                )
-            }*/
             val waveletWidthRange = 3..10
             SliderWithLabel(
                 label = "Wavelet width (in carrier wave cycles)",
@@ -223,13 +210,16 @@ fun SettingsPanel(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(text = "Carrier phase on each channel", style = MaterialTheme.typography.labelLarge)
+                Text(
+                    text = "Carrier phase on each channel",
+                    style = MaterialTheme.typography.labelLarge
+                )
                 OptionPicker(
                     currentValue = outputState.audioCarrierPhaseType,
                     onValueChange = {
                         viewModel.setAudioCarrierPhaseType(it)
                     },
-                    options = CarrierPhaseType.entries,
+                    options = AudioPhaseType.entries,
                     getText = { it.displayName }
                 )
             }
@@ -238,29 +228,58 @@ fun SettingsPanel(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                val dutyCycle = ((1.0 / outputState.audioCarrierFrequency) * outputState.audioWaveletWidth) / 0.01
+                val dutyCycle =
+                    ((1.0 / outputState.audioCarrierFrequency) * outputState.audioWaveletWidth) / 0.01
                 val displayDutyCycle = (dutyCycle * 100.0).coerceIn(0.0..100.0).roundToInt()
-                Text(text = "Estimated duty cycle at 100Hz: $displayDutyCycle%", style = MaterialTheme.typography.labelLarge)
+                Text(
+                    text = "Estimated duty cycle at 100Hz: $displayDutyCycle%",
+                    style = MaterialTheme.typography.labelLarge
+                )
             }
-            /*val FREQUENCY_SLIDER_RANGE = 50..4000
+        }
+
+        if(outputState.outputType == OutputType.AUDIO_CONTINUOUS) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(text = "Audio (continuous)", style = MaterialTheme.typography.headlineSmall)
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "Wave shape", style = MaterialTheme.typography.labelLarge)
+                OptionPicker(
+                    currentValue = outputState.audioWaveShape,
+                    onValueChange = {
+                        viewModel.setAudioWaveShape(it)
+                    },
+                    options = AudioWaveShape.entries,
+                    getText = { it.displayName }
+                )
+            }
+            val FREQUENCY_SLIDER_RANGE = 10..1000
             SliderWithLabel(
-                label = "Minimum frequency (Hz)",
+                label = "Minimum allowed frequency (Hz)",
                 value = outputState.audioOutputMinFrequency.toFloat(),
                 onValueChange = { viewModel.setAudioOutputMinFrequency(it.roundToInt()) },
                 onValueChangeFinished = { viewModel.saveSettings() },
                 valueRange = FREQUENCY_SLIDER_RANGE.toClosedFloatingPointRange(),
-                steps = ((FREQUENCY_SLIDER_RANGE.endInclusive - FREQUENCY_SLIDER_RANGE.start) * 0.02).roundToInt() - 1,
+                steps = ((FREQUENCY_SLIDER_RANGE.endInclusive - FREQUENCY_SLIDER_RANGE.start) * 0.1).roundToInt() - 1,
                 valueDisplay = { it.roundToInt().toString() }
             )
             SliderWithLabel(
-                label = "Maximum frequency (Hz)",
+                label = "Maximum allowed frequency (Hz)",
                 value = outputState.audioOutputMaxFrequency.toFloat(),
                 onValueChange = { viewModel.setAudioOutputMaxFrequency(it.roundToInt()) },
                 onValueChangeFinished = { viewModel.saveSettings() },
                 valueRange = FREQUENCY_SLIDER_RANGE.toClosedFloatingPointRange(),
-                steps = ((FREQUENCY_SLIDER_RANGE.endInclusive - FREQUENCY_SLIDER_RANGE.start) * 0.02).roundToInt() - 1,
+                steps = ((FREQUENCY_SLIDER_RANGE.endInclusive - FREQUENCY_SLIDER_RANGE.start) * 0.1).roundToInt() - 1,
                 valueDisplay = { it.roundToInt().toString() }
-            )*/
+            )
         }
 
         if(outputState.outputType == OutputType.COYOTE3) {

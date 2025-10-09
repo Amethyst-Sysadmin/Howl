@@ -5,16 +5,14 @@
 
 ## Description
 
-Howl is an Android app that controls the DG Lab Coyote 3, an estim device for erotic adult entertainment.
+Howl is an Android app that controls and generates patterns for estim devices, for erotic adult entertainment.
 
 Current features are: -
-* Playback of funscript files (normally used with "stroker" type toys), using an original algorithm.
+* Playback of funscript files (normally for "stroker" type toys), using an original algorithm.
 * Playback of HWL files, which are preconverted audio files specifically for use with Howl.
+* Several built-in "activities" to enjoy. These are patterns with random elements that Howl generates in real-time.
 * A wave generator with various different parameters and shapes.
-* Several built-in "activities" to enjoy.
 * Convenient automatic synchronisation of funscript files with videos, via our "Howl Sync" add-on for Kodi.
-
-All features take advantage of the full capabilities of the Coyote 3, sending frequency and amplitude updates 40 times per second.
 
 ## Installation
 
@@ -24,9 +22,11 @@ Additional downloads, including older versions and the Kodi add-on, may be found
 
 ## Device support
 
-Howl is intended to support any Android version from 8.0 (released in 2017) onwards. However I've only personally tested it using Android 14.
+The output devices currently supported by Howl are: -
+* DG Lab Coyote 3
+* Any device that has audio input (experimental, see [notes in wiki](https://github.com/Amethyst-Sysadmin/Howl/wiki/Audio-output))
 
-It will only work on devices that support Bluetooth Low Energy (BLE), as this is required to connect to the Coyote.
+The Howl app is intended to run on any version of Android from 8.0 (released in 2017) onwards. However testing on very early versions has been limited (I've only personally used it with Android 14+).
 
 ## App screenshots
 
@@ -169,6 +169,8 @@ Not every feature uses the entire frequency range you've set, but everything use
 
 The "Player" tab allows you to play back different kinds of files. Currently it supports funscripts and HWL files. Your files need to be stored somewhere on your device that doesn't require any special permissions to access (I just put mine in a subfolder inside "Documents").
 
+See the [funscript wiki page](https://github.com/Amethyst-Sysadmin/Howl/wiki/Funscripts) for more details about funscripts and using them with Howl.
+
 ### Player advanced options
 
 This section explains the function of all the player options.
@@ -178,49 +180,12 @@ This section explains the function of all the player options.
 Global settings for the player that affect all app output (features like the generator and activities also send their output via the player).
 
 **Show sync fine tune**
-When enabled, a control will appear below the player allowing slight adjustments to Howl's playback position (up to +/- 0.5 seconds). This can be helpful if the content you're trying to play is supposed to sync up with something else (for example a video) and makes it easier to obtain perfect sync. The sync adjustment is a temporary control and will reset to zero upon opening a new file. For correcting typical funscript latency when using the Kodi add-on, use the "Remote funscript latency" control instead.
+When enabled, a control will appear below the player allowing slight adjustments to Howl's playback position (up to +/- 0.5 seconds). This can be helpful if the content you're trying to play is supposed to sync up with something else (for example a video) and makes it easier to obtain perfect sync. The sync adjustment is a temporary control and will reset to zero upon opening a new file. For correcting typical funscript latency when using the Kodi add-on, use the "Remote funscript latency" setting instead.
 
 **Playback speed**
 This controls the rate at which the player counts time, allowing any content Howl can play to be sped up or slowed down. The playback speed can be set from 0.25x to 4.0x, in increments of 0.25. For example setting this control to 0.5 will play at half speed. Setting it to 2.0 will play at double speed. 1.0 is the most typical setting and plays at normal rate.
 
-#### Funscript settings
-
-**Scaling (boosts slower movements)**
-Our algorithm generally gives faster movements in funscripts a higher output power than slower ones. This control adjusts what power level we assign to slow or medium speed movements. At 0 the power is directly proportional to movement speed, so a movement at 0.5 strokes per second gets 1/10th of the power of a movement at 5 strokes per second (this is generally bad since slow strokes get very low power and will be hard to notice). At 1 there will be no difference between fast and slow movements - everything is full power and all dynamic range is lost.
-
-The default value of 0.75 has been carefully considered and should give good results with most funscripts. This setting controls an exponent rather than a linear value, so small adjustments will have a big impact. For example try 0.7 if you would like a bit more dynamic range, or try 0.8 if you want more powerful slow movements than the default.
-
-**Positional effect strength**
-This adjusts the strength of the positional effect that Howl uses to "pan" between the channels when playing funscripts. At 0 there is no positional effect, and both channels always have the same power level. At 1 there is the maximum possible positional effect, with only channel B used for funscript positions at the very top, and only channel A used for positions at the very bottom.
-
-The default value is 1. If you are only using a single channel setup, 0 will give you the best result, as the positional effect cannot work in a single channel configuration.
-
-**Remote funscript latency (seconds)**
-This setting configures the expected network latency between the Kodi Sync add-on and Howl when funscripts are loaded remotely. The player will correct for this latency, so adjusting this control to the appropriate value should allow near perfect sync to be obtained.
-
-This setting only affects remotely loaded funscripts and will be ignored if you load a funscript manually from your Android device.
-
-**Amplitude algorithm**
-Selects the algorithm that Howl will use to calculate the output power levels when playing a funscript.
-* Default: A good choice for most content, has the most convincing positional effect.
-* Penetrative: Blends in additional noise on channel B for lower positions that would normally be almost entirely on A with the default algorithm. The concept is that it might possibly better match activities like penetrative sex or a blowjob, where the higher point (B) is inside something, so should probably still have stimulation even when the overall position is lower down towards A.
-
-**Frequency algorithm**
-Selects the algorithm that Howl will use to calculate the output frequency when play a funscript.
-* Position: The frequency is the same as the position the "stroker" device would have when playing the funscript. So low positions will always have a low frequency, and high positions will always have a high frequency.
-* Varied: The frequency is based on simplex noise generated by Howl, and will vary smoothly over time. It's essentially random, so may give more interesting output, but it's completely unrelated to what's happening in the funscript.
-* Blend: Blends together output from the "Position" and "Varied" algorithms in the configured ratio. It's an attempt to find the "sweet spot" where the output frequency has enough randomness to be interesting, but is also influenced by what's happening in the funscript.
-
-**A/B frequency time offset (position algorithm only)**
-Take channel A's position (and resulting frequency) from the configured amount of time in the past. Channel B still uses the current time. This often results in us playing slightly different frequencies on both channels, which may give a more pleasing effect.
-
-The default value is 0.1. Values in the range of 0.0 to 0.2 seem to give the best results, too large a time difference often just results in things feeling weird and out of sync.
-
-**Frequency vary speed (varied/blend algorithm only)**
-Controls how quickly the frequency noise Howl generates moves around. Frequencies will shift around the range slowly at low values, or quickly at high values.
-
-**Blend ratio (blend algorithm only)**
-Controls what proportion of the "Position" algorithm and the "Varied" algorithm to blend into the final result. 0.0 is the same as just using "Position". 1.0 as the same as just using "Varied". 0.5 is a 50/50 split between the two algorithms.
+The player settings section also contains the advanced settings for funscripts, which are explained on the [funscript wiki page](https://github.com/Amethyst-Sysadmin/Howl/wiki/Funscripts).
 
 ### Special effects
 The player can optionally apply various interesting special effects, which are accessed via the "magic wand" button. These work with all types of content, and can sometimes very significantly change the output.
@@ -230,6 +195,9 @@ When toggled on, any configured special effects are applied. When toggled off, a
 
 **Invert channel A/B frequencies**
 This inverts all the frequencies played on that channel. So if it would have played the lowest frequency, it will instead play the highest frequency (and vice versa). Setting one or both of these when playing a converted audio file can be interesting, and sometimes gives a very different experience.
+
+**Scale amplitude (channel A/B)**
+This allows the amplitude of all output on a channel to be scaled down or up. For example setting scale amplitude to 0.5 will halve the power of the file or pattern so that it does not go beyond 50%. The main purpose of this setting is to assist some Coyote 3 users who found that the output was too strong with certain very conductive electrodes, even with the output power set to the minimum of 1.
 
 **Frequency feel adjustment**
 This changes the way in which the configured frequency range is used, which allows some control over the general feeling of the output. The default value is 1.0. Values lower than 1 result in more use of lower frequencies, which can feel more "thumpy" and "physical". Values higher than 1 result in more use of higher frequencies, which can feel more "buzzy" and "electrical". It's probably easiest to think of the control as shifting where the middle of the frequency range is (but everything is rescaled around this so the full range is still used).
@@ -243,16 +211,6 @@ There's also a control for the speed of our generated noise. Higher values will 
 
 **Random frequency noise (amount/speed)**
 The same concept as the random amplitude noise control, but affects frequency instead. This can be very useful with something like a converted audio file that just sits on one frequency (which is pretty common). By applying some random frequency noise at a slow speed, you can make the frequency shift around in a pleasing way instead.
-
-### Funscript playback tips
-
-The most convenient way to use funscripts is through the Howl Sync add-on for Kodi (see the dedicated section below). That allows Howl to automatically play funscripts that accompany videos, and to automatically sync its playback position with Kodi's video player. If you aren't using the Kodi add-on, you'll just need to have the .funscript files on your device, and manually press the play button at the same time as you start the video on whatever device you're using to view that.
-
-Howl always tracks time exactly in real-time from when you pressed the play button, so as long as your player is also correct in this regard, it should not go out of sync during file playback. Use the "Mute pulse output" function if you need to make adjustments to your electrodes - this stops sending pulses, but the file keeps playing so it will remain in sync.
-
-I found "action based" funscripts (where the motion of the stroker device corresponds to the physical actions in a video) gave the best experience. But this is by no means a requirement, any funscript should work.
-
-Keep in mind that funscripts are originally for physical "stroker" devices, which cannot just jump instantly from the bottom to the top like an estim device can, and will have a maximum movement speed. So even a very well written script cannot always mirror a video perfectly, because the author will have been working within these limitations. That being said, there are also some really bad funscripts around that just aren't synced very well. So do try a few!
 
 ## Generator
 
@@ -303,6 +261,12 @@ Channel A's frequency and power both each shift around the whole range in fairly
 ### Penetration
 Inspired by: just sex innit mate. The channel B part of the wave is quite unusually shaped and is designed to peak at different points to the A wave, helping to represent the in/out movements. Lots of smooth speed changes over time. There are also some more subtle random changes to "feel" and how the frequency range is used over time. Uses plenty of artistic licence and needs a healthy dose of imagination (as with most of these).
 
+### Random shapes
+Generates waves where the amplitude has a random shape. They always start and end at zero, but the middle section of each wave has between 2 and 5 completely random points, which we then interpolate between to form a smooth shape. Periodically we switch to a new iteration of the pattern and generate new random shapes. The frequency on each channel is fixed per iteration, but will change each time we change the shapes.
+
+### Relentless
+Generates patterns that are always based around a classic repeating wave shape at moderate speeds (which is why it's relentless). The wave shapes actually have a lot of subtle randomness and can have different attack and decay characteristics, and sometimes a hold of varying length at the top. The output channels always share the same basic shape, but one channel will repeat it at exactly 1, 2, 3 or 4 times the speed of the other channel. The frequency on each channel is fixed per iteration, but will change periodically (as will the wave shapes).
+
 ### Simplex
 An activity based on simplex noise, which is a computer graphics technique that could be used to generate a random landscape in a game (for example). We use it here to generate a seemingly endless pattern of unpredictable rolling peaks and troughs. This version produces a classic simplex noise pattern, with a chart that looks very much like a landscape. Parameters such as the traversal speed  will vary smoothly over time. Because this classic simplex generation completely lacks any repetition, you might not find it as pleasurable as the other options.
 
@@ -323,12 +287,18 @@ Designed to feel like a vibrator being slowly and teasingly moved over... well w
 
 ## Settings
 
+### Output type
+
+Selects what kind of output device Howl is using. When connecting a Bluetooth device the appropriate output type will be selected automatically.
+
+Supported output types are: -
+* Coyote 3
+* Audio (continuous) - continuous output for audio devices, [see wiki](https://github.com/Amethyst-Sysadmin/Howl/wiki/Audio-output) for details.
+* Audio (wavelet) - wavelet output for audio devices, [see wiki](https://github.com/Amethyst-Sysadmin/Howl/wiki/Audio-output) for details.
+
 ### Coyote parameters
 
 These are all the parameters that can be set on the Coyote itself. Functionality should be exactly the same as the equivalent settings in the DG Labs app.
-
-**Channel A/B Power Limit**
-Limits the device power on that channel to the selected level.
 
 **Channel A/B Frequency Balance**
 This controls the relative strength of high and low frequencies on that channel. Higher values give stronger low frequencies. Our default is 200 (refer to the "Calibration 2" section above to optimise for your own electrode setup).
@@ -337,6 +307,9 @@ This controls the relative strength of high and low frequencies on that channel.
 This seems to be another way to adjust the low frequencies on the relevant channel. I haven't found it very useful and tend to leave it at 0. It seems to mainly affect the very lowest supported frequencies, e.g. instead of playing at 1Hz it will actually send 10Hz if you increase the intensity balance a bit. I don't think it's particularly helpful for this app, since if you don't want the very lowest frequencies, you can just adjust the main frequency range control.
 
 ### Power options
+
+**Channel A/B Power Limit**
+Limits output device power on that channel to the selected level. The maximum output power level is 200.
 
 **Power control step size**
 This sets how much the power level changes by when you press the large plus/minus buttons in Howl to change the channel A or B power. The default is 1. This is a convenience setting for users who like to use high power levels, allowing them to be reached without having to press the adjustment buttons as many times. The step size can be independently configured for each channel, which can be helpful when using different types of electrode.
@@ -362,99 +335,7 @@ When this setting is enabled, a "Debug" tab becomes visible, located to the righ
 
 ## Kodi add-on
 
-The Howl Sync add-on for Kodi allows .funscript files for videos that you're playing in Kodi to be automatically sent to Howl and synchronised with the video position. It is by far the most convenient method for playing funscripts.
-
-Kodi add-on features: -
-* Funscript files will be automatically sent to Howl by the Kodi add-on (you do not need to copy them to your phone).
-* One-way sync for player events from Kodi to Howl. E.g. if you skip forward in the video, Howl will skip forward too. If you stop the video, Howl will stop.
-
-### Howl Sync installation
-
-Obtain the latest Kodi add-on ("howl_sync.zip") from the <a href="https://github.com/Amethyst-Sysadmin/Howl/releases">Releases page</a>. You can install this in Kodi in either of two ways.
-
-**Method 1**
-In Kodi select "Add-ons / Install from zip file" and select the .zip file you downloaded from its location on your machine. Since the add-on isn't in Kodi's official repository, you will first have to allow the installation of add-ons from unknown sources. Kodi should prompt for this when you try to install, or you can find the setting under "Settings / System / Add-ons".
-
-**Method 2**
-You can alternatively extract the "script.service.howl" folder from the .zip file you downloaded, and place it in Kodi's "addons" directory. See [this page](https://kodi.wiki/view/Kodi_data_folder) for where to find that directory on different platforms. (Re)start Kodi and the add-on should be available. It will probably be marked as disabled initially, but you can enable it in the next step.
-
-Please note that Kodi version 19 (Matrix) or higher is required to install Howl Sync.
-
-### Howl Sync configuration
-
-After installation check under "Add-ons / My add-ons / All". You should be able to see "Howl Sync" in the list. Select "Howl Sync" and you should see the add-on's screen, which will look similar to the screenshot.
-
-<a href="screenshots/kodi1.png"><img src="screenshots/kodi1.png" alt="Kodi"></a>
-
-Note the "Status" of the add-on on the right hand side of the screen. If it is disabled, pick the "Enable" option to activate it.
-
-Next pick the "Configure" option to display the add-on's settings. The only one you will need to set is the "Remote IP address" setting. That must be set to the IP address of your Android phone that's running Howl on your local wi-fi network.
-
-<a href="screenshots/kodi2.png"><img src="screenshots/kodi2.png" alt="Kodi"></a>
-
-### Other Kodi configuration
-
-You will need to set up a source in Kodi that contains the videos you want to play. You'll have to look elsewhere if you need a guide on basic Kodi setup, but either local files or files on a network device (such as a NAS) should work fine with the add-on. You'll probably want to set the content type of the source in Kodi to "None" (as we're not playing standard TV shows or movies that Kodi can scrape information on) and access it under the "Videos" section.
-
-Your funscript files need to be placed in the same location as your videos, and should have exactly the same name as the related video, but with the .funscript extension instead of the video type. For example if your video is called "Very Sexy Video.mp4", then the accompanying funscript should be called "Very Sexy Video.funscript". Everything in the file name such as capitalisation, symbols etc. needs to be exactly the same in order for the add-on to detect your funscript when you play the video.
-
-### Howl configuration
-
-Turn on the "Allow remote access" option on Howl's settings page. Howl will then allow the Kodi add-on to control it.
-
-### Usage
-
-Simply play the video you want in Kodi. Howl should automatically play the corresponding funscript (assuming you named it correctly), and follow along as you do operations in Kodi like skipping around. You don't need to do anything special on the playback side - once Howl Sync is properly configured, everything works automatically.
-
-### Tips
-
-Like everything else in Howl, remote funscript playback works even if you don't have your Coyote connected. So you can test playing files in Kodi and check if that triggers playback in Howl, without needing to set up your estim equipment.
-
-Howl has a "Remote funscript latency" option in the player options. You can adjust this value to compensate for the typical latency between Kodi and Howl, in order to achieve near perfect sync.
-
-The "Sync delay" option in Howl Sync is how long the add-on waits after a Kodi operation (like skipping forward or loading a file) before it syncs the playback position with Howl. The default value is generally good. Setting too short a delay can cause missed skips or very inconsistent sync, because we might read the position too early before Kodi's video playback has properly got going again. Lowering the delay does not improve sync, it just makes Howl follow Kodi's position a bit quicker after a skip. If Kodi is running on a slow device, you might find that increasing the delay from the default gives you better sync results.
-
-If your phone regularly changes IP address on your home network, you might find it helpful to assign it a static IP instead of using DHCP.
-
-### Troubleshooting
-
-The Howl Sync add-on logs various information to Kodi's main log file "kodi.log". See [this page](https://kodi.wiki/view/Template:LogfilePath) for where to find the log file on various platforms. Search the log for "[Howl]" to find the relevant lines. If something isn't working, the add-on will usually have logged some helpful information about what the problem is.
-
-
-## About HWL files and how to make them
-
-### What's the point of HWL files?
-
-HWL files are audio files that have been converted in advance to work with Howl. The reason for doing this is that estim audio files usually contain a lot of data (often 40,000+ samples per second per channel). The Coyote can only actually play 40 different pulses per second at most, and has a very limited frequency range compared to what an audio file can contain. So most of this audio data is never really used. Apps that play audio will usually do some computationally expensive frequency and amplitude detection on the audio file to decide what pulses to actually send to the Coyote.
-
-I thought "What if we do all the complicated frequency detection stuff in advance instead of doing it on the user's phone?" So that's essentially what an HWL file is. It's just a representation of what 40 pulses per second the Coyote would actually play. But we've done all the calculations in advance instead of doing them as the file plays.
-
-Advantages of this method: -
-* Much smaller file size. E.g. one popular 40 minute estim audio mp3 file is 92MB in size. This was reduced to 1.5MB when converted to HWL format.
-* Only very minimal processing is required on the user's device during playback, saving battery life.
-* There is potential to use a more advanced and accurate frequency detection algorithm, as the frequency detection will be done on a powerful PC in advance and doesn't need to run on a phone.
-* It's easier to map from the file to the Coyote's range, since we've already processed the whole audio in advance. So we already know what the loudest part of the file is, and what the highest frequency part of the file is, and can do scaling relative to that.
-
-However there are some disadvantages, such as the format being specifically tailored to the 40 updates per second the Coyote 3 uses. That works well for this simple app, but wouldn't work for apps that want to support different devices with different capabilities. Another disadvantage is that if we change something about the converter (e.g. improving the algorithm, or fixing a bug) it's necessary to reconvert and redistribute existing HWL files to take advantage of those improvements.
-
-### How to convert audio files to HWL format
-
-HWL conversion is done using a Python script on a PC, which is checked in to this repository (the "hwl.py" script in the "Python" directory). The script has a couple of dependencies (NumPy for large array handling and Aubio, which we use for frequency detection). The process of getting it running under Windows is as follows: -
-
-1) Download and install the latest Anaconda or Miniconda from [https://www.anaconda.com/download](https://www.anaconda.com/download) (if you're only using it for this get Miniconda as it's a smaller installation).
-2) Make a folder wherever you want the HWL converter to live. Download the "hwl.py" script and put it in inside your new folder. Make another folder called "audio", also inside your new folder. It should look similar to the following.
-![Converter folder](https://i.imgur.com/lKmucPG.png)
-3) Launch "Anaconda Prompt" (under "Anaconda" on the start menu).
-4) In the Anaconda prompt, run the command `conda config --add channels conda-forge` This allows conda to fetch packages from the conda-forge community repository (needed for Aubio).
-5) In the Anaconda prompt, run the command `conda create -n hwl python numpy aubio` This should create a new conda environment called "hwl" with all the dependencies that the converter script needs installed.
-
-After installing, do the following whenever you want to run the converter script.
-1) Put all the audio files you want to convert inside the "audio" folder you created earlier (this is where the script looks by default for audio files to convert). Currently it will convert .mp3 .flac and .wav files.
-2) Launch "Anaconda Prompt" (under "Anaconda" on the start menu).
-3) In the Anaconda prompt, run the command `conda activate hwl`
-4) Run the command `cd "[path to the script folder you created earlier]"` e.g. `cd "c:\users\your_username\documents\hwl"` if you placed the script in a folder called "hwl" in your documents directory.
-5) Run the command `python hwl.py`
-6) You should see various output from the converter script as it runs and converts your audio files.
+The Howl Sync add-on for Kodi allows .funscript files for videos that you're playing in Kodi to be automatically sent to Howl and synchronised with the video position. It is by far the most convenient method for playing funscripts. [See the wiki](https://github.com/Amethyst-Sysadmin/Howl/wiki/Kodi-add%E2%80%90on) for installation and setup details.
 
 ## Common questions and answers
 
@@ -462,31 +343,7 @@ After installing, do the following whenever you want to run the converter script
 No. Howl is a native Android app, so it's unlikely that an iOS version will ever exist (that would require rewriting most of the app).
 
 **Does Howl support the Coyote 2?**
-No. There's no specific reason it can't, but the Coyote 2 uses a different Bluetooth protocol to the 3. I don't own one for testing, so am not likely to be able to implement that myself. The Coyote 2 hardware also only supports a 10hz update rate (4x less than the 3), which probably isn't fast enough to give good results with a lot of Howl's patterns.
-
-**Does Howl support stereo stim?**
-No. Doing so would be a technical challenge due to the more "digital" way Howl works, with a discrete update interval. And because we don't generate the underlying waves which would be needed to generate sounds (essentially we say to the Coyote API something like "Please play a 70Hz wave" and it takes care of the actual wave generation). Generating sounds would be an interesting avenue to explore though, it's something I might possibly investigate in future.
-
-## Developer info
-
-Howl is a native Android app, which is written in Kotlin and uses Jetpack Compose. The files in the repository are for Android Studio, which is the recommended way to work on or build the app.
-
-### Technical description of the HWL format
-
-The custom HWL format that the app uses for preconverted audio files is a very simple one.
-
-The file starts with 8 byte header that always says "YEAHBOI!" (this is used by the app to identify if a file is an HWL file).
-This header is followed by any number of pulse objects (one for every 1/40th second the file lasts, to correspond to the Coyote 3's maximum update rate).
-
-Each pulse object consists of 4x IEEE 754 single precision floating point values in little endian format, in the following order: -
-* left_channel_amplitude: 0.0 to 1.0
-* right_channel_amplitude: 0.0 to 1.0
-* left_channel_frequency: 0.0 to 1.0
-* right_channel_frequency: 0.0 to 1.0
-
-A 1.0 value would correspond to the loudest part of the file for amplitude, or the highest frequency part of the file for frequency. These values are all just relative and we don't store the original frequencies (these frequencies are mapped into the range the user has chosen on the frequency slider control when the HWL file is played back by the Howl app).
-
-HWL files are always stereo - mono source files are lazily supported by just storing the same values for both channels.
+No. There's no specific reason it can't, but the Coyote 2 uses a different Bluetooth protocol to the 3, which we haven't added support for yet (I don't own one for testing). The Coyote 2 hardware also only supports a 10hz update rate (4x less than the 3), which probably isn't fast enough to give good results with a lot of Howl's patterns.
 
 ## Privacy
 

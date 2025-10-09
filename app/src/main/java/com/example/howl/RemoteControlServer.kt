@@ -1,6 +1,5 @@
 package com.example.howl
 
-import android.os.Looper
 import android.util.Log
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*

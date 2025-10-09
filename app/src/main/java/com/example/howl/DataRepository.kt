@@ -13,12 +13,13 @@ import kotlin.Boolean
 import kotlin.time.TimeMark
 import kotlin.Float
 
-const val howlVersion = "0.6 alpha 4"
+const val howlVersion = "0.6"
 const val showDeveloperOptions = false
 
 enum class OutputType(val displayName: String) {
     COYOTE3("Coyote 3"),
-    AUDIO("Audio"),
+    AUDIO_CONTINUOUS("Audio (continuous)"),
+    AUDIO_WAVELET("Audio (wavelet)"),
 }
 
 object DataRepository {
@@ -156,15 +157,24 @@ object DataRepository {
         _mainOptionsState.update { it.copy(swapChannels = swap)}
     }
 
-    fun setFrequencyRange(range: IntRange) {
+    fun setFrequencyRange(range: IntRange, overrideSelectedSubset: Boolean = false) {
         _mainOptionsState.update { currentState ->
-            val minFreq = range.lerp(currentState.frequencyRangeSelectedSubset.start.toDouble())
-            val maxFreq = range.lerp(currentState.frequencyRangeSelectedSubset.endInclusive.toDouble())
-            currentState.copy(
-                frequencyRange = range,
-                minFrequency = minFreq,
-                maxFrequency = maxFreq
-            )
+            if (overrideSelectedSubset) {
+                currentState.copy(
+                    frequencyRange = range,
+                    minFrequency = range.start,
+                    maxFrequency = range.endInclusive,
+                    frequencyRangeSelectedSubset = 0.0f..1.0f
+                )
+            } else {
+                val minFreq = range.lerp(currentState.frequencyRangeSelectedSubset.start.toDouble())
+                val maxFreq = range.lerp(currentState.frequencyRangeSelectedSubset.endInclusive.toDouble())
+                currentState.copy(
+                    frequencyRange = range,
+                    minFrequency = minFreq,
+                    maxFrequency = maxFreq
+                )
+            }
         }
     }
 
@@ -245,7 +255,11 @@ object DataRepository {
             powerStepSizeB = miscOptionsState.value.powerStepSizeB,
             powerAutoIncrementDelayA = miscOptionsState.value.powerAutoIncrementDelayA,
             powerAutoIncrementDelayB = miscOptionsState.value.powerAutoIncrementDelayB,
-            audioCarrierType = outputState.value.audioCarrierType,
+            outputType = outputState.value.outputType,
+            audioOutputMinFrequency = outputState.value.audioOutputMinFrequency,
+            audioOutputMaxFrequency = outputState.value.audioOutputMaxFrequency,
+            audioWaveShape = outputState.value.audioWaveShape,
+            audioCarrierShape = outputState.value.audioCarrierShape,
             audioCarrierPhaseType = outputState.value.audioCarrierPhaseType,
             audioCarrierFrequency = outputState.value.audioCarrierFrequency,
             audioWaveletWidth = outputState.value.audioWaveletWidth,
@@ -312,7 +326,11 @@ object DataRepository {
             activityChangeProbability = settings.activityChangeProbability
         ))
         setOutputState(outputState.value.copy(
-            audioCarrierType = settings.audioCarrierType,
+            outputType = settings.outputType,
+            audioOutputMinFrequency = settings.audioOutputMinFrequency,
+            audioOutputMaxFrequency = settings.audioOutputMaxFrequency,
+            audioWaveShape = settings.audioWaveShape,
+            audioCarrierShape = settings.audioCarrierShape,
             audioCarrierPhaseType = settings.audioCarrierPhaseType,
             audioCarrierFrequency = settings.audioCarrierFrequency,
             audioWaveletWidth = settings.audioWaveletWidth,
@@ -321,9 +339,12 @@ object DataRepository {
     }
 
     data class OutputState(
-        val outputType: OutputType = OutputType.AUDIO,
-        val audioCarrierType: CarrierWaveType = CarrierWaveType.SINE,
-        val audioCarrierPhaseType: CarrierPhaseType = CarrierPhaseType.SAME,
+        val outputType: OutputType = OutputType.AUDIO_WAVELET,
+        val audioOutputMaxFrequency: Int = 400,
+        val audioOutputMinFrequency: Int = 50,
+        val audioWaveShape: AudioWaveShape = AudioWaveShape.SINE,
+        val audioCarrierShape: AudioWaveShape = AudioWaveShape.SINE,
+        val audioCarrierPhaseType: AudioPhaseType = AudioPhaseType.OFFSET,
         val audioCarrierFrequency: Int = 1000,
         val audioWaveletWidth: Int = 5,
         val audioWaveletFade: Float = 0.5f,

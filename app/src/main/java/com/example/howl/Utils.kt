@@ -118,12 +118,6 @@ class WaveShape(
     }
 }
 
-/*data class WaveShape(
-    val name: String,
-    val points: List<WavePoint>,
-    val interpolationType: InterpolationType = InterpolationType.HERMITE
-)*/
-
 data class Quadruple<T1, T2, T3, T4>(
     val first: T1,
     val second: T2,

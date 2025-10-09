@@ -1,8 +1,6 @@
 package com.example.howl
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -194,32 +192,6 @@ fun PowerLevelMeter(
     )
 }
 
-/*@Composable
-fun PowerLevelMeter(
-    powerLevel: Float,
-    barColor: Color
-) {
-    Box(
-        modifier = Modifier
-            .width(12.dp)
-            .fillMaxHeight()
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outline,
-                shape = MaterialTheme.shapes.extraSmall
-            )
-            .padding(1.dp),
-        contentAlignment = Alignment.BottomCenter
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(fraction = powerLevel.coerceIn(0f, 1f))
-                .background(barColor)
-        )
-    }
-}*/
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun LongPressButton(
@@ -240,8 +212,6 @@ fun LongPressButton(
             ),
         color = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary,
-        /*color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,*/
         shape = shape,
         tonalElevation = 2.dp,
         shadowElevation = 4.dp
