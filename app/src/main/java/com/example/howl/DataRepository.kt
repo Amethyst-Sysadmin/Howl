@@ -13,7 +13,7 @@ import kotlin.Boolean
 import kotlin.time.TimeMark
 import kotlin.Float
 
-const val howlVersion = "0.6"
+const val howlVersion = "0.6.2"
 const val showDeveloperOptions = false
 
 enum class OutputType(val displayName: String) {
@@ -24,6 +24,10 @@ enum class OutputType(val displayName: String) {
 
 object DataRepository {
     var database: HowlDatabase? = null
+    
+    // 标记DataRepository是否已初始化
+    var isInitialised: Boolean = false
+        private set
 
     const val chartUpdatesPerSecond = 50
     const val chartUpdateMillis = 1000L / chartUpdatesPerSecond
@@ -210,6 +214,8 @@ object DataRepository {
 
     fun initialise(db: HowlDatabase) {
         database = db
+        isInitialised = true
+        HLog.d("DataRepository", "Initialised with isInitialised = $isInitialised")
     }
 
     suspend fun saveSettings() {
@@ -255,6 +261,7 @@ object DataRepository {
             powerStepSizeB = miscOptionsState.value.powerStepSizeB,
             powerAutoIncrementDelayA = miscOptionsState.value.powerAutoIncrementDelayA,
             powerAutoIncrementDelayB = miscOptionsState.value.powerAutoIncrementDelayB,
+            language = miscOptionsState.value.language,
             outputType = outputState.value.outputType,
             audioOutputMinFrequency = outputState.value.audioOutputMinFrequency,
             audioOutputMaxFrequency = outputState.value.audioOutputMaxFrequency,
@@ -320,7 +327,8 @@ object DataRepository {
             powerStepSizeA = settings.powerStepSizeA,
             powerStepSizeB = settings.powerStepSizeB,
             powerAutoIncrementDelayA = settings.powerAutoIncrementDelayA,
-            powerAutoIncrementDelayB = settings.powerAutoIncrementDelayB
+            powerAutoIncrementDelayB = settings.powerAutoIncrementDelayB,
+            language = settings.language
         ))
         setActivityState(activityState.value.copy(
             activityChangeProbability = settings.activityChangeProbability
@@ -422,6 +430,7 @@ object DataRepository {
         val powerStepSizeB: Int = 1,
         val powerAutoIncrementDelayA: Int = 120,
         val powerAutoIncrementDelayB: Int = 120,
+        val language: String = "en" // "en" for English, "zh" for Chinese
     )
 
     data class DeveloperOptionsState (

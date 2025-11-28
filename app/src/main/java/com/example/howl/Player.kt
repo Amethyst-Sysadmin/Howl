@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -433,10 +434,10 @@ fun AdvancedControlsPanel(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Text(text = "Player settings", style = MaterialTheme.typography.headlineSmall)
+            Text(text = stringResource(R.string.player_settings), style = MaterialTheme.typography.headlineSmall)
         }
         SwitchWithLabel(
-            label = "Show sync fine tune",
+            label = stringResource(R.string.show_sync_fine_tune),
             checked = advancedControlsState.showSyncFineTune,
             onCheckedChange = {
                 viewModel.updateAdvancedControlsState(
@@ -448,7 +449,7 @@ fun AdvancedControlsPanel(
             }
         )
         SliderWithLabel(
-            label = "Playback speed",
+            label = stringResource(R.string.playback_speed),
             value = advancedControlsState.playbackSpeed,
             onValueChange = {
                 viewModel.updateAdvancedControlsState(advancedControlsState.copy(playbackSpeed = it))
@@ -464,10 +465,10 @@ fun AdvancedControlsPanel(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Text(text = "Funscript settings", style = MaterialTheme.typography.headlineSmall)
+            Text(text = stringResource(R.string.funscript_settings), style = MaterialTheme.typography.headlineSmall)
         }
         SliderWithLabel(
-            label = "Scaling (boosts slower movements)",
+            label = stringResource(R.string.scaling_boosts_slower_movements),
             value = advancedControlsState.funscriptVolume,
             onValueChange = {viewModel.updateAdvancedControlsState(advancedControlsState.copy(funscriptVolume = it))},
             onValueChangeFinished = { viewModel.saveSettings() },
@@ -476,7 +477,7 @@ fun AdvancedControlsPanel(
             valueDisplay = { String.format(Locale.US, "%03.2f", it) }
         )
         SliderWithLabel(
-            label = "Positional effect strength",
+            label = stringResource(R.string.positional_effect_strength),
             value = advancedControlsState.funscriptPositionalEffectStrength,
             onValueChange = {viewModel.updateAdvancedControlsState(advancedControlsState.copy(funscriptPositionalEffectStrength = it))},
             onValueChangeFinished = { viewModel.saveSettings() },
@@ -485,7 +486,7 @@ fun AdvancedControlsPanel(
             valueDisplay = { String.format(Locale.US, "%03.2f", it) }
         )
         SliderWithLabel(
-            label = "Remote funscript latency (seconds)",
+            label = stringResource(R.string.remote_funscript_latency_seconds),
             value = advancedControlsState.funscriptRemoteLatency,
             onValueChange = { viewModel.updateFunscriptLatency(it) },
             onValueChangeFinished = { viewModel.saveSettings() },
@@ -493,12 +494,21 @@ fun AdvancedControlsPanel(
             steps = 99,
             valueDisplay = { String.format(Locale.US, "%03.2f", it) }
         )
+        // 在Composable上下文中创建振幅算法资源映射
+        val amplitudeAlgorithmResources = mapOf(
+            AmplitudeAlgorithmType.DEFAULT to R.string.amplitude_algorithm_default,
+            AmplitudeAlgorithmType.PENETRATIVE to R.string.amplitude_algorithm_position // 使用现有资源
+        )
+        
+        // 创建本地化的振幅算法文本映射
+        val amplitudeAlgorithmLabels = amplitudeAlgorithmResources.mapValues { stringResource(it.value) }
+        
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = "Amplitude algorithm", style = MaterialTheme.typography.labelLarge)
+            Text(text = stringResource(R.string.amplitude_algorithm), style = MaterialTheme.typography.labelLarge)
             OptionPicker(
                 currentValue = advancedControlsState.funscriptAmplitudeAlgorithm,
                 onValueChange = {
@@ -510,15 +520,25 @@ fun AdvancedControlsPanel(
                     viewModel.saveSettings()
                 },
                 options = AmplitudeAlgorithmType.entries,
-                getText = { it.displayName }
+                getText = { amplitudeAlgorithmLabels.getOrDefault(it, it.displayName) }
             )
         }
+        // 在Composable上下文中创建频率算法资源映射
+        val frequencyAlgorithmResources = mapOf(
+            FrequencyAlgorithmType.BLEND to R.string.frequency_algorithm_blend,
+            FrequencyAlgorithmType.POSITION to R.string.amplitude_algorithm_position,
+            FrequencyAlgorithmType.VARIED to R.string.amplitude_algorithm_varied
+        )
+        
+        // 创建本地化的频率算法文本映射
+        val frequencyAlgorithmLabels = frequencyAlgorithmResources.mapValues { stringResource(it.value) }
+        
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = "Frequency algorithm", style = MaterialTheme.typography.labelLarge)
+            Text(text = stringResource(R.string.frequency_algorithm), style = MaterialTheme.typography.labelLarge)
             OptionPicker(
                 currentValue = advancedControlsState.funscriptFrequencyAlgorithm,
                 onValueChange = {
@@ -530,12 +550,12 @@ fun AdvancedControlsPanel(
                     viewModel.saveSettings()
                 },
                 options = FrequencyAlgorithmType.entries,
-                getText = { it.displayName }
+                getText = { frequencyAlgorithmLabels.getOrDefault(it, it.displayName) }
             )
         }
         if (advancedControlsState.funscriptFrequencyAlgorithm == FrequencyAlgorithmType.POSITION) {
             SliderWithLabel(
-                label = "A/B frequency time offset",
+                label = stringResource(R.string.ab_frequency_time_offset),
                 value = advancedControlsState.funscriptFrequencyTimeOffset,
                 onValueChange = {
                     viewModel.updateAdvancedControlsState(
@@ -552,7 +572,7 @@ fun AdvancedControlsPanel(
         }
         if (advancedControlsState.funscriptFrequencyAlgorithm != FrequencyAlgorithmType.POSITION) {
             SliderWithLabel(
-                label = "Frequency vary speed",
+                label = stringResource(R.string.frequency_vary_speed),
                 value = advancedControlsState.funscriptFrequencyVarySpeed,
                 onValueChange = {
                     viewModel.updateAdvancedControlsState(
@@ -569,7 +589,7 @@ fun AdvancedControlsPanel(
         }
         if (advancedControlsState.funscriptFrequencyAlgorithm == FrequencyAlgorithmType.BLEND) {
             SliderWithLabel(
-                label = "Blend ratio (Position -> Varied)",
+                label = stringResource(R.string.blend_ratio_position_varied),
                 value = advancedControlsState.funscriptFrequencyBlendRatio,
                 onValueChange = {
                     viewModel.updateAdvancedControlsState(
@@ -610,10 +630,10 @@ fun SpecialEffectsPanel(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Text(text = "Special effects", style = MaterialTheme.typography.headlineSmall)
+            Text(text = stringResource(R.string.special_effects), style = MaterialTheme.typography.headlineSmall)
         }
         SwitchWithLabel(
-            label = "Apply special effects",
+            label = stringResource(R.string.apply_special_effects),
             checked = specialEffectsState.specialEffectsEnabled,
             onCheckedChange = {
                 viewModel.updateSpecialEffectsState(
@@ -625,7 +645,7 @@ fun SpecialEffectsPanel(
             }
         )
         SwitchWithLabel(
-            label = "Invert channel A frequencies",
+            label = stringResource(R.string.invert_channel_a_frequencies),
             checked = specialEffectsState.frequencyInversionA,
             onCheckedChange = {
                 viewModel.updateSpecialEffectsState(
@@ -638,7 +658,7 @@ fun SpecialEffectsPanel(
             enabled = enabled
         )
         SwitchWithLabel(
-            label = "Invert channel B frequencies",
+            label = stringResource(R.string.invert_channel_b_frequencies),
             checked = specialEffectsState.frequencyInversionB,
             onCheckedChange = {
                 viewModel.updateSpecialEffectsState(
@@ -651,7 +671,7 @@ fun SpecialEffectsPanel(
             enabled = enabled
         )
         SliderWithLabel(
-            label = "Scale amplitude (channel A)",
+            label = stringResource(R.string.scale_amplitude_channel_a),
             value = specialEffectsState.scaleAmplitudeA,
             onValueChange = {viewModel.updateSpecialEffectsState(specialEffectsState.copy(scaleAmplitudeA = it))},
             onValueChangeFinished = { viewModel.saveSettings() },
@@ -661,7 +681,7 @@ fun SpecialEffectsPanel(
             enabled = enabled
         )
         SliderWithLabel(
-            label = "Scale amplitude (channel B)",
+            label = stringResource(R.string.scale_amplitude_channel_b),
             value = specialEffectsState.scaleAmplitudeB,
             onValueChange = {viewModel.updateSpecialEffectsState(specialEffectsState.copy(scaleAmplitudeB = it))},
             onValueChangeFinished = { viewModel.saveSettings() },
@@ -671,7 +691,7 @@ fun SpecialEffectsPanel(
             enabled = enabled
         )
         SliderWithLabel(
-            label = "Frequency feel adjustment",
+            label = stringResource(R.string.frequency_feel_adjustment),
             value = specialEffectsState.frequencyFeel,
             onValueChange = {viewModel.updateSpecialEffectsState(specialEffectsState.copy(frequencyFeel = it))},
             onValueChangeFinished = { viewModel.saveSettings() },
@@ -682,7 +702,7 @@ fun SpecialEffectsPanel(
         )
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
         SliderWithLabel(
-            label = "Random amplitude noise (amount)",
+            label = stringResource(R.string.random_amplitude_noise_amount),
             value = specialEffectsState.amplitudeNoiseAmount,
             onValueChange = {
                 viewModel.updateSpecialEffectsState(
@@ -699,7 +719,7 @@ fun SpecialEffectsPanel(
         )
         if (specialEffectsState.amplitudeNoiseAmount > 0f) {
             SliderWithLabel(
-                label = "Random amplitude noise (speed)",
+                label = stringResource(R.string.random_amplitude_noise_speed),
                 value = specialEffectsState.amplitudeNoiseSpeed,
                 onValueChange = {
                     viewModel.updateSpecialEffectsState(
@@ -716,7 +736,7 @@ fun SpecialEffectsPanel(
             )
         }
         SliderWithLabel(
-            label = "Random frequency noise (amount)",
+            label = stringResource(R.string.random_frequency_noise_amount),
             value = specialEffectsState.frequencyNoiseAmount,
             onValueChange = {
                 viewModel.updateSpecialEffectsState(
@@ -733,7 +753,7 @@ fun SpecialEffectsPanel(
         )
         if (specialEffectsState.frequencyNoiseAmount > 0f) {
             SliderWithLabel(
-                label = "Random frequency noise (speed)",
+                label = stringResource(R.string.random_frequency_noise_speed),
                 value = specialEffectsState.frequencyNoiseSpeed,
                 onValueChange = {
                     viewModel.updateSpecialEffectsState(
@@ -755,10 +775,10 @@ fun SpecialEffectsPanel(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
-                Text(text = "Developer options", style = MaterialTheme.typography.headlineSmall)
+                Text(text = stringResource(R.string.developer_options), style = MaterialTheme.typography.headlineSmall)
             }
             SliderWithLabel(
-                label = "Frequency exponent",
+                label = stringResource(R.string.frequency_exponent),
                 value = developerOptionsState.developerFrequencyExponent,
                 onValueChange = { viewModel.updateDeveloperOptionsState(developerOptionsState.copy(developerFrequencyExponent = it)) },
                 onValueChangeFinished = { },
@@ -768,7 +788,7 @@ fun SpecialEffectsPanel(
                 enabled = enabled
             )
             SliderWithLabel(
-                label = "Frequency gain",
+                label = stringResource(R.string.frequency_gain),
                 value = developerOptionsState.developerFrequencyGain,
                 onValueChange = { viewModel.updateDeveloperOptionsState(developerOptionsState.copy(developerFrequencyGain = it)) },
                 onValueChangeFinished = { },
@@ -778,7 +798,7 @@ fun SpecialEffectsPanel(
                 enabled = enabled
             )
             SliderWithLabel(
-                label = "Channel A frequency adjust",
+                label = stringResource(R.string.channel_a_frequency_adjust),
                 value = developerOptionsState.developerFrequencyAdjustA,
                 onValueChange = { viewModel.updateDeveloperOptionsState(developerOptionsState.copy(developerFrequencyAdjustA = it)) },
                 onValueChangeFinished = { },
@@ -788,7 +808,7 @@ fun SpecialEffectsPanel(
                 enabled = enabled
             )
             SliderWithLabel(
-                label = "Channel B frequency adjust",
+                label = stringResource(R.string.channel_b_frequency_adjust),
                 value = developerOptionsState.developerFrequencyAdjustB,
                 onValueChange = { viewModel.updateDeveloperOptionsState(developerOptionsState.copy(developerFrequencyAdjustB = it)) },
                 onValueChangeFinished = { },
@@ -798,7 +818,7 @@ fun SpecialEffectsPanel(
                 enabled = enabled
             )
             SliderWithLabel(
-                label = "Amplitude exponent",
+                label = stringResource(R.string.amplitude_exponent),
                 value = developerOptionsState.developerAmplitudeExponent,
                 onValueChange = { viewModel.updateDeveloperOptionsState(developerOptionsState.copy(developerAmplitudeExponent = it)) },
                 onValueChangeFinished = { },
@@ -808,7 +828,7 @@ fun SpecialEffectsPanel(
                 enabled = enabled
             )
             SliderWithLabel(
-                label = "Amplitude gain",
+                label = stringResource(R.string.amplitude_gain),
                 value = developerOptionsState.developerAmplitudeGain,
                 onValueChange = { viewModel.updateDeveloperOptionsState(developerOptionsState.copy(developerAmplitudeGain = it)) },
                 onValueChangeFinished = { },
@@ -876,10 +896,10 @@ fun PlayerPanel(
     modifier: Modifier = Modifier
 ) {
     val playerState by viewModel.playerState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     //val currentPosition by DataRepository.playerPosition.collectAsStateWithLifecycle()
     val advancedControlsState by viewModel.advancedControlsState.collectAsStateWithLifecycle()
     val specialEffectsState by viewModel.specialEffectsState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
     var showAdvancedSettings by remember { mutableStateOf(false) }
     var showSpecialEffects by remember { mutableStateOf(false) }
     val activeButtonColour = Color.Red
@@ -905,7 +925,7 @@ fun PlayerPanel(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // File Name Display
-        val displayName = playerState.activePulseSource?.displayName ?: "Player"
+        val displayName = playerState.activePulseSource?.displayName ?: "Howl Player"
         val duration = playerState.activePulseSource?.duration ?: 0.0
         Text(text = displayName, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelLarge)
 
@@ -931,12 +951,12 @@ fun PlayerPanel(
                 if (playerState.isPlaying) {
                     Icon(
                         painter = painterResource(R.drawable.pause),
-                        contentDescription = "Pause"
+                        contentDescription = context.getString(R.string.button_pause)
                     )
                 } else {
                     Icon(
                         painter = painterResource(R.drawable.play),
-                        contentDescription = "Play"
+                        contentDescription = context.getString(R.string.button_play)
                     )
                 }
             }
@@ -949,7 +969,7 @@ fun PlayerPanel(
             ) {
                 Icon(
                     painter = painterResource(R.drawable.folder_open),
-                    contentDescription = "Open file"
+                    contentDescription = stringResource(R.string.content_description_open_file),
                 )
             }
             // Special effects options button
@@ -963,7 +983,7 @@ fun PlayerPanel(
             ) {
                 Icon(
                     painter = painterResource(R.drawable.special_effects),
-                    contentDescription = "Special effects"
+                    contentDescription = stringResource(R.string.content_description_special_effects),
                 )
             }
             // Advanced options button
@@ -974,14 +994,14 @@ fun PlayerPanel(
             ) {
                 Icon(
                     painter = painterResource(R.drawable.settings),
-                    contentDescription = "Advanced settings"
+                    contentDescription = stringResource(R.string.content_description_advanced_settings),
                 )
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
         if (advancedControlsState.showSyncFineTune) {
             SliderWithLabel(
-                label = "Sync fine tune (seconds)",
+                label = stringResource(R.string.sync_fine_tune),
                 value = playerState.syncFineTune,
                 onValueChange = { viewModel.updatePlayerState(playerState.copy(syncFineTune = it)) },
                 onValueChangeFinished = { },

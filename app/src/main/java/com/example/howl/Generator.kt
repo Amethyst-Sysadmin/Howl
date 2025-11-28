@@ -1,5 +1,6 @@
 package com.example.howl
 
+import android.content.Context
 import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -26,7 +27,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -157,7 +160,9 @@ class GeneratorChannel(
         minFreq.setImmediately(randomInRange(Generator.MIN_FREQ_RANGE))
         maxFreq.setImmediately(randomInRange(Generator.MAX_FREQ_RANGE))
 
+        // amp = 振幅（Amplitude）
         waveManager.addWave(CyclicalWave(generatorWaveShapes.random()),"amp")
+        // freq = 频率（Frequency）
         waveManager.addWave(CyclicalWave(generatorWaveShapes.random()),"freq")
         waveManager.restart()
         val range = appropriateSpeedRange()
@@ -396,8 +401,8 @@ fun GeneratorPanel(
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            GeneratorParametersInfo("Channel A", generatorState.channelAInfo, frequencyRange, onClick = { showChannelASettings = true }, modifier=Modifier.weight(1f))
-            GeneratorParametersInfo("Channel B", generatorState.channelBInfo, frequencyRange, onClick = { showChannelBSettings = true }, modifier=Modifier.weight(1f))
+            GeneratorParametersInfo(stringResource(R.string.channel_a), generatorState.channelAInfo, frequencyRange, onClick = { showChannelASettings = true }, modifier=Modifier.weight(1f))
+            GeneratorParametersInfo(stringResource(R.string.channel_b), generatorState.channelBInfo, frequencyRange, onClick = { showChannelBSettings = true }, modifier=Modifier.weight(1f))
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -414,13 +419,13 @@ fun GeneratorPanel(
                 if (isPlaying) {
                     Icon(
                         painter = painterResource(R.drawable.pause),
-                        contentDescription = "Pause"
-                    )
+                        contentDescription = stringResource(R.string.button_pause)
+            )
                 } else {
                     Icon(
                         painter = painterResource(R.drawable.play),
-                        contentDescription = "Play"
-                    )
+                        contentDescription = stringResource(R.string.button_play)
+            )
                 }
             }
             Button(
@@ -428,9 +433,9 @@ fun GeneratorPanel(
             ) {
                 Icon(
                     painter = painterResource(R.drawable.casino),
-                    contentDescription = "Randomise"
-                )
-                Text(text = "Random", modifier = Modifier.padding(start = 8.dp))
+                    contentDescription = stringResource(R.string.button_randomise)
+            )
+                Text(text = stringResource(R.string.generator_random), modifier = Modifier.padding(start = 8.dp))
             }
         }
         Row(
@@ -438,7 +443,7 @@ fun GeneratorPanel(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = "Automatically change parameters", style = MaterialTheme.typography.labelLarge)
+            Text(text = stringResource(R.string.generator_auto_change_parameters), style = MaterialTheme.typography.labelLarge)
             Switch(
                 checked = generatorState.autoChange,
                 onCheckedChange = {
@@ -449,7 +454,7 @@ fun GeneratorPanel(
         }
         if (generatorState.autoChange) {
             SliderWithLabel(
-                label = "Speed change probability",
+                label = stringResource(R.string.generator_speed_change_probability),
                 value = generatorState.speedChangeProbability.toFloat(),
                 onValueChange = {viewModel.setSpeedChangeProbability(probability = it.toDouble())},
                 onValueChangeFinished = { viewModel.saveSettings() },
@@ -458,7 +463,7 @@ fun GeneratorPanel(
                 valueDisplay = { String.format(Locale.US, "%03.2f", it) }
             )
             SliderWithLabel(
-                label = "Amplitude change probability",
+                label = stringResource(R.string.generator_amplitude_change_probability),
                 value = generatorState.amplitudeChangeProbability.toFloat(),
                 onValueChange = {viewModel.setAmplitudeChangeProbability(probability = it.toDouble())},
                 onValueChangeFinished = { viewModel.saveSettings() },
@@ -467,7 +472,7 @@ fun GeneratorPanel(
                 valueDisplay = { String.format(Locale.US, "%03.2f", it) }
             )
             SliderWithLabel(
-                label = "Frequency change probability",
+                label = stringResource(R.string.generator_frequency_change_probability),
                 value = generatorState.frequencyChangeProbability.toFloat(),
                 onValueChange = {viewModel.setFrequencyChangeProbability(probability = it.toDouble())},
                 onValueChangeFinished = { viewModel.saveSettings() },
@@ -476,7 +481,7 @@ fun GeneratorPanel(
                 valueDisplay = { String.format(Locale.US, "%03.2f", it) }
             )
             SliderWithLabel(
-                label = "Shape change probability",
+                label = stringResource(R.string.generator_shape_change_probability),
                 value = generatorState.waveChangeProbability.toFloat(),
                 onValueChange = {viewModel.setWaveChangeProbability(probability = it.toDouble())},
                 onValueChangeFinished = { viewModel.saveSettings() },
@@ -496,9 +501,10 @@ fun GeneratorPanel(
                 ) {
                     GeneratorParametersSettings(
                         viewModel = viewModel,
-                        channel = 0,
+                        channelNumber = 0,
                         generatorChannelInfo = generatorState.channelAInfo,
-                        title = "Channel A Settings"
+                        title = stringResource(R.string.channel_a_settings),
+                        generatorWaveShapes = generatorWaveShapes
                     )
                 }
             }
@@ -514,9 +520,10 @@ fun GeneratorPanel(
                 ) {
                     GeneratorParametersSettings(
                         viewModel = viewModel,
-                        channel = 1,
+                        channelNumber = 1,
                         generatorChannelInfo = generatorState.channelBInfo,
-                        title = "Channel B Settings"
+                        title = stringResource(R.string.channel_b_settings),
+                        generatorWaveShapes = generatorWaveShapes
                     )
                 }
             }
@@ -527,11 +534,37 @@ fun GeneratorPanel(
 @Composable
 fun GeneratorParametersSettings(
     viewModel: GeneratorViewModel,
-    channel: Int,
+    channelNumber: Int,
     generatorChannelInfo: GeneratorChannelInfo,
     title: String,
+    generatorWaveShapes: List<WaveShape>,
     modifier: Modifier = Modifier
 ) {
+    // 在Composable上下文中创建波形资源映射
+    val waveShapeResources = mapOf(
+        "Sawtooth" to R.string.wave_shape_sawtooth,
+        "Triangle" to R.string.wave_shape_triangle,
+        "Square" to R.string.wave_shape_square,
+        "Constant" to R.string.wave_shape_constant,
+        "Fangs" to R.string.wave_shape_fangs,
+        "Curvy triangle" to R.string.wave_shape_curvy_triangle,
+        "Curvy fangs" to R.string.wave_shape_curvy_fangs,
+        "Curvy trapezium" to R.string.wave_shape_curvy_trapezium,
+        "Gentle attack" to R.string.wave_shape_gentle_attack,
+        "Fast attack" to R.string.wave_shape_fast_attack,
+        "Faster attack" to R.string.wave_shape_faster_attack,
+        "Rising tide" to R.string.wave_shape_rising_tide,
+        "Flourish" to R.string.wave_shape_flourish,
+        "Jelly" to R.string.wave_shape_jelly,
+        "Tap + slide" to R.string.wave_shape_tap_slide,
+        "Double time" to R.string.wave_shape_double_time,
+        "Triple trouble" to R.string.wave_shape_triple_trouble,
+        "Steps" to R.string.wave_shape_steps
+    )
+    
+    // 在Composable上下文中创建本地化文本映射
+    val waveShapeLabels = waveShapeResources.mapValues { stringResource(it.value) }
+    
     Column (modifier=modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)){
         Row(
             modifier = Modifier.fillMaxWidth().padding(4.dp),
@@ -541,9 +574,9 @@ fun GeneratorParametersSettings(
             Text(text = title, style = MaterialTheme.typography.headlineSmall)
         }
         SliderWithLabel(
-            label = "Speed (repetitions/sec)",
+            label = stringResource(R.string.generator_speed_label),
             value = generatorChannelInfo.speed.toFloat(),
-            onValueChange = { viewModel.setSpeed(channel = channel, speed = it.toDouble()) },
+            onValueChange = { viewModel.setSpeed(channel = channelNumber, speed = it.toDouble()) },
             onValueChangeFinished = { },
             valueRange = Generator.SPEED_RANGE.toFloatRange,
             steps = ((Generator.SPEED_RANGE.endInclusive - Generator.SPEED_RANGE.start) * 10.0 - 1).roundToInt(),
@@ -555,27 +588,28 @@ fun GeneratorParametersSettings(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = "Wave shape")
+            Text(text = stringResource(R.string.generator_wave_shape))
+            // 振幅形状选择器 - 使用本地化文本映射
             OptionPicker(
                 currentValue = generatorChannelInfo.ampWaveName,
-                onValueChange = { viewModel.setAmpWave(channel, it) },
+                onValueChange = { viewModel.setAmpWave(channelNumber, it) },
                 options = generatorWaveShapes.map { it.name },
-                getText = { it }
+                getText = { shapeName -> waveShapeLabels.getOrDefault(shapeName, shapeName) }
             )
         }
         SliderWithLabel(
-            label = "Start power",
+            label = stringResource(R.string.generator_start_power),
             value = generatorChannelInfo.minAmp.toFloat(),
-            onValueChange = { viewModel.setMinAmp(channel = channel, amplitude = it.toDouble()) },
+            onValueChange = { viewModel.setMinAmp(channel = channelNumber, amplitude = it.toDouble()) },
             onValueChangeFinished = { },
             valueRange = 0.0f .. 1.0f,
             steps = 99,
             valueDisplay = { String.format(Locale.US, "%.0f%%", it * 100.0) }
         )
         SliderWithLabel(
-            label = "End power",
+            label = stringResource(R.string.generator_end_power),
             value = generatorChannelInfo.maxAmp.toFloat(),
-            onValueChange = { viewModel.setMaxAmp(channel = channel, amplitude = it.toDouble()) },
+            onValueChange = { viewModel.setMaxAmp(channel = channelNumber, amplitude = it.toDouble()) },
             onValueChangeFinished = { },
             valueRange = 0.0f .. 1.0f,
             steps = 99,
@@ -587,27 +621,28 @@ fun GeneratorParametersSettings(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = "Freq shape")
+            Text(text = stringResource(R.string.generator_freq_shape))
+            // 频率形状选择器 - 使用相同的本地化文本映射
             OptionPicker(
                 currentValue = generatorChannelInfo.freqWaveName,
-                onValueChange = { viewModel.setFreqWave(channel, it) },
+                onValueChange = { viewModel.setFreqWave(channelNumber, it) },
                 options = generatorWaveShapes.map { it.name },
-                getText = { it }
+                getText = { shapeName -> waveShapeLabels.getOrDefault(shapeName, shapeName) }
             )
         }
         SliderWithLabel(
-            label = "Start frequency",
+            label = stringResource(R.string.generator_start_frequency),
             value = generatorChannelInfo.minFreq.toFloat(),
-            onValueChange = { viewModel.setMinFreq(channel = channel, frequency = it.toDouble()) },
+            onValueChange = { viewModel.setMinFreq(channel = channelNumber, frequency = it.toDouble()) },
             onValueChangeFinished = { },
             valueRange = 0.0f .. 1.0f,
             steps = 99,
             valueDisplay = { String.format(Locale.US, "%.0f%%", it * 100.0) }
         )
         SliderWithLabel(
-            label = "End frequency",
+            label = stringResource(R.string.generator_end_frequency),
             value = generatorChannelInfo.maxFreq.toFloat(),
-            onValueChange = { viewModel.setMaxFreq(channel = channel, frequency = it.toDouble()) },
+            onValueChange = { viewModel.setMaxFreq(channel = channelNumber, frequency = it.toDouble()) },
             onValueChangeFinished = { },
             valueRange = 0.0f .. 1.0f,
             steps = 99,
@@ -624,6 +659,34 @@ fun GeneratorParametersInfo(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // 添加波形资源映射以支持本地化
+    val waveShapeResources = mapOf(
+        "Sawtooth" to R.string.wave_shape_sawtooth,
+        "Triangle" to R.string.wave_shape_triangle,
+        "Square" to R.string.wave_shape_square,
+        "Constant" to R.string.wave_shape_constant,
+        "Fangs" to R.string.wave_shape_fangs,
+        "Curvy triangle" to R.string.wave_shape_curvy_triangle,
+        "Curvy fangs" to R.string.wave_shape_curvy_fangs,
+        "Curvy trapezium" to R.string.wave_shape_curvy_trapezium,
+        "Gentle attack" to R.string.wave_shape_gentle_attack,
+        "Fast attack" to R.string.wave_shape_fast_attack,
+        "Faster attack" to R.string.wave_shape_faster_attack,
+        "Rising tide" to R.string.wave_shape_rising_tide,
+        "Flourish" to R.string.wave_shape_flourish,
+        "Jelly" to R.string.wave_shape_jelly,
+        "Tap + slide" to R.string.wave_shape_tap_slide,
+        "Double time" to R.string.wave_shape_double_time
+    )
+    
+    // 创建本地化映射
+    val waveShapeLabels = waveShapeResources.mapValues { (_, resId) -> stringResource(id = resId) }
+    
+    // 辅助函数获取本地化波形名称
+    fun getLocalizedWaveName(originalName: String): String {
+        return waveShapeLabels.getOrDefault(originalName, originalName)
+    }
+    
     Column(modifier = modifier.fillMaxWidth()) {
         Card(modifier = Modifier.fillMaxWidth().fillMaxHeight().clickable(onClick = onClick)) {
             Row(
@@ -639,23 +702,23 @@ fun GeneratorParametersInfo(
                 )
             }
             GeneratorParametersInfoRow(
-                category = "Shape",
-                value = generatorChannelInfo.ampWaveName
+                category = stringResource(R.string.generator_category_shape),
+                value = getLocalizedWaveName(generatorChannelInfo.ampWaveName)
             )
             GeneratorParametersInfoRow(
-                category = "Speed",
+                category = stringResource(R.string.generator_category_speed),
                 value = String.format(Locale.US, "%.2f", generatorChannelInfo.speed)
             )
             val ampLow = String.format(Locale.US, "%.1f", generatorChannelInfo.minAmp * 100.0)
             val ampHigh = String.format(Locale.US, "%.1f", generatorChannelInfo.maxAmp * 100.0)
             val ampText = if (generatorChannelInfo.ampWaveName == "Constant") "$ampHigh%" else "$ampLow% - $ampHigh%"
             GeneratorParametersInfoRow(
-                category = "Power",
+                category = stringResource(R.string.generator_category_power),
                 value = ampText
             )
             GeneratorParametersInfoRow(
-                category = "Freq shape",
-                value = generatorChannelInfo.freqWaveName
+                category = stringResource(R.string.generator_category_freq_shape),
+                value = getLocalizedWaveName(generatorChannelInfo.freqWaveName)
             )
             val freqLow =
                 frequencyRange.start + generatorChannelInfo.minFreq * (frequencyRange.endInclusive - frequencyRange.start)
@@ -667,7 +730,7 @@ fun GeneratorParametersInfo(
                 else
                     String.format(Locale.US, "%.1fHz - %.1fHz", freqLow, freqHigh)
             GeneratorParametersInfoRow(
-                category = "Freq",
+                category = stringResource(R.string.generator_category_freq),
                 value = freqText
             )
         }
@@ -703,6 +766,109 @@ fun GeneratorPreview() {
         GeneratorPanel(
             viewModel = viewModel,
             modifier = Modifier.fillMaxHeight()
+        )
+    }
+}
+
+@Composable
+fun GeneratorChannelControls(
+    channel: Int,
+    generatorChannelInfo: GeneratorChannelInfo,
+    generatorWaveShapes: List<WaveShape>,
+    viewModel: GeneratorViewModel,
+    modifier: Modifier = Modifier
+) {
+    // 将波形资源映射移到更高的作用域
+    val waveShapeResources = mapOf(
+        "Sawtooth" to R.string.wave_shape_sawtooth,
+        "Triangle" to R.string.wave_shape_triangle,
+        "Square" to R.string.wave_shape_square,
+        "Constant" to R.string.wave_shape_constant,
+        "Fangs" to R.string.wave_shape_fangs,
+        "Curvy triangle" to R.string.wave_shape_curvy_triangle,
+        "Curvy fangs" to R.string.wave_shape_curvy_fangs,
+        "Curvy trapezium" to R.string.wave_shape_curvy_trapezium,
+        "Gentle attack" to R.string.wave_shape_gentle_attack,
+        "Fast attack" to R.string.wave_shape_fast_attack,
+        "Faster attack" to R.string.wave_shape_faster_attack,
+        "Rising tide" to R.string.wave_shape_rising_tide,
+        "Flourish" to R.string.wave_shape_flourish,
+        "Jelly" to R.string.wave_shape_jelly,
+        "Tap + slide" to R.string.wave_shape_tap_slide,
+        "Double time" to R.string.wave_shape_double_time,
+        "Triple trouble" to R.string.wave_shape_triple_trouble,
+        "Steps" to R.string.wave_shape_steps
+    )
+    
+    // 在Composable上下文中创建本地化文本映射
+    val waveShapeLabels = waveShapeResources.mapValues { stringResource(it.value) }
+    
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(text = stringResource(R.string.generator_wave_shape))
+            // 振幅形状选择器 - 使用本地化文本映射
+            OptionPicker(
+                currentValue = generatorChannelInfo.ampWaveName,
+                onValueChange = { viewModel.setAmpWave(channel, it) },
+                options = generatorWaveShapes.map { it.name },
+                getText = { shapeName -> waveShapeLabels.getOrDefault(shapeName, shapeName) }
+            )
+        }
+        SliderWithLabel(
+            label = stringResource(R.string.generator_start_power),
+            value = generatorChannelInfo.minAmp.toFloat(),
+            onValueChange = { viewModel.setMinAmp(channel = channel, amplitude = it.toDouble()) },
+            onValueChangeFinished = { },
+            valueRange = 0.0f .. 1.0f,
+            steps = 99,
+            valueDisplay = { String.format(Locale.US, "%.0f%%", it * 100.0) }
+        )
+        SliderWithLabel(
+            label = stringResource(R.string.generator_end_power),
+            value = generatorChannelInfo.maxAmp.toFloat(),
+            onValueChange = { viewModel.setMaxAmp(channel = channel, amplitude = it.toDouble()) },
+            onValueChangeFinished = { },
+            valueRange = 0.0f .. 1.0f,
+            steps = 99,
+            valueDisplay = { String.format(Locale.US, "%.0f%%", it * 100.0) }
+        )
+        HorizontalDivider()
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(text = stringResource(R.string.generator_freq_shape))
+            // 频率形状选择器 - 使用相同的本地化文本映射
+            OptionPicker(
+                currentValue = generatorChannelInfo.freqWaveName,
+                onValueChange = { viewModel.setFreqWave(channel, it) },
+                options = generatorWaveShapes.map { it.name },
+                getText = { shapeName -> waveShapeLabels.getOrDefault(shapeName, shapeName) }
+            )
+        }
+        SliderWithLabel(
+            label = stringResource(R.string.generator_start_frequency),
+            value = generatorChannelInfo.minFreq.toFloat(),
+            onValueChange = { viewModel.setMinFreq(channel = channel, frequency = it.toDouble()) },
+            onValueChangeFinished = { },
+            valueRange = 0.0f .. 1.0f,
+            steps = 99,
+            valueDisplay = { String.format(Locale.US, "%.0f%%", it * 100.0) }
+        )
+        SliderWithLabel(
+            label = stringResource(R.string.generator_end_frequency),
+            value = generatorChannelInfo.maxFreq.toFloat(),
+            onValueChange = { viewModel.setMaxFreq(channel = channel, frequency = it.toDouble()) },
+            onValueChangeFinished = { },
+            valueRange = 0.0f .. 1.0f,
+            steps = 99,
+            valueDisplay = { String.format(Locale.US, "%.0f%%", it * 100.0) }
         )
     }
 }

@@ -40,7 +40,7 @@ object RemoteControlServer {
         if (server != null) return
         HLog.d("RemoteControlServer","Starting remote control server")
 
-        server = embeddedServer(CIO, port = port) {
+        server = embeddedServer(CIO, port = port, host = "0.0.0.0") {
             install(ContentNegotiation) {
                 json()
             }

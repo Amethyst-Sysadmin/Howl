@@ -62,6 +62,7 @@ data class SavedSettings(
     val powerStepSizeB: Int = 1,
     val powerAutoIncrementDelayA: Int = 120,
     val powerAutoIncrementDelayB: Int = 120,
+    val language: String = "en",
     //Output options
     val outputType: OutputType = OutputType.AUDIO_WAVELET,
     val audioWaveShape: AudioWaveShape = AudioWaveShape.SINE,
@@ -86,7 +87,7 @@ interface SavedSettingsDao {
 
 @Database(
     entities = [SavedSettings::class],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class HowlDatabase : RoomDatabase() {

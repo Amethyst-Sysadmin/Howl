@@ -46,8 +46,6 @@
             android:name=".PlayerService"
             android:foregroundServiceType="mediaPlayback"
             android:exported="false" />
-        <profileable android:shell="true"
-            tools:targetApi="29" />
+        <!-- 已移除profileable标签，该标签会导致应用卡在等待调试器状态 -->
     </application>
-
 </manifest>

@@ -147,14 +147,14 @@ fun LogViewer() {
             Button(onClick = {
                 coroutineScope.launch {
                     HLog.copyLogsToClipboard(context)
-                    Toast.makeText(context, "Logs copied to clipboard", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.debug_logs_copied), Toast.LENGTH_SHORT).show()
                 }
             }) {
-                Text("Copy Log")
+                Text(context.getString(R.string.debug_copy_log))
             }
 
             Button(onClick = { HLog.clear() }) {
-                Text("Clear Log")
+                Text(context.getString(R.string.debug_clear_log))
             }
         }
 

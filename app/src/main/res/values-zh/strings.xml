@@ -1,0 +1,208 @@
+<resources>
+    <!-- 应用名称 -->
+    <string name="app_name">Howl</string>
+    
+    <!-- 设置页面 -->
+    <string name="settings_version">Howl 版本 %1$s</string>
+    <string name="settings_output_options">输出选项</string>
+    <string name="settings_output_type">输出类型</string>
+    <string name="settings_audio_wavelet">音频 (wavelet)</string>
+    <string name="settings_audio_continuous">音频 (continuous)</string>
+    <string name="settings_coyote_parameters">郊狼V3参数</string>
+    <string name="settings_power_options">电源强度选项</string>
+    <string name="settings_misc_options">其他选项</string>
+    
+    <!-- 音频小波设置 -->
+    <string name="settings_carrier_wave_shape">载波波形</string>
+    <string name="settings_carrier_wave_frequency">载波频率 (Hz)</string>
+    <string name="settings_wavelet_width">wavelet波宽度 (载波周期数)</string>
+    <string name="settings_wavelet_fade">wavelet波淡入/淡出比例</string>
+    <string name="settings_carrier_phase">各通道载波相位</string>
+    <string name="settings_estimated_duty_cycle">100Hz下估计占空比: %1$d%%</string>
+    
+    <!-- 连续音频设置 -->
+    <string name="settings_wave_shape">波形</string>
+    <string name="settings_minimum_frequency">最小允许频率 (Hz)</string>
+    <string name="settings_maximum_frequency">最大允许频率 (Hz)</string>
+    
+    <!-- Coyote 参数 -->
+    <string name="settings_channel_a_frequency_balance">通道A频率平衡</string>
+    <string name="settings_channel_b_frequency_balance">通道B频率平衡</string>
+    <string name="settings_channel_a_intensity_balance">通道A强度平衡</string>
+    <string name="settings_channel_b_intensity_balance">通道B强度平衡</string>
+    
+    <!-- 电源强度设置 -->
+    <string name="settings_channel_a_power_limit">通道A电源强度限制</string>
+    <string name="settings_channel_b_power_limit">通道B电源强度限制</string>
+    <string name="settings_power_step_size_a">电源强度控制步长A</string>
+    <string name="settings_power_step_size_b">电源强度控制步长B</string>
+    <string name="settings_power_auto_increase_delay_a">电源强度自动增加延迟A (秒)</string>
+    <string name="settings_power_auto_increase_delay_b">电源强度自动增加延迟B (秒)</string>
+    
+    <!-- 其他选项 -->
+    <string name="settings_allow_remote_access">允许远程访问 (未加密)</string>
+    <string name="settings_smoother_charts">更平滑的图表和仪表 [*]</string>
+    <string name="settings_show_power_meter">显示动画电源强度计 [*]</string>
+    <string name="settings_show_debug_log">显示调试日志标签页</string>
+    <string name="settings_resource_note">标有[*]的选项会增加资源使用。在低端设备上禁用可提高性能并减少能耗。</string>
+    
+    <!-- 语言设置 -->
+    <string name="settings_view">显示选项</string>
+    <string name="settings_language">语言</string>
+    <string name="language_english">English</string>
+    <string name="language_chinese">中文</string>
+    <string name="language_restart_note">重启应用以应用语言更改</string>
+    <string name="language_restarting">正在重启应用...</string>
+    
+    <!-- 不带前缀的字符串资源 -->
+    <string name="output_options">输出选项</string>
+    <string name="output_type">输出类型</string>
+    <string name="audio_wavelet">音频 (小波)</string>
+    <string name="carrier_wave_shape">载波波形</string>
+    
+    <!-- 标签页文本 -->
+    <string name="tab_player">播放器</string>
+    <string name="tab_generator">生成器</string>
+    <string name="tab_activity">活动</string>
+    <string name="tab_settings">设置</string>
+    <string name="tab_debug">调试</string>
+    
+    <!-- 按钮文本 -->
+    <string name="button_pause">暂停</string>
+    <string name="button_play">播放</string>
+    <string name="button_randomise">随机化</string>
+    
+    <!-- 活动相关 -->
+    <string name="activity_change_probability">随机活动变更概率</string>
+    <string name="activity_infinite_licks">无限舔舐</string>
+    <string name="activity_penetration">穿透</string>
+    <string name="activity_vibration">振动</string>
+    <string name="activity_amplitude">振幅</string>
+    <string name="activity_pulse">脉冲</string>
+    <string name="activity_random">随机</string>
+    
+    <!-- 播放器相关 -->
+    <string name="amplitude_exponent">振幅指数</string>
+    
+    <!-- 生成器相关 -->
+    <string name="generator_speed_change_probability">速度变更概率</string>
+    <string name="generator_amplitude_change_probability">振幅变更概率</string>
+    <string name="generator_frequency_change_probability">频率变更概率</string>
+    <string name="generator_shape_change_probability">波形变更概率</string>
+    <string name="generator_parameter_change_probability">参数变更概率</string>
+    <string name="generator_random_parameter_change">随机</string>
+    <string name="generator_automatic_change_parameters">自动变更参数</string>
+    <string name="generator_random">随机</string>
+    <string name="generator_auto_change_parameters">自动变更参数</string>
+    <!-- 生成器类别标签 -->
+    <string name="generator_category_shape">振幅形状</string>
+    <string name="generator_category_speed">速度</string>
+    <string name="generator_category_power">电源强度</string>
+    <string name="generator_category_freq_shape">频率形状</string>
+    <string name="generator_category_freq">频率</string>
+    
+    <!-- 调试相关 -->
+    <string name="debug_copy_log">复制日志</string>
+    <string name="debug_clear_log">清除日志</string>
+    <string name="debug_logs_copied">日志已复制到剪贴板</string>
+    
+    <!-- 额外活动名称 -->
+    <string name="activity_sliding_vibrator">滑动振动</string>
+    <string name="activity_milkmaster">榨精大师</string>
+    <string name="activity_chaos">混乱</string>
+    <string name="activity_luxury_hj">奢华手活</string>
+    <string name="activity_opposites">相反</string>
+    <string name="activity_calibration_1">校准 1</string>
+    <string name="activity_calibration_2">校准 2</string>
+    <string name="activity_bj_megamix">口交混音</string>
+    <string name="channel_a">通道A</string>
+    <string name="channel_b">通道B</string>
+    <string name="channel_a_settings">通道A设置</string>
+    <string name="channel_b_settings">通道B设置</string>
+    <string name="generator_speed_label">速度 (重复次数/秒)</string>
+    <string name="generator_wave_shape">波形</string>
+    <string name="generator_start_power">起始电源强度</string>
+    <string name="generator_end_power">结束电源强度</string>
+    <string name="generator_freq_shape">频率波形</string>
+    <string name="generator_start_frequency">起始频率</string>
+    <string name="generator_end_frequency">结束频率</string>
+    <string name="wave_shape_sawtooth">锯齿波</string>
+    <string name="wave_shape_triangle">三角波</string>
+    <string name="wave_shape_square">方波</string>
+    <string name="wave_shape_constant">常量</string>
+    <string name="wave_shape_fangs">尖牙波</string>
+    <string name="wave_shape_curvy_triangle">曲线三角波</string>
+    <string name="wave_shape_curvy_fangs">曲线尖牙波</string>
+    <string name="wave_shape_curvy_trapezium">曲线梯形波</string>
+    <string name="wave_shape_gentle_attack">柔和攻击</string>
+    <string name="wave_shape_fast_attack">快速攻击</string>
+    <string name="wave_shape_faster_attack">更快速攻击</string>
+    <string name="wave_shape_rising_tide">上升浪潮</string>
+    <string name="wave_shape_flourish">繁荣波</string>
+    <string name="wave_shape_jelly">果冻波</string>
+    <string name="wave_shape_tap_slide">点击+滑动</string>
+    <string name="wave_shape_double_time">双倍速度</string>
+    <string name="wave_shape_triple_trouble">三倍麻烦</string>
+    <string name="wave_shape_steps">阶梯波</string>
+    <string name="activity_fast_slow">快与慢</string>
+    <string name="activity_additive">叠加</string>
+    <string name="activity_simplex">简单模式</string>
+    <string name="activity_simplex_pro">简单模式专业版</string>
+    <string name="activity_simplex_turbo">简单模式疯狂版</string>
+    <string name="activity_relentless">持续</string>
+    <string name="activity_random_shapes">随机形状</string>
+    
+    <!-- Wave shape display names -->
+    <string name="wave_shape_sine">正弦</string>
+
+    <!-- Phase type display names -->
+    <string name="phase_type_same">相同</string>
+    <string name="phase_type_offset">偏移</string>
+    <string name="phase_type_opposite">相反</string>
+    
+    <!-- Player settings -->
+    <string name="player_settings">播放器设置</string>
+    <string name="playback_speed">播放速度</string>
+    <string name="funscript_settings">Funscript设置</string>
+    <string name="scaling_boosts_slower_movements">缩放（增强慢速动作）</string>
+    <string name="positional_effect_strength">位置效果强度</string>
+    <string name="remote_funscript_latency_seconds">远程Funscript延迟（秒）</string>
+    <string name="amplitude_algorithm">振幅算法</string>
+    <string name="frequency_algorithm">频率算法</string>
+    <string name="ab_frequency_time_offset">A/B频率时间偏移</string>
+    <string name="frequency_vary_speed">频率变化速度</string>
+    <string name="blend_ratio_position_varied">混合比例（位置 -&gt; 变化）</string>
+    <string name="show_sync_fine_tune">显示同步微调</string>
+    <string name="sync_fine_tune">同步微调</string>
+    <string name="amplitude_algorithm_default">默认</string>
+    <string name="amplitude_algorithm_blend">混合</string>
+    <string name="amplitude_algorithm_position">位置</string>
+    <string name="amplitude_algorithm_varied">变化</string>
+    <string name="frequency_algorithm_blend">混合</string>
+    
+    <!-- Special Effects -->
+    <string name="special_effects">特效</string>
+    <string name="apply_special_effects">应用特效</string>
+    <string name="invert_channel_a_frequencies">反转通道A频率</string>
+    <string name="invert_channel_b_frequencies">反转通道B频率</string>
+    <string name="scale_amplitude_channel_a">通道A缩放振幅</string>
+    <string name="scale_amplitude_channel_b">通道B缩放振幅</string>
+    <string name="frequency_feel_adjustment">频率感受调整</string>
+    <string name="random_amplitude_noise_amount">随机振幅噪声（量）</string>
+    <string name="random_amplitude_noise_speed">随机振幅噪声（速度）</string>
+    <string name="random_frequency_noise_amount">随机频率噪声（量）</string>
+    <string name="random_frequency_noise_speed">随机频率噪声（速度）</string>
+    
+    <!-- Developer Options -->
+    <string name="developer_options">开发者选项</string>
+    <string name="frequency_exponent">频率指数</string>
+    <string name="frequency_gain">频率增益</string>
+    
+    <!-- Accessibility -->
+    <string name="content_description_open_file">打开文件</string>
+    <string name="content_description_special_effects">特殊效果</string>
+    <string name="content_description_advanced_settings">高级设置</string>
+    <string name="channel_a_frequency_adjust">通道A频率调整</string>
+    <string name="channel_b_frequency_adjust">通道B频率调整</string>
+    <string name="amplitude_gain">振幅增益</string>
+</resources>

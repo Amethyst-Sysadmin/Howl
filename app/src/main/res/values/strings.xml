@@ -1,3 +1,206 @@
 <resources>
+    <!-- App name -->
     <string name="app_name">Howl</string>
+    
+    <!-- Settings page -->
+    <string name="settings_version">Howl version %1$s</string>
+    <string name="settings_output_options">Output options</string>
+    <string name="settings_output_type">Output type</string>
+    <string name="settings_audio_wavelet">Audio (wavelet)</string>
+    <string name="settings_audio_continuous">Audio (continuous)</string>
+    <string name="settings_coyote_parameters">Coyote parameters</string>
+    <string name="settings_power_options">Power options</string>
+    <string name="settings_misc_options">Misc options</string>
+    
+    <!-- Audio wavelet settings -->
+    <string name="settings_carrier_wave_shape">Carrier wave shape</string>
+    <string name="settings_carrier_wave_frequency">Carrier wave frequency (Hz)</string>
+    <string name="settings_wavelet_width">Wavelet width (in carrier wave cycles)</string>
+    <string name="settings_wavelet_fade">Wavelet fade in/out proportion</string>
+    <string name="settings_carrier_phase">Carrier phase on each channel</string>
+    <string name="settings_estimated_duty_cycle">Estimated duty cycle at 100Hz: %1$d%%</string>
+    
+    <!-- Audio continuous settings -->
+    <string name="settings_wave_shape">Wave shape</string>
+    <string name="settings_minimum_frequency">Minimum allowed frequency (Hz)</string>
+    <string name="settings_maximum_frequency">Maximum allowed frequency (Hz)</string>
+    
+    <!-- Coyote parameters -->
+    <string name="settings_channel_a_frequency_balance">Channel A Frequency Balance</string>
+    <string name="settings_channel_b_frequency_balance">Channel B Frequency Balance</string>
+    <string name="settings_channel_a_intensity_balance">Channel A Intensity Balance</string>
+    <string name="settings_channel_b_intensity_balance">Channel B Intensity Balance</string>
+    
+    <!-- Power settings -->
+    <string name="settings_channel_a_power_limit">Channel A Power Limit</string>
+    <string name="settings_channel_b_power_limit">Channel B Power Limit</string>
+    <string name="settings_power_step_size_a">Power control step size A</string>
+    <string name="settings_power_step_size_b">Power control step size B</string>
+    <string name="settings_power_auto_increase_delay_a">Power auto increase delay A (seconds)</string>
+    <string name="settings_power_auto_increase_delay_b">Power auto increase delay B (seconds)</string>
+    
+    <!-- Misc options -->
+    <string name="settings_allow_remote_access">Allow remote access (not secured)</string>
+    <string name="settings_smoother_charts">Smoother charts &amp; meters [*]</string>
+    <string name="settings_show_power_meter">Show animated power meters [*]</string>
+    <string name="settings_show_debug_log">Show debug log tab</string>
+    <string name="settings_resource_note">Options marked with [*] increase resource usage. Disable to improve performance on low-end devices and reduce energy use.</string>
+    
+    <!-- Language settings -->
+    <string name="settings_view">View options</string>
+    <string name="settings_language">Language</string>
+    <string name="language_english">English</string>
+    <string name="language_chinese">中文</string>
+    <string name="language_restart_note">Restart the app to apply language changes</string>
+    <string name="language_restarting">Restarting app...</string>
+    <string name="output_options">Output options</string>
+    <string name="output_type">Output type</string>
+    <string name="audio_wavelet">Audio (wavelet)</string>
+    <string name="carrier_wave_shape">Carrier wave shape</string>
+    
+    <!-- Tab labels -->
+    <string name="tab_player">Player</string>
+    <string name="tab_generator">Generator</string>
+    <string name="tab_activity">Activity</string>
+    <string name="tab_settings">Settings</string>
+    <string name="tab_debug">Debug</string>
+    
+    <!-- Button texts -->
+    <string name="button_pause">Pause</string>
+    <string name="button_play">Play</string>
+    <string name="button_randomise">Randomise</string>
+    
+    <!-- Activity related -->
+    <string name="activity_change_probability">Random activity change probability</string>
+    <string name="activity_infinite_licks">Infinite licks</string>
+    <string name="activity_penetration">Penetration</string>
+    <string name="activity_vibration">Vibration</string>
+    <string name="activity_amplitude">Amplitude</string>
+    <string name="activity_pulse">Pulse</string>
+    <string name="activity_random">Random</string>
+    
+    <!-- Player related -->
+    <string name="amplitude_exponent">Amplitude exponent</string>
+    
+    <!-- Generator related -->
+    <string name="generator_speed_change_probability">Speed change probability</string>
+    <string name="generator_amplitude_change_probability">Amplitude change probability</string>
+    <string name="generator_frequency_change_probability">Frequency change probability</string>
+    <string name="generator_shape_change_probability">Shape change probability</string>
+    <string name="generator_parameter_change_probability">Parameter change probability</string>
+    <string name="generator_random_parameter_change">Random</string>
+    <string name="generator_automatic_change_parameters">Automatically change parameters</string>
+    <string name="generator_random">Random</string>
+    <string name="generator_auto_change_parameters">Automatically change parameters</string>
+    <!-- Generator category labels -->
+    <string name="generator_category_shape">Shape</string>
+    <string name="generator_category_speed">Speed</string>
+    <string name="generator_category_power">Power</string>
+    <string name="generator_category_freq_shape">Freq shape</string>
+    <string name="generator_category_freq">Freq</string>
+    
+    <!-- Debug related -->
+    <string name="debug_copy_log">Copy Log</string>
+    <string name="debug_clear_log">Clear Log</string>
+    <string name="debug_logs_copied">Logs copied to clipboard</string>
+    
+    <!-- Additional activity names -->
+    <string name="activity_sliding_vibrator">Sliding vibrator</string>
+    <string name="activity_milkmaster">Milkmaster</string>
+    <string name="activity_chaos">Chaos</string>
+    <string name="activity_luxury_hj">Luxury HJ</string>
+    <string name="activity_opposites">Opposites</string>
+    <string name="activity_calibration_1">Calibration 1</string>
+    <string name="activity_calibration_2">Calibration 2</string>
+    <string name="activity_bj_megamix">BJ Megamix</string>
+    <string name="channel_a">Channel A</string>
+    <string name="channel_b">Channel B</string>
+    <string name="channel_a_settings">Channel A Settings</string>
+    <string name="channel_b_settings">Channel B Settings</string>
+    <string name="generator_speed_label">Speed (repetitions/sec)</string>
+    <string name="generator_wave_shape">Wave shape</string>
+    <string name="generator_start_power">Start power</string>
+    <string name="generator_end_power">End power</string>
+    <string name="generator_freq_shape">Freq shape</string>
+    <string name="generator_start_frequency">Start frequency</string>
+    <string name="generator_end_frequency">End frequency</string>
+    <string name="wave_shape_sawtooth">Sawtooth</string>
+    <string name="wave_shape_triangle">Triangle</string>
+    <string name="wave_shape_square">Square</string>
+    <string name="wave_shape_constant">Constant</string>
+    <string name="wave_shape_fangs">Fangs</string>
+    <string name="wave_shape_curvy_triangle">Curvy triangle</string>
+    <string name="wave_shape_curvy_fangs">Curvy fangs</string>
+    <string name="wave_shape_curvy_trapezium">Curvy trapezium</string>
+    <string name="wave_shape_gentle_attack">Gentle attack</string>
+    <string name="wave_shape_fast_attack">Fast attack</string>
+    <string name="wave_shape_faster_attack">Faster attack</string>
+    <string name="wave_shape_rising_tide">Rising tide</string>
+    <string name="wave_shape_flourish">Flourish</string>
+    <string name="wave_shape_jelly">Jelly</string>
+    <string name="wave_shape_tap_slide">Tap + slide</string>
+    <string name="wave_shape_double_time">Double time</string>
+    <string name="wave_shape_triple_trouble">Triple trouble</string>
+    <string name="wave_shape_steps">Steps</string>
+    <string name="activity_fast_slow">Fast Slow</string>
+    <string name="activity_additive">Additive</string>
+    <string name="activity_simplex">Simplex</string>
+    <string name="activity_simplex_pro">Simplex Pro</string>
+    <string name="activity_simplex_turbo">Simplex Turbo</string>
+    <string name="activity_relentless">Relentless</string>
+    <string name="activity_random_shapes">Random Shapes</string>
+    
+    <!-- Wave shape display names -->
+    <string name="wave_shape_sine">Sine</string>
+
+    <!-- Phase type display names -->
+    <string name="phase_type_same">Same</string>
+    <string name="phase_type_offset">Offset</string>
+    <string name="phase_type_opposite">Opposite</string>
+
+    <!-- Player settings -->
+    <string name="player_settings">Player settings</string>
+    <string name="playback_speed">Playback speed</string>
+    <string name="funscript_settings">Funscript settings</string>
+    <string name="scaling_boosts_slower_movements">Scaling (boosts slower movements)</string>
+    <string name="positional_effect_strength">Positional effect strength</string>
+    <string name="remote_funscript_latency_seconds">Remote funscript latency (seconds)</string>
+    <string name="amplitude_algorithm">Amplitude algorithm</string>
+    <string name="frequency_algorithm">Frequency algorithm</string>
+    <string name="ab_frequency_time_offset">A/B frequency time offset</string>
+    <string name="frequency_vary_speed">Frequency vary speed</string>
+    <string name="blend_ratio_position_varied">Blend ratio (Position -&gt; Varied)</string>
+    <string name="show_sync_fine_tune">Show sync fine tune</string>
+    <string name="sync_fine_tune">Sync fine tune</string>
+    <string name="amplitude_algorithm_default">Default</string>
+    <string name="amplitude_algorithm_blend">Blend</string>
+    <string name="amplitude_algorithm_position">Position</string>
+    <string name="amplitude_algorithm_varied">Varied</string>
+    <string name="frequency_algorithm_blend">Blend</string>
+    
+    <!-- Special Effects -->
+    <string name="special_effects">Special effects</string>
+    <string name="apply_special_effects">Apply special effects</string>
+    <string name="invert_channel_a_frequencies">Invert channel A frequencies</string>
+    <string name="invert_channel_b_frequencies">Invert channel B frequencies</string>
+    <string name="scale_amplitude_channel_a">Scale amplitude (channel A)</string>
+    <string name="scale_amplitude_channel_b">Scale amplitude (channel B)</string>
+    <string name="frequency_feel_adjustment">Frequency feel adjustment</string>
+    <string name="random_amplitude_noise_amount">Random amplitude noise (amount)</string>
+    <string name="random_amplitude_noise_speed">Random amplitude noise (speed)</string>
+    <string name="random_frequency_noise_amount">Random frequency noise (amount)</string>
+    <string name="random_frequency_noise_speed">Random frequency noise (speed)</string>
+    
+    <!-- Developer Options -->
+    <string name="developer_options">Developer options</string>
+    <string name="frequency_exponent">Frequency exponent</string>
+    <string name="frequency_gain">Frequency gain</string>
+    
+    <!-- Accessibility -->
+    <string name="content_description_open_file">Open file</string>
+    <string name="content_description_special_effects">Special effects</string>
+    <string name="content_description_advanced_settings">Advanced settings</string>
+    <string name="channel_a_frequency_adjust">Channel A frequency adjust</string>
+    <string name="channel_b_frequency_adjust">Channel B frequency adjust</string>
+    <string name="amplitude_gain">Amplitude gain</string>
 </resources>

@@ -4,17 +4,25 @@ import android.content.Context
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
-import android.util.Log
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.double
 import java.util.TreeMap
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
 
-class BadFileException (message: String) : Exception(message)
+class BadFileException(message: String) : Exception(message)
 
 enum class FrequencyAlgorithmType(val displayName: String) {
     POSITION("Position"),
@@ -27,8 +35,46 @@ enum class AmplitudeAlgorithmType(val displayName: String) {
     PENETRATIVE("Penetrative"),
 }
 
+/**
+ * 增加自定义Action.at序列化工具，at设置成double类型，小数部分舍弃，避免faptap等脚本中会莫名出现 .5 的问题
+ * 例如: {"at":430397.5,"pos":80}
+ *
+ * Add a custom Action.at serialization tool, setting the 'at' attribute as a double type and
+ * truncating the decimal part to avoid the issue of unexpected .5 values in scripts like faptap.
+ * sample: : {"at":430397.5,"pos":80}
+ */
+object AtTransformer : KSerializer<Int> {
+    override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("At", PrimitiveKind.INT)
+
+    override fun serialize(encoder: Encoder, value: Int) {
+        encoder.encodeInt(value)
+    }
+
+
+    override fun deserialize(decoder: Decoder): Int {
+        return when (val input = decoder) {
+            is JsonDecoder -> {
+                val element = input.decodeJsonElement()
+                when {
+                    element is JsonPrimitive && element.isString ->
+                        element.content.toIntOrNull() ?: 0
+
+                    element is JsonPrimitive -> element.double.toInt()
+                    else -> 0
+                }
+            }
+
+            else -> decoder.decodeInt()
+        }
+    }
+}
+
 @Serializable
-data class Action(val at: Int, val pos: Int)
+data class Action(
+    @Serializable(with = AtTransformer::class)
+    val at: Int,
+    val pos: Int
+)
 
 @Serializable
 data class Funscript(
@@ -89,7 +135,11 @@ class FunscriptPulseSource : PulseSource {
         return normalizedSpeed.pow(exponent).coerceIn(0.0..1.0)
     }
 
-    private fun calculatePenetrativeEffect(time: Double, amplitude: Double, position: Double): Pair<Double, Double> {
+    private fun calculatePenetrativeEffect(
+        time: Double,
+        amplitude: Double,
+        position: Double
+    ): Pair<Double, Double> {
         val penEffectPower = 0.5
         val penEffectPoint = 0.5 // position below which the effect applies at 100%
         val penEffectTimeSpeed = 6.0
@@ -131,7 +181,11 @@ class FunscriptPulseSource : PulseSource {
         )
     }
 
-    private fun limitAmplitudeDrop(time: Double, amplitude: Double, maxAmplitudeDropPerSecond: Double): Double {
+    private fun limitAmplitudeDrop(
+        time: Double,
+        amplitude: Double,
+        maxAmplitudeDropPerSecond: Double
+    ): Double {
         // Limit how much our total amplitude is allowed to reduce by per second.
         // This results in a more pleasing dip at the top and bottom of each interpolated stroker
         // motion rather than immediately going right down to zero. Chained motions feel smoother.
@@ -177,8 +231,10 @@ class FunscriptPulseSource : PulseSource {
         val advancedControlState = DataRepository.playerAdvancedControlsState.value
         val frequencyAlgorithm = advancedControlState.funscriptFrequencyAlgorithm
         val amplitudeAlgorithm = advancedControlState.funscriptAmplitudeAlgorithm
-        val funscriptPositionalEffectStrength = advancedControlState.funscriptPositionalEffectStrength
-        val funscriptFrequencyTimeOffset = if (frequencyAlgorithm == FrequencyAlgorithmType.POSITION) advancedControlState.funscriptFrequencyTimeOffset.toDouble() else 0.0
+        val funscriptPositionalEffectStrength =
+            advancedControlState.funscriptPositionalEffectStrength
+        val funscriptFrequencyTimeOffset =
+            if (frequencyAlgorithm == FrequencyAlgorithmType.POSITION) advancedControlState.funscriptFrequencyTimeOffset.toDouble() else 0.0
         val frequencyVarySpeed = advancedControlState.funscriptFrequencyVarySpeed.toDouble()
         val frequencyBlendRatio = advancedControlState.funscriptFrequencyBlendRatio.toDouble()
         val scalingExponent = (1.0 - advancedControlState.funscriptVolume).coerceAtLeast(0.001)
@@ -192,9 +248,18 @@ class FunscriptPulseSource : PulseSource {
         amplitude = limitAmplitudeDrop(time, amplitude, maxAmplitudeDropPerSecond = 5.0)
 
         var (amplitudeA, amplitudeB) = when (amplitudeAlgorithm) {
-            AmplitudeAlgorithmType.DEFAULT -> calculatePositionalEffect(amplitude, position, funscriptPositionalEffectStrength.toDouble())
+            AmplitudeAlgorithmType.DEFAULT -> calculatePositionalEffect(
+                amplitude,
+                position,
+                funscriptPositionalEffectStrength.toDouble()
+            )
+
             AmplitudeAlgorithmType.PENETRATIVE -> {
-                val (posAmpA, posAmpB) = calculatePositionalEffect(amplitude, position, funscriptPositionalEffectStrength.toDouble())
+                val (posAmpA, posAmpB) = calculatePositionalEffect(
+                    amplitude,
+                    position,
+                    funscriptPositionalEffectStrength.toDouble()
+                )
                 val (penAmpA, penAmpB) = calculatePenetrativeEffect(time, amplitude, position)
                 Pair(min(posAmpA + penAmpA, 1.0), min(posAmpB + penAmpB, 1.0))
             }
@@ -223,6 +288,7 @@ class FunscriptPulseSource : PulseSource {
 
     private fun processFunscript(content: String) {
         val jsonConfig = Json { ignoreUnknownKeys = true }
+
         val funscript = jsonConfig.decodeFromString<Funscript>(content)
         val positions = funscript.actions.map { it.pos }
         val minPos = positions.minOrNull() ?: 0
@@ -244,7 +310,7 @@ class FunscriptPulseSource : PulseSource {
             val prev = if (i > 0) scaledActions[i - 1] else null
             val next = if (i < scaledActions.size - 1) scaledActions[i + 1] else null
 
-            val velocity =  when {
+            val velocity = when {
                 prev == null && next == null -> 0.0
                 prev == null -> (next!!.pos - current.pos) / (next.time - current.time)
                 next == null -> (current.pos - prev.pos) / (current.time - prev.time)
@@ -266,7 +332,8 @@ class FunscriptPulseSource : PulseSource {
         readyToPlay = false
         timePositionData.clear()
 
-        val fileDescriptor: ParcelFileDescriptor? = context.contentResolver.openFileDescriptor(uri, "r")
+        val fileDescriptor: ParcelFileDescriptor? =
+            context.contentResolver.openFileDescriptor(uri, "r")
         val fileSize: Long = fileDescriptor?.statSize ?: 0
         fileDescriptor?.close()
 
@@ -302,7 +369,8 @@ class FunscriptPulseSource : PulseSource {
         displayName = title
         duration = timePositionData.lastKey()
         isRemote = true
-        remoteLatency = DataRepository.playerAdvancedControlsState.value.funscriptRemoteLatency.toDouble()
+        remoteLatency =
+            DataRepository.playerAdvancedControlsState.value.funscriptRemoteLatency.toDouble()
         readyToPlay = true
         return duration
     }

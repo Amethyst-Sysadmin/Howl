@@ -1,5 +1,6 @@
 package com.example.howl
 
+import android.content.Context
 import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -28,6 +29,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.graphics.Color
 import com.example.howl.ui.theme.HowlTheme
 import kotlinx.coroutines.launch
@@ -58,33 +60,52 @@ object ActivityHost : PulseSource {
     private var lastUpdateTime = -1.0
     private var lastSimulationTime = -1.0
 
-    val availableActivities: List<ActivityInfo> = listOf(
-        ActivityInfo("Infinite licks", R.drawable.grin_tongue, true) { LickActivity() },
-        ActivityInfo("Penetration", R.drawable.rocket, true) { PenetrationActivity() },
-        ActivityInfo("Sliding vibrator", R.drawable.vibration, true) { VibroActivity() },
-        ActivityInfo("Milkmaster 3000", R.drawable.cow, true) { MilkerActivity() },
-        ActivityInfo("Chaos", R.drawable.chaos, true) { ChaosActivity() },
-        ActivityInfo("Luxury HJ", R.drawable.hand, true) { LuxuryHJActivity() },
-        ActivityInfo("Opposites", R.drawable.yin_yang, true) { OppositesActivity() },
-        ActivityInfo("Calibration 1", R.drawable.swapvert, false) { Calibration1Activity() },
-        ActivityInfo("Calibration 2", R.drawable.calibration, false) { Calibration2Activity() },
-        ActivityInfo("BJ megamix", R.drawable.lips, true) { BJActivity() },
-        ActivityInfo("Fast/slow", R.drawable.speed, true) { FastSlowActivity() },
-        ActivityInfo("Additive", R.drawable.additive, true) { AdditiveActivity() },
-        ActivityInfo("Simplex", R.drawable.wave_triangle, true) { SimplexActivity() },
-        ActivityInfo("Simplex Pro", R.drawable.waveform, true) { SimplexProActivity() },
-        ActivityInfo("Simplex Turbo", R.drawable.waveform_path, true) { SimplexTurboActivity() },
-        ActivityInfo("Relentless", R.drawable.hammer, true) { RelentlessActivity() },
-        ActivityInfo("Random shapes", R.drawable.shapes, true) { RandomShapesActivity() }
-    )
-    private val randomActivities = availableActivities.filter { it.randomlySelect }
+    fun getAvailableActivities(context: Context): List<ActivityInfo> {
+        return listOf(
+            ActivityInfo(context.getString(R.string.activity_infinite_licks), R.drawable.grin_tongue, true) { LickActivity() },
+            ActivityInfo(context.getString(R.string.activity_penetration), R.drawable.rocket, true) { PenetrationActivity() },
+            ActivityInfo(context.getString(R.string.activity_sliding_vibrator), R.drawable.vibration, true) { VibroActivity() },
+            ActivityInfo(context.getString(R.string.activity_milkmaster), R.drawable.cow, true) { MilkerActivity() },
+            ActivityInfo(context.getString(R.string.activity_chaos), R.drawable.chaos, true) { ChaosActivity() },
+            ActivityInfo(context.getString(R.string.activity_luxury_hj), R.drawable.hand, true) { LuxuryHJActivity() },
+            ActivityInfo(context.getString(R.string.activity_opposites), R.drawable.yin_yang, true) { OppositesActivity() },
+            ActivityInfo(context.getString(R.string.activity_calibration_1), R.drawable.swapvert, false) { Calibration1Activity() },
+            ActivityInfo(context.getString(R.string.activity_calibration_2), R.drawable.calibration, false) { Calibration2Activity() },
+            ActivityInfo(context.getString(R.string.activity_bj_megamix), R.drawable.lips, true) { BJActivity() },
+            ActivityInfo(context.getString(R.string.activity_fast_slow), R.drawable.speed, true) { FastSlowActivity() },
+            ActivityInfo(context.getString(R.string.activity_additive), R.drawable.additive, true) { AdditiveActivity() },
+            ActivityInfo(context.getString(R.string.activity_simplex), R.drawable.wave_triangle, true) { SimplexActivity() },
+            ActivityInfo(context.getString(R.string.activity_simplex_pro), R.drawable.waveform, true) { SimplexProActivity() },
+            ActivityInfo(context.getString(R.string.activity_simplex_turbo), R.drawable.waveform_path, true) { SimplexTurboActivity() },
+            ActivityInfo(context.getString(R.string.activity_relentless), R.drawable.hammer, true) { RelentlessActivity() },
+            ActivityInfo(context.getString(R.string.activity_random_shapes), R.drawable.shapes, true) { RandomShapesActivity() }
+        )
+    }
+    
     private var currentActivityInfo: ActivityInfo? = null
     private var currentActivity: Activity? = null
-
-    init {
-        changeActivity()
+    
+    // 需要上下文参数的随机活动获取方法
+    private fun getRandomActivities(context: Context): List<ActivityInfo> {
+        return getAvailableActivities(context).filter { it.randomlySelect }
     }
+    
+    // 初始化时不再调用changeActivity，需要在有上下文后再初始化
 
+    // 存储上下文的变量
+    private var context: Context? = null
+    
+    // 设置上下文并初始化活动
+    fun initializeWithContext(context: Context) {
+        if (this.context == null) {
+            this.context = context
+            // 只有当没有当前活动时才初始化
+            if (currentActivity == null) {
+                changeActivity(context)
+            }
+        }
+    }
+    
     override fun updateState(currentTime: Double) {
         if (lastUpdateTime < 0 || lastUpdateTime > currentTime)
             lastUpdateTime = currentTime
@@ -92,8 +113,8 @@ object ActivityHost : PulseSource {
         val timeDelta = currentTime - lastUpdateTime
 
         val probability = (state.activityChangeProbability * 3.0 * timeDelta) / 60.0
-        if (Random.nextDouble() < probability) {
-            changeActivity()
+        if (Random.nextDouble() < probability && context != null) {
+            changeActivity(context!!)
         }
 
         lastUpdateTime = currentTime
@@ -120,16 +141,20 @@ object ActivityHost : PulseSource {
         DataRepository.setActivityState(DataRepository.activityState.value.copy(currentActivityDisplayName = newActivityInfo.displayName))
     }
 
-    fun changeActivity() {
+    fun changeActivity(context: Context) {
         val current = currentActivityInfo
+        val randomActivities = getRandomActivities(context)
+        
         val candidates = if (current != null) {
             randomActivities.filter { it != current }
         } else {
             randomActivities
         }
 
-        val newInfo = candidates.randomOrNull() ?: randomActivities.random()
-        setCurrentActivity(newInfo)
+        val newInfo = candidates.randomOrNull() ?: randomActivities.randomOrNull()
+        if (newInfo != null) {
+            setCurrentActivity(newInfo)
+        }
     }
 }
 
@@ -165,6 +190,12 @@ fun ActivityHostPanel(
     val activityState by DataRepository.activityState.collectAsStateWithLifecycle()
     val playerState by DataRepository.playerState.collectAsStateWithLifecycle()
     val isPlaying = playerState.isPlaying && playerState.activePulseSource == ActivityHost
+    val context = androidx.compose.ui.platform.LocalContext.current
+    
+    // 确保ActivityHost在组合时初始化上下文
+    LaunchedEffect(Unit) {
+        ActivityHost.initializeWithContext(context)
+    }
 
     Column(
         modifier = modifier.padding(16.dp),
@@ -187,12 +218,12 @@ fun ActivityHostPanel(
                 if (isPlaying) {
                     Icon(
                         painter = painterResource(R.drawable.pause),
-                        contentDescription = "Pause"
+                        contentDescription = context.getString(R.string.button_pause)
                     )
                 } else {
                     Icon(
                         painter = painterResource(R.drawable.play),
-                        contentDescription = "Play"
+                        contentDescription = context.getString(R.string.button_play)
                     )
                 }
             }
@@ -203,7 +234,7 @@ fun ActivityHostPanel(
             style = MaterialTheme.typography.bodyLarge
         )*/
         SliderWithLabel(
-            label = "Random activity change probability",
+            label = context.getString(R.string.activity_change_probability),
             value = activityState.activityChangeProbability.toFloat(),
             onValueChange = { viewModel.setActivityChangeProbability(it) },
             onValueChangeFinished = { viewModel.saveSettings() },
@@ -217,7 +248,7 @@ fun ActivityHostPanel(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(ActivityHost.availableActivities.sortedBy { it.displayName }) { info ->
+            items(ActivityHost.getAvailableActivities(context).sortedBy { it.displayName }) { info ->
                 val isCurrent = info.displayName == activityState.currentActivityDisplayName
                 Button(
                     onClick = {

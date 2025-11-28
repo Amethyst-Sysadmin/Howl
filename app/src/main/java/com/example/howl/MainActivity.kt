@@ -1,11 +1,13 @@
 package com.example.howl
 
+import android.content.Context
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -30,13 +32,28 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
     }
+    
+    override fun attachBaseContext(newBase: Context) {
+        // 在这里应用语言设置，这是正确的生命周期方法
+        val updatedContext = LanguageUtils.applyLanguage(newBase)
+        super.attachBaseContext(updatedContext)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
         setContent {
             HowlTheme {
+
+                // 首先初始化数据库，加载设置
                 val howlDatabase = HowlDatabase.getDatabase(this)
                 DataRepository.initialise(db = howlDatabase)
+
+
+                // 应用用户选择的语言设置
+                val language = DataRepository.miscOptionsState.value.language
+                LanguageUtils.saveLanguage(this, language)
                 val mainOptionsViewModel: MainOptionsViewModel = viewModel()
                 val tabLayoutViewModel: TabLayoutViewModel = viewModel()
                 val playerViewModel: PlayerViewModel = viewModel()
@@ -51,7 +68,16 @@ class MainActivity : ComponentActivity() {
                         val androidVersion = Build.VERSION.RELEASE
                         val androidSDK = Build.VERSION.SDK_INT
                         HLog.d("Howl", "Howl $howlVersion running on Android $androidVersion (SDK $androidSDK)")
+                        
+                        // 1. 首先加载设置
                         DataRepository.loadSettings()
+                        
+                        // 2. 然后保存语言设置到SharedPreferences，确保下次启动时能正确加载
+                        val language = DataRepository.miscOptionsState.value.language
+                        LanguageUtils.saveLanguage(this@MainActivity, language)
+                        HLog.d("MainActivity", "Loaded and saved language setting: $language")
+                        
+                        // 3. 其他初始化操作
                         Player.switchOutput(DataRepository.outputState.value.outputType)
                         if (DataRepository.miscOptionsState.value.remoteAccess)
                             RemoteControlServer.start()
