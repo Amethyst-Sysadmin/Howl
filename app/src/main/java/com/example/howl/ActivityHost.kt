@@ -75,7 +75,8 @@ object ActivityHost : PulseSource {
         ActivityInfo("Simplex Pro", R.drawable.waveform, true) { SimplexProActivity() },
         ActivityInfo("Simplex Turbo", R.drawable.waveform_path, true) { SimplexTurboActivity() },
         ActivityInfo("Relentless", R.drawable.hammer, true) { RelentlessActivity() },
-        ActivityInfo("Random shapes", R.drawable.shapes, true) { RandomShapesActivity() }
+        ActivityInfo("Random shapes", R.drawable.shapes, true) { RandomShapesActivity() },
+        ActivityInfo("Overflowing", R.drawable.water_drop, true) { OverflowingActivity() },
     )
     private val randomActivities = availableActivities.filter { it.randomlySelect }
     private var currentActivityInfo: ActivityInfo? = null

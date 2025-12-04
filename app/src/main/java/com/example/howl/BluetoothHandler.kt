@@ -73,8 +73,8 @@ object BluetoothHandler {
     }
 
     private val supportedDevices = listOf(
-        SupportedDevice(OutputType.COYOTE3, "47L121000")
-        // Add more supported devices here later
+        SupportedDevice(OutputType.COYOTE3, "47L121000"),
+        SupportedDevice(OutputType.COYOTE2, "D-LAB ESTIM01")
     )
 
     fun initialise(context: Context,

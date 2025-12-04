@@ -13,11 +13,12 @@ import kotlin.Boolean
 import kotlin.time.TimeMark
 import kotlin.Float
 
-const val howlVersion = "0.6"
+const val howlVersion = "0.7"
 const val showDeveloperOptions = false
 
 enum class OutputType(val displayName: String) {
     COYOTE3("Coyote 3"),
+    COYOTE2("Coyote 2"),
     AUDIO_CONTINUOUS("Audio (continuous)"),
     AUDIO_WAVELET("Audio (wavelet)"),
 }
@@ -339,8 +340,8 @@ object DataRepository {
     }
 
     data class OutputState(
-        val outputType: OutputType = OutputType.AUDIO_WAVELET,
-        val audioOutputMaxFrequency: Int = 400,
+        val outputType: OutputType = OutputType.COYOTE3,
+        val audioOutputMaxFrequency: Int = 200,
         val audioOutputMinFrequency: Int = 50,
         val audioWaveShape: AudioWaveShape = AudioWaveShape.SINE,
         val audioCarrierShape: AudioWaveShape = AudioWaveShape.SINE,

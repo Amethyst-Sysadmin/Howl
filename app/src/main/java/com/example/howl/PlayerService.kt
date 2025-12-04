@@ -54,7 +54,18 @@ class PlayerService : Service() {
     private fun startForegroundService() {
         createNotificationChannel()
         val notification = createNotification()
-        startForeground(NOTIFICATION_ID, notification)
+
+        try {
+            startForeground(NOTIFICATION_ID, notification)
+        } catch (e: Exception) {
+            // Sometimes we might not be allowed elevate to a foreground service, for example if Howl
+            // was running in the background and we got a network request to start playback.
+            val isFgNotAllowed = e.javaClass.name == "android.app.ForegroundServiceStartNotAllowedException"
+            if (isFgNotAllowed) {
+                HLog.d("PlayerService", "Not allowed to elevate playback service while Howl is running in the background. Turning off battery optimization for the app might help.")
+            }
+            Log.e("PlayerService", "Failed to start foreground service: ${e.message}")
+        }
     }
 
     private fun createNotificationChannel() {
@@ -151,6 +162,8 @@ class PlayerService : Service() {
                     val mainOptionsState = DataRepository.mainOptionsState.value
                     val times = Player.getNextTimes(currentPosition)
                     val pulses = times.map { Player.getPulseAtTime(it) }
+
+                    //Log.d("PlayerService", "$startTime $pulses")
 
                     if (output.ready) {
                         val pulsesToSend = when {

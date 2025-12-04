@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.howl.ui.theme.HowlTheme
 
 @Composable
@@ -31,6 +32,10 @@ fun ConnectionStatusBar(
     connectFunction: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // suppress the connection bar when audio output is selected
+    val outputType = DataRepository.outputState.collectAsStateWithLifecycle().value.outputType
+    if (outputType == OutputType.AUDIO_WAVELET || outputType == OutputType.AUDIO_CONTINUOUS)
+        return
     Card (
         modifier = modifier
             .fillMaxWidth()

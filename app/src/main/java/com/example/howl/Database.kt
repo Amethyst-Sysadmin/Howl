@@ -63,10 +63,10 @@ data class SavedSettings(
     val powerAutoIncrementDelayA: Int = 120,
     val powerAutoIncrementDelayB: Int = 120,
     //Output options
-    val outputType: OutputType = OutputType.AUDIO_WAVELET,
+    val outputType: OutputType = OutputType.COYOTE3,
     val audioWaveShape: AudioWaveShape = AudioWaveShape.SINE,
     val audioCarrierShape: AudioWaveShape = AudioWaveShape.SINE,
-    val audioOutputMaxFrequency: Int = 400,
+    val audioOutputMaxFrequency: Int = 200,
     val audioOutputMinFrequency: Int = 50,
     val audioCarrierPhaseType: AudioPhaseType = AudioPhaseType.OFFSET,
     val audioCarrierFrequency: Int = 1000,

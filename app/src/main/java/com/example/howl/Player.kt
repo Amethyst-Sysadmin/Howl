@@ -122,6 +122,7 @@ object Player {
         DataRepository.setChannelBPower(0)
         output = when (outputType) {
             OutputType.COYOTE3 -> Coyote3Output()
+            OutputType.COYOTE2 -> Coyote2Output()
             OutputType.AUDIO_WAVELET -> AudioOutput()
             OutputType.AUDIO_CONTINUOUS -> ContinuousAudioOutput()
         }

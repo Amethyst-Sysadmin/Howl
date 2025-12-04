@@ -1463,3 +1463,107 @@ class RandomShapesActivity : Activity() {
         )
     }
 }
+
+class OverflowingActivity : Activity() {
+    val waveManager: WaveManager = WaveManager()
+    val speedRange = 0.05..0.1
+    val frequencyRange = 0.6..1.0
+    val frequencyChangeRateRange = 0.02..0.05
+    val longWavePowerRange = 0.85..0.99
+    val shortWavePowerRange = 0.8..0.99
+    var currentSpeed = randomInRange(speedRange)
+    val freqA = SmoothedValue(randomInRange(frequencyRange))
+    val freqB = SmoothedValue(randomInRange(frequencyRange))
+
+    override fun initialise() {
+        updateFrequencyTarget(freqA)
+        updateFrequencyTarget(freqB)
+        nextIteration()
+    }
+
+    fun createLongWaveShape(): WaveShape {
+        val power = randomInRange(longWavePowerRange)
+        val lowPower = power * 0.85
+        val highPowerPortion = randomInRange(0.8..0.9)
+        val numLaps = randomInRange(5..20)
+        val lapIncrement = highPowerPortion / (numLaps * 2.0)
+        val points = mutableListOf<WavePoint>()
+        var currentTime = 0.0
+
+        points.add(WavePoint(currentTime,0.0))
+        currentTime = (1.0 - highPowerPortion) / 2.0
+        points.add(WavePoint(currentTime,lowPower))
+
+        repeat(numLaps) {
+            currentTime += lapIncrement
+            points.add(WavePoint(currentTime,power))
+            currentTime += lapIncrement
+            points.add(WavePoint(currentTime,lowPower))
+        }
+
+        return WaveShape(
+            name = "longWave",
+            points = points,
+            interpolationType = InterpolationType.HERMITE
+        )
+    }
+
+    private fun updateFrequencyTarget(freq: SmoothedValue) {
+        val targetFreq = randomInRange(frequencyRange)
+        val changeRate = randomInRange(frequencyChangeRateRange)
+        freq.setTarget(
+            target = targetFreq,
+            rate = changeRate,
+            onReached = { updateFrequencyTarget(freq) }
+        )
+    }
+
+    fun nextIteration() {
+        currentSpeed = randomInRange(speedRange)
+        val powerShort = randomInRange(shortWavePowerRange)
+
+        val longWave = CyclicalWave(createLongWaveShape())
+
+        val shortWaveShape = CyclicalWave(
+            WaveShape(
+                name = "shortWaveShape",
+                points = listOf(
+                    WavePoint(0.0, 0.0),
+                    WavePoint(0.5, powerShort),
+                ),
+                interpolationType = InterpolationType.HERMITE
+            )
+        )
+
+        val repeats = randomInRange(4..10)
+        val shortWave = shortWaveShape.createRepeatedWave(repeats, "shortWave")
+
+        waveManager.addWave(longWave, name = "longWave")
+        waveManager.addWave(shortWave, name = "shortWave")
+
+        waveManager.setSpeed(currentSpeed)
+        waveManager.restart()
+        waveManager.stopAtEndOfCycle { nextIteration() }
+    }
+
+    override fun runSimulation(deltaSimulationTime: Double) {
+        super.runSimulation(deltaSimulationTime)
+        freqA.update(deltaSimulationTime)
+        freqB.update(deltaSimulationTime)
+        waveManager.update(deltaSimulationTime)
+    }
+
+    override fun getPulse(): Pulse {
+        val longAmp = waveManager.getPosition("longWave")
+        var shortAmp = waveManager.getPosition("shortWave")
+        if (shortAmp > longAmp)
+            shortAmp = longAmp
+
+        return Pulse(
+            freqA = freqA.current.toFloat(),
+            freqB = freqB.current.toFloat(),
+            ampA = shortAmp.toFloat(),
+            ampB = longAmp.toFloat()
+        )
+    }
+}

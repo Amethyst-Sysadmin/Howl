@@ -141,6 +141,8 @@ fun lerp(start: Long, end: Long, fraction: Double): Long {
     return (start + (end - start) * fraction).roundToLong()
 }
 
+fun ByteArray.toHexString() = joinToString("") { String.format("%02X", it) }
+
 fun ClosedRange<Double>.lerp(fraction: Double): Double = lerp(start, endInclusive, fraction)
 fun ClosedRange<Float>.lerp(fraction: Float): Float = lerp(start, endInclusive, fraction)
 fun ClosedRange<Int>.lerp(fraction: Double): Int = lerp(start, endInclusive, fraction)

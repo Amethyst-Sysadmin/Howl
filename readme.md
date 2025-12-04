@@ -23,10 +23,11 @@ Additional downloads, including older versions and the Kodi add-on, may be found
 ## Device support
 
 The output devices currently supported by Howl are: -
-* DG Lab Coyote 3
-* Any device that has audio input (experimental, see [notes in wiki](https://github.com/Amethyst-Sysadmin/Howl/wiki/Audio-output))
+* DG Lab Coyote 3. This is the device Howl was originally developed for, and generally works well.
+* DG Lab Coyote 2. The main downside of the older Coyote 2 is that it is only capable of updating 10 times per second, as opposed to 40 on the C3. Some of Howl's faster patterns might change too quickly to be well represented (if needed you can use the "playback speed" global setting to slow anything down).
+* Any device that has audio input (more experimental, see [notes in wiki](https://github.com/Amethyst-Sysadmin/Howl/wiki/Audio-output))
 
-The Howl app is intended to run on any version of Android from 8.0 (released in 2017) onwards. However testing on very early versions has been limited (I've only personally used it with Android 14+).
+The Howl app is intended to run on any version of Android from 8.0 (released in 2017) onwards. However testing with very early versions has been limited.
 
 ## App screenshots
 
@@ -258,6 +259,9 @@ There are two very distinct stages. First the "WOMP" stage where strokes (which 
 ### Opposites
 Channel A's frequency and power both each shift around the whole range in fairly smooth curves at varying speeds. Channel B always does the exact opposite. So if A is at full power, B is at zero power. If A is at the highest frequency, B is at the lowest frequency. It's a simple idea, but I liked the result.
 
+### Overflowing
+This is probably more of a "finisher" pattern. Channel B sits at high power the majority of the time (fluctuating slightly in a smooth lapping effect). Channel A cycles repeatedly from low to high power in smooth waves. High frequencies are always used on both channels (60-100% of the range) and vary over time. Use the channel swap button with the player controls to try it the other way round with channel A holding high power.
+
 ### Penetration
 Inspired by: just sex innit mate. The channel B part of the wave is quite unusually shaped and is designed to peak at different points to the A wave, helping to represent the in/out movements. Lots of smooth speed changes over time. There are also some more subtle random changes to "feel" and how the frequency range is used over time. Uses plenty of artistic licence and needs a healthy dose of imagination (as with most of these).
 
@@ -341,9 +345,6 @@ The Howl Sync add-on for Kodi allows .funscript files for videos that you're pla
 
 **Can I use Howl on iOS?**
 No. Howl is a native Android app, so it's unlikely that an iOS version will ever exist (that would require rewriting most of the app).
-
-**Does Howl support the Coyote 2?**
-No. There's no specific reason it can't, but the Coyote 2 uses a different Bluetooth protocol to the 3, which we haven't added support for yet (I don't own one for testing). The Coyote 2 hardware also only supports a 10hz update rate (4x less than the 3), which probably isn't fast enough to give good results with a lot of Howl's patterns.
 
 ## Privacy
 
