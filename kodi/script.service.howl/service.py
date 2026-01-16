@@ -9,6 +9,7 @@ import urllib.parse
 import time
 import queue
 import threading
+import base64
 
 LOG_TAG = "Howl"
 REMOTE_PORT = 4695
@@ -18,10 +19,13 @@ def log(msg, level=xbmc.LOGINFO):
     xbmc.log(f"[{LOG_TAG}] {msg}", level)
     
 class HowlAPI:
-    def __init__(self, ip_address):
+    def __init__(self, ip_address, api_key=None):
         self.ip_address = ip_address
+        self.api_key = api_key
         self.port = REMOTE_PORT
         self.timeout = 3
+        self.auth_header = None
+        self._update_auth_header()
         
         self.request_queue = queue.Queue(maxsize=MAX_QUEUE_SIZE)
         self.callback_queue = queue.Queue()
@@ -30,6 +34,16 @@ class HowlAPI:
     
     def update_ip_address(self, new_ip):
         self.ip_address = new_ip
+        
+    def update_api_key(self, api_key):
+        self.api_key = api_key
+        self._update_auth_header()
+        
+    def _update_auth_header(self):
+        if self.api_key:
+            self.auth_header = f"Bearer {self.api_key}"
+        else:
+            self.auth_header = None
         
     def _enqueue_request(self, endpoint, data, callback, timeout=None):
         """Enqueue API request with optional callback"""
@@ -55,6 +69,9 @@ class HowlAPI:
             timeout = self.timeout
         url = f"http://{self.ip_address}:{self.port}{endpoint}"
         headers = {'Content-Type': 'application/json'}
+        if self.auth_header:
+            headers['Authorization'] = self.auth_header
+            
         if data is None:
             data = {}
         json_data = json.dumps(data).encode('utf-8')
@@ -141,6 +158,15 @@ class HowlAPI:
             "funscript": funscript_content
         }
         return self._enqueue_request("/load_funscript", data, callback, timeout=6)
+    
+    def load_hwl(self, title, hwl_content, callback=None):
+        # HWL is binary, so we base64 encode it for JSON transport
+        encoded_content = base64.b64encode(hwl_content).decode('utf-8')
+        data = {
+            "title": title,
+            "hwl": encoded_content
+        }
+        return self._enqueue_request("/load_hwl", data, callback, timeout=6)
 
 class HowlPlayer(xbmc.Player):
     def __init__(self, api, sync_delay):
@@ -203,33 +229,50 @@ class HowlPlayer(xbmc.Player):
             log(f"Sync failed: {str(e)}", xbmc.LOGERROR)
             return False
         
-    def load_funscript(self, funscript_path, video_path):
+    def load_haptics_file(self, file_type, file_path, video_path):
+        """
+        Load the content of our funscript or HWL file and send to the remote device.
+        file_type: 'funscript' or 'hwl'
+        """
         try:
-            with xbmcvfs.File(funscript_path, 'r') as f:
-                funscript_content = f.read()
-            base_name = os.path.basename(funscript_path)
+            # xbmcvfs.File does not support the standard 'rb' binary mode flag
+            # We open in text mode 'r' and use specific read methods for content type.
+            with xbmcvfs.File(file_path, 'r') as f:
+                if file_type == 'hwl':
+                    # readBytes returns a bytearray
+                    content = f.readBytes()
+                else:
+                    # read returns a string
+                    content = f.read()
+            
+            base_name = os.path.basename(file_path)
             title = os.path.splitext(base_name)[0]
             
-            callback = lambda success: self.funscript_loaded_callback(video_path, success)
-            # Send async request with callback
-            queued = self.api.load_funscript(title, funscript_content, callback=callback)
+            callback = lambda success: self.haptics_loaded_callback(file_type, video_path, success)
+            queued = False
+            if file_type == 'hwl':
+                queued = self.api.load_hwl(title, content, callback=callback)
+            else:
+                queued = self.api.load_funscript(title, content, callback=callback)
+                
             if not queued:
-                log("Failed to queue funscript load request", xbmc.LOGERROR)
+                log(f"Failed to queue haptics load request", xbmc.LOGERROR)
         except Exception as e:
-            log(f"load_funscript crashed: {str(e)}", xbmc.LOGERROR)
-            
-    def funscript_loaded_callback(self, video_path, success):
+            log(f"load_haptics_file crashed: {str(e)}", xbmc.LOGERROR)
+    
+    def haptics_loaded_callback(self, file_type, video_path, success):
         # Only activate if we're still playing the same video
         if self.current_video_path == video_path:
             if success:
-                log(f"Funscript loaded successfully for {video_path}")
+                log(f"{file_type.capitalize()} loaded successfully for {video_path}")
                 self.active = True
                 self.request_sync(start_player=True)
             else:
-                log(f"Funscript loading failed for {video_path}", xbmc.LOGERROR)
+                log(f"{file_type.capitalize()} loading failed for {video_path}", xbmc.LOGERROR)
                 self.active = False
         else:
-            log(f"Ignoring funscript callback for old video: {video_path}", xbmc.LOGDEBUG)
+            log(f"Ignoring callback for old video: {video_path}", xbmc.LOGDEBUG)
+    
             
     def onAVStarted(self):
         self.clear()
@@ -238,15 +281,22 @@ class HowlPlayer(xbmc.Player):
                 return
             video_path = self.getPlayingFile()
             self.current_video_path = video_path
-            base, _ = os.path.splitext(video_path)
-            funscript_path = base + ".funscript"
             if any(video_path.startswith(proto) for proto in ('pvr://', 'dvd://', 'bluray://')):
                 return
-            if xbmcvfs.exists(funscript_path):
+            
+            base, _ = os.path.splitext(video_path)
+            hwl_path = base + ".hwl"
+            funscript_path = base + ".funscript"
+            
+            # Prioritize HWL file if it exists
+            if xbmcvfs.exists(hwl_path):
+                log(f"HWL file found for {video_path}")
+                self.load_haptics_file('hwl', hwl_path, video_path)
+            elif xbmcvfs.exists(funscript_path):
                 log(f"Funscript found for {video_path}")
-                self.load_funscript(funscript_path, video_path)
+                self.load_haptics_file('funscript', funscript_path, video_path)
             else:
-                log(f"No matching funscript for {video_path}")
+                log(f"No haptics file found for {video_path}")
                 return
         except Exception as e:
             log(f"onAVStarted crashed: {str(e)}", xbmc.LOGERROR)
@@ -291,13 +341,14 @@ class HowlService(xbmc.Monitor):
     def __init__(self):
         super().__init__()
         self._get_settings()
-        self.api = HowlAPI(self.ip_address)
+        self.api = HowlAPI(self.ip_address, self.api_key)
         self.player = HowlPlayer(self.api, self.sync_delay)
         log("Service started")
     
     def _get_settings(self):
         addon = xbmcaddon.Addon()
         self.ip_address = addon.getSettingString("ip_address")
+        self.api_key = addon.getSettingString("api_key")
         # Get sync_delay as integer (default to 500 if conversion fails)
         try:
             self.sync_delay = int(addon.getSetting("sync_delay"))
@@ -307,12 +358,17 @@ class HowlService(xbmc.Monitor):
         
     def onSettingsChanged(self):
         old_ip = self.ip_address
+        old_api_key = self.api_key
         old_delay = self.sync_delay
         self._get_settings()
         
         if self.ip_address != old_ip:
             self.api.update_ip_address(self.ip_address)
             log(f"Updated remote IP to: {self.ip_address}")
+            
+        if self.api_key != old_api_key:
+            self.api.update_api_key(self.api_key)
+            log("Updated remote API Key")
             
         if self.sync_delay != old_delay:
             self.player.update_sync_delay(self.sync_delay)

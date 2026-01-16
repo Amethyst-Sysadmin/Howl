@@ -13,6 +13,16 @@
 						<heading>32002</heading>
 					</control>
 				</setting>
+				<setting id="api_key" type="string" label="32004" help="">
+					<level>0</level>
+					<default>PUT_YOUR_KEY_HERE</default>
+					<constraints>
+						<allowempty>false</allowempty>
+					</constraints>
+					<control type="edit" format="string">
+						<heading>32005</heading>
+					</control>
+				</setting>
 				<setting id="sync_delay" type="integer" label="32003" help="">
 					<level>0</level>
 					<default>500</default>

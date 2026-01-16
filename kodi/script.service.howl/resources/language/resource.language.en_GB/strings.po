@@ -35,3 +35,13 @@ msgstr ""
 msgctxt "#32003"
 msgid "Sync delay (ms)"
 msgstr ""
+
+# Howl API key
+msgctxt "#32004"
+msgid "Remote access key"
+msgstr ""
+
+# Howl API key (control heading)
+msgctxt "#32005"
+msgid "Remote access key"
+msgstr ""
