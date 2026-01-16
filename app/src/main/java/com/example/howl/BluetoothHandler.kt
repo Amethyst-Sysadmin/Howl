@@ -86,27 +86,8 @@ object BluetoothHandler {
 
     @SuppressLint("MissingPermission")
     fun attemptConnection() {
-        if (!checkAndRequestPermissions()) return
         onConnectionStatusUpdate?.invoke(ConnectionStatus.Connecting)
         scanForDevices()
-    }
-
-    fun checkAndRequestPermissions(): Boolean {
-        val context = contextRef?.get() ?: return false
-        val permissionsToRequest = ALL_BLE_PERMISSIONS.filter {
-            ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
-        }
-
-        if (permissionsToRequest.isNotEmpty()) {
-            HLog.d(TAG, "Requesting Bluetooth permissions $permissionsToRequest")
-            val activity = context as? MainActivity ?: return false
-            ActivityCompat.requestPermissions(activity, permissionsToRequest.toTypedArray(), 1)
-            return false
-        }
-
-        // All permissions are granted
-        HLog.d(TAG, "Required Bluetooth permissions are already granted")
-        return true
     }
 
     @SuppressLint("MissingPermission")

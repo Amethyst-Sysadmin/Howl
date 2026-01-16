@@ -1,6 +1,5 @@
 package com.example.howl
 
-import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,13 +23,13 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.ui.graphics.Color
 import com.example.howl.ui.theme.HowlTheme
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.random.Random
@@ -51,7 +50,6 @@ object ActivityHost : PulseSource {
     override val shouldLoop: Boolean = false
     override var readyToPlay: Boolean = true
     override var isRemote: Boolean = false
-    override var remoteLatency: Double = 0.0
 
     private val timerManager = TimerManager()
 
@@ -82,17 +80,21 @@ object ActivityHost : PulseSource {
     private var currentActivityInfo: ActivityInfo? = null
     private var currentActivity: Activity? = null
 
+    // used so the UI can respond to the current activity
+    private val _currentActivityName = MutableStateFlow("")
+    val currentActivityName: StateFlow<String> = _currentActivityName.asStateFlow()
+
     init {
         changeActivity()
     }
 
     override fun updateState(currentTime: Double) {
-        if (lastUpdateTime < 0 || lastUpdateTime > currentTime)
+        if (lastUpdateTime !in 0.0..currentTime)
             lastUpdateTime = currentTime
-        val state = DataRepository.activityState.value
+        val changeProbability = Prefs.activityChangeProbability.value
         val timeDelta = currentTime - lastUpdateTime
 
-        val probability = (state.activityChangeProbability * 3.0 * timeDelta) / 60.0
+        val probability = (changeProbability * 3.0 * timeDelta) / 60.0
         if (Random.nextDouble() < probability) {
             changeActivity()
         }
@@ -101,7 +103,7 @@ object ActivityHost : PulseSource {
     }
 
     override fun getPulseAtTime(time: Double): Pulse {
-        if (lastSimulationTime < 0 || lastSimulationTime > time) {
+        if (lastSimulationTime !in 0.0..time) {
             lastSimulationTime = time
         }
 
@@ -118,7 +120,7 @@ object ActivityHost : PulseSource {
         currentActivity = newActivityInfo.factory().apply { initialise() }
         lastSimulationTime = -1.0
         lastUpdateTime = -1.0
-        DataRepository.setActivityState(DataRepository.activityState.value.copy(currentActivityDisplayName = newActivityInfo.displayName))
+        _currentActivityName.value = newActivityInfo.displayName
     }
 
     fun changeActivity() {
@@ -135,12 +137,6 @@ object ActivityHost : PulseSource {
 }
 
 class ActivityHostViewModel() : ViewModel() {
-    fun updateActivityState(newActivityState: DataRepository.ActivityState) {
-        DataRepository.setActivityState(newActivityState)
-    }
-    fun setActivityChangeProbability(probability: Float) {
-        updateActivityState(DataRepository.activityState.value.copy(activityChangeProbability = probability))
-    }
     fun setCurrentActivity(activityInfo: ActivityHost.ActivityInfo) {
         ActivityHost.setCurrentActivity(activityInfo)
     }
@@ -151,11 +147,6 @@ class ActivityHostViewModel() : ViewModel() {
         Player.switchPulseSource(ActivityHost)
         Player.startPlayer()
     }
-    fun saveSettings() {
-        viewModelScope.launch {
-            DataRepository.saveSettings()
-        }
-    }
 }
 
 @Composable
@@ -163,8 +154,9 @@ fun ActivityHostPanel(
     viewModel: ActivityHostViewModel,
     modifier: Modifier = Modifier
 ) {
-    val activityState by DataRepository.activityState.collectAsStateWithLifecycle()
-    val playerState by DataRepository.playerState.collectAsStateWithLifecycle()
+    val currentActivityName by ActivityHost.currentActivityName.collectAsStateWithLifecycle()
+    val activityChangeProbability by Prefs.activityChangeProbability.collectAsStateWithLifecycle()
+    val playerState by Player.playerState.collectAsStateWithLifecycle()
     val isPlaying = playerState.isPlaying && playerState.activePulseSource == ActivityHost
 
     Column(
@@ -205,9 +197,9 @@ fun ActivityHostPanel(
         )*/
         SliderWithLabel(
             label = "Random activity change probability",
-            value = activityState.activityChangeProbability.toFloat(),
-            onValueChange = { viewModel.setActivityChangeProbability(it) },
-            onValueChangeFinished = { viewModel.saveSettings() },
+            value = activityChangeProbability,
+            onValueChange = { Prefs.activityChangeProbability.value = it },
+            onValueChangeFinished = { Prefs.activityChangeProbability.save() },
             valueRange = ActivityHost.PROBABILITY_RANGE,
             steps = ((ActivityHost.PROBABILITY_RANGE.endInclusive - ActivityHost.PROBABILITY_RANGE.start) * 100.0 - 1).roundToInt(),
             valueDisplay = { String.format(Locale.US, "%03.2f", it) }
@@ -219,13 +211,13 @@ fun ActivityHostPanel(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(ActivityHost.availableActivities.sortedBy { it.displayName }) { info ->
-                val isCurrent = info.displayName == activityState.currentActivityDisplayName
+                val isCurrent = info.displayName == currentActivityName
                 Button(
                     onClick = {
                         viewModel.setCurrentActivity(info)
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isCurrent) Color.Red else ButtonDefaults.buttonColors().containerColor
+                        containerColor = if (isCurrent) MaterialTheme.colorScheme.tertiary else ButtonDefaults.buttonColors().containerColor
                     ),
                     modifier = Modifier.fillMaxWidth()
                 ) {

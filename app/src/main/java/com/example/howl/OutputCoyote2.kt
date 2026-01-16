@@ -1,6 +1,5 @@
 package com.example.howl
 
-import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -19,14 +18,12 @@ enum class Coyote2SetupStage {
     Ready
 }
 
-class Coyote2Output : Output {
-    override val timerDelay = 0.1
+class Coyote2Output : BaseOutput() {
     override val pulseBatchSize = 1
     override val sendSilenceWhenMuted = false
     override var allowedFrequencyRange = 1..200
     override var defaultFrequencyRange = 10..100
     override var ready = false
-    override var latency = 0.0
     var setupStage: Coyote2SetupStage = Coyote2SetupStage.Initial
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var batteryPollJob: Job? = null
@@ -72,7 +69,7 @@ class Coyote2Output : Output {
                 if (event.serviceUuid == batteryServiceUUID && event.characteristicUuid == batteryCharacteristicUUID) {
                     val batteryLevel = event.data?.first()?.toInt() ?: return
                     HLog.d(TAG, "Fetched Coyote 2 battery level: $batteryLevel%")
-                    DataRepository.setCoyoteBatteryLevel(batteryLevel)
+                    ConnectionManager.setBatteryLevel(batteryLevel)
                 }
             }
             BluetoothEventType.CharacteristicChanged -> {
@@ -227,10 +224,10 @@ class Coyote2Output : Output {
         previousChannelAPower = channelAPower
         previousChannelBPower = channelBPower
 
-        if (DataRepository.mainOptionsState.value.channelAPower != channelAPower || DataRepository.mainOptionsState.value.channelBPower != channelBPower) {
+        if (MainOptions.state.value.channelAPower != channelAPower || MainOptions.state.value.channelBPower != channelBPower) {
             HLog.d(TAG,"Power level update from device A: $channelAPower B: $channelBPower")
-            DataRepository.setChannelAPower(channelAPower)
-            DataRepository.setChannelBPower(channelBPower)
+            MainOptions.setChannelPower(0, channelAPower)
+            MainOptions.setChannelPower(1, channelBPower)
         }
     }
 

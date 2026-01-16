@@ -31,14 +31,12 @@ enum class AudioPhaseType(val displayName: String) {
     OPPOSITE("Opposite"), // Pi offset
 }
 
-open class AudioOutput : Output {
-    override val timerDelay = 0.1
+open class AudioOutput : BaseOutput() {
     override val pulseBatchSize = 10
     override val sendSilenceWhenMuted = true
     override var allowedFrequencyRange = 1..200
     override var defaultFrequencyRange = 10..100
     override var ready = true
-    override var latency = 0.0
 
     companion object {
         const val TAG = "AudioOutput"
@@ -93,8 +91,8 @@ open class AudioOutput : Output {
             return
         }
         // I think the AudioTrack has a 3264 frame internal audio buffer (based on the steps the playback head moves in)
-        latency = (bufferSizeFrames / sampleRate.toDouble()) + (3264 / sampleRate.toDouble())
-        HLog.d(TAG, "Estimated audio latency: $latency")
+        //val latency = (bufferSizeFrames / sampleRate.toDouble()) + (3264 / sampleRate.toDouble())
+        //HLog.d(TAG, "Estimated audio latency: $latency")
         running = true
         startProducerThread()
     }
@@ -222,11 +220,12 @@ open class AudioOutput : Output {
         startPulse: Pulse,
         endPulse: Pulse
     ) {
-        val carrierType = DataRepository.outputState.value.audioCarrierShape
-        val carrierFrequency = DataRepository.outputState.value.audioCarrierFrequency
-        val carrierPhaseType = DataRepository.outputState.value.audioCarrierPhaseType
-        val waveletWidth = DataRepository.outputState.value.audioWaveletWidth
-        val waveletFade = DataRepository.outputState.value.audioWaveletFade.toDouble()
+        val carrierType = Prefs.outputAudioCarrierShape.value
+        val carrierFrequency = Prefs.outputAudioCarrierFrequency.value
+        val carrierPhaseType = Prefs.outputAudioCarrierPhaseType.value
+        val waveletWidth = Prefs.outputAudioWaveletWidth.value
+        val waveletFade = Prefs.outputAudioWaveletFade.value.toDouble()
+
         val carrierPhaseInc = 2.0 * PI * carrierFrequency / sampleRate
         val carrierPhaseChannelOffset = when (carrierPhaseType) {
             AudioPhaseType.SAME -> 0.0
@@ -321,7 +320,7 @@ open class AudioOutput : Output {
         )
         HLog.d(TAG,"Minimum buffer size (bytes): $minBufferSize")
 
-        val desiredBufferSizeFrames = (sampleRate * timerDelay * 2.0).toInt()
+        val desiredBufferSizeFrames = (sampleRate * OUTPUT_TIMER * 2.0).toInt()
 
         val bufferSizeInBytes = maxOf(desiredBufferSizeFrames * 2, minBufferSize)
         HLog.d(TAG,"Using buffer size (bytes): $bufferSizeInBytes")
@@ -405,8 +404,8 @@ open class AudioOutput : Output {
 
 class ContinuousAudioOutput : AudioOutput() {
     init {
-        val fMin = DataRepository.outputState.value.audioOutputMinFrequency
-        val fMax = DataRepository.outputState.value.audioOutputMaxFrequency
+        val fMin = Prefs.outputAudioMinFrequency.value
+        val fMax = Prefs.outputAudioMaxFrequency.value
         allowedFrequencyRange = fMin..fMax
         defaultFrequencyRange = fMin..fMax
     }
@@ -426,7 +425,7 @@ class ContinuousAudioOutput : AudioOutput() {
         startPulse: Pulse,
         endPulse: Pulse
     ) {
-        val waveShape = DataRepository.outputState.value.audioWaveShape
+        val waveShape = Prefs.outputAudioWaveShape.value
 
         val minFreq = currentMinFreq
         val freqRange = currentMaxFreq - currentMinFreq

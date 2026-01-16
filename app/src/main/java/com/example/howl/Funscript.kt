@@ -10,8 +10,6 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import java.util.TreeMap
 import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.pow
 
 class BadFileException (message: String) : Exception(message)
@@ -20,11 +18,7 @@ enum class FrequencyAlgorithmType(val displayName: String) {
     POSITION("Position"),
     VARIED("Varied"),
     BLEND("Blend"),
-}
-
-enum class AmplitudeAlgorithmType(val displayName: String) {
-    DEFAULT("Default"),
-    PENETRATIVE("Penetrative"),
+    FIXED("Fixed")
 }
 
 @Serializable
@@ -55,16 +49,12 @@ class FunscriptPulseSource : PulseSource {
     override val shouldLoop: Boolean = false
     override var readyToPlay: Boolean = false
     override var isRemote: Boolean = false
-    override var remoteLatency: Double = 0.0
 
     private data class ScaledAction(val time: Double, val pos: Double)
 
     private val timePositionData = TreeMap<Double, PositionVelocity>()
 
     private val noiseGenerator = NoiseGenerator()
-
-    private var previousTime: Double = -1.0
-    private var previousAmplitude: Double = 0.0
 
     override fun updateState(currentTime: Double) {}
 
@@ -76,47 +66,28 @@ class FunscriptPulseSource : PulseSource {
         return Pair(before, after)
     }
 
-    private fun scaleFunscriptVelocity(velocity: Double, exponent: Double = 0.5): Double {
-        val movementThreshold = 0.033 // Minimum that counts as movement (1 stroke over 30 seconds)
+    private fun calculateOverallAmplitude(velocity: Double, acceleration: Double, exponent: Double = 0.5): Double {
+        // Howl's algorithm bases our overall amplitude (before the positional effect) on both the
+        // velocity and the acceleration magnitudes of the stroker. This creates pleasing results
+        // with V peaking in the middle of strokes, and A peaking at the top/bottom.
+        // Factoring in acceleration also helps to translate common script embellishments like rapid
+        // short up/down movements in a nice way.
+
+        val threshold = 0.005 // Minimum below which we zero the output
+        val ratio = 0.5 // Weights acceleration and velocity in our formula
         val maxSpeed = 5.0 // typical maximum speed of a "stroker" device (5 strokes per second)
+        val maxMagnitude = 80.0 // maximum magnitude of acceleration for normalisation purposes
+
         val speed = abs(velocity)
-
-        if (speed < movementThreshold) {
-            return 0.0
-        }
-
+        val magnitude = abs(acceleration)
         val normalizedSpeed = (speed / maxSpeed).coerceIn(0.0..1.0)
-        return normalizedSpeed.pow(exponent).coerceIn(0.0..1.0)
-    }
+        val normalizedMagnitude = (magnitude / maxMagnitude).coerceIn(0.0..1.0)
 
-    private fun calculatePenetrativeEffect(time: Double, amplitude: Double, position: Double): Pair<Double, Double> {
-        val penEffectPower = 0.5
-        val penEffectPoint = 0.5 // position below which the effect applies at 100%
-        val penEffectTimeSpeed = 6.0
-        val penEffectRotationSpeed = 0.05
-        val penEffectRadius = 0.2
-
-        if (position >= 1.0) return 0.0 to 0.0
-
-        // Calculate easing factor based on position
-        val factor = when {
-            position < penEffectPoint -> 1.0
-            else -> {
-                val t = (position - penEffectPoint) / (1.0 - penEffectPoint)
-                (1 - t) * (1 - t)
-            }
-        }
-
-        val (_, noiseB) = noiseGenerator.getNoise(
-            time = time * penEffectTimeSpeed,
-            rotation = time * penEffectRotationSpeed,
-            radius = penEffectRadius,
-            axis = 2,
-            shiftResult = true
-        )
-
-        val effectAmplitude = noiseB * factor * amplitude * penEffectPower
-        return 0.0 to effectAmplitude
+        val rawAmp = normalizedSpeed * (1.0 - ratio) + normalizedMagnitude * ratio
+        if (rawAmp < threshold)
+            return 0.0
+        val amplitude = rawAmp.pow(exponent).coerceIn(0.0..1.0)
+        return amplitude
     }
 
     private fun calculateVariedFrequencies(time: Double, varySpeed: Double): Pair<Double, Double> {
@@ -131,74 +102,66 @@ class FunscriptPulseSource : PulseSource {
         )
     }
 
-    private fun limitAmplitudeDrop(time: Double, amplitude: Double, maxAmplitudeDropPerSecond: Double): Double {
-        // Limit how much our total amplitude is allowed to reduce by per second.
-        // This results in a more pleasing dip at the top and bottom of each interpolated stroker
-        // motion rather than immediately going right down to zero. Chained motions feel smoother.
-        var newAmplitude = amplitude
-
-        if (previousTime >= 0) {
-            val deltaTime = time - previousTime
-            if (deltaTime > 0 && deltaTime < 1.0) {
-                val maxAllowedDrop = maxAmplitudeDropPerSecond * deltaTime
-                if (amplitude < previousAmplitude) {
-                    newAmplitude = max(amplitude, previousAmplitude - maxAllowedDrop)
-                }
-            }
-        }
-
-        previousTime = time
-        previousAmplitude = newAmplitude
-        return newAmplitude
-    }
-
-    fun getPositionAndVelocityAtTime(time: Double): Pair<Double, Double> {
+    private fun getPositionAtTime(time: Double): Double {
         val (before, after) = getClosestPoints(time)
         return when {
-            before == null && after == null -> Pair(0.0, 0.0)
-            before == null -> Pair(after!!.second.position, 0.0)
-            after == null -> Pair(before.second.position, 0.0)
+            before == null && after == null -> 0.0
+            before == null -> after!!.second.position
+            after == null -> before.second.position
             else -> {
                 val (t0, pv0) = before
                 val (t1, pv1) = after
                 if (t0 == t1 || pv0.position == pv1.position) {
-                    Pair(pv0.position, 0.0)
+                    pv0.position
                 } else {
-                    val (rawPos, rawVel) = hermiteInterpolateWithVelocity(
+                    hermiteInterpolate(
+                        time,
+                        t0, pv0.position, pv0.velocity,
+                        t1, pv1.position, pv1.velocity
+                    ).coerceIn(0.0, 1.0)
+                }
+            }
+        }
+    }
+
+    fun getPositionVelocityAccelerationAtTime(time: Double): Triple<Double, Double, Double> {
+        val (before, after) = getClosestPoints(time)
+        return when {
+            before == null && after == null -> Triple(0.0, 0.0, 0.0)
+            before == null -> Triple(after!!.second.position, 0.0, 0.0)
+            after == null -> Triple(before.second.position, 0.0, 0.0)
+            else -> {
+                val (t0, pv0) = before
+                val (t1, pv1) = after
+                if (t0 == t1 || pv0.position == pv1.position) {
+                    Triple(pv0.position, 0.0, 0.0)
+                } else {
+                    val (rawPos, rawVel, rawAcc) = hermiteInterpolateWithVelocityAndAcceleration(
                         time, t0, pv0.position, pv0.velocity, t1, pv1.position, pv1.velocity
                     )
-                    Pair(rawPos.coerceIn(0.0, 1.0), rawVel)
+                    Triple(rawPos.coerceIn(0.0, 1.0), rawVel, rawAcc)
                 }
             }
         }
     }
 
     override fun getPulseAtTime(time: Double): Pulse {
-        val advancedControlState = DataRepository.playerAdvancedControlsState.value
-        val frequencyAlgorithm = advancedControlState.funscriptFrequencyAlgorithm
-        val amplitudeAlgorithm = advancedControlState.funscriptAmplitudeAlgorithm
-        val funscriptPositionalEffectStrength = advancedControlState.funscriptPositionalEffectStrength
-        val funscriptFrequencyTimeOffset = if (frequencyAlgorithm == FrequencyAlgorithmType.POSITION) advancedControlState.funscriptFrequencyTimeOffset.toDouble() else 0.0
-        val frequencyVarySpeed = advancedControlState.funscriptFrequencyVarySpeed.toDouble()
-        val frequencyBlendRatio = advancedControlState.funscriptFrequencyBlendRatio.toDouble()
-        val scalingExponent = (1.0 - advancedControlState.funscriptVolume).coerceAtLeast(0.001)
+        val frequencyAlgorithm = Prefs.funscriptFrequencyAlgorithm.value
+        val funscriptPositionalEffectStrength = Prefs.funscriptPositionalEffectStrength.value.toDouble()
+        val funscriptFrequencyTimeOffset = if (frequencyAlgorithm == FrequencyAlgorithmType.POSITION) Prefs.funscriptFrequencyTimeOffset.value.toDouble() else 0.0
+        val frequencyVarySpeed = Prefs.funscriptFrequencyVarySpeed.value.toDouble()
+        val frequencyBlendRatio = Prefs.funscriptFrequencyBlendRatio.value.toDouble()
+        // higher "volume" boosts slow movements more, but reduces dynamic range
+        val volume = Prefs.funscriptVolume.value.toDouble()
+        val scalingExponent = (1.0 - volume).coerceAtLeast(0.001)
 
-        val (position, velocity) = getPositionAndVelocityAtTime(time)
-        val (offsetPosition, _) = getPositionAndVelocityAtTime(time - funscriptFrequencyTimeOffset)
+        val (position, velocity, acceleration) = getPositionVelocityAccelerationAtTime(time)
+        val offsetPosition = getPositionAtTime(time + funscriptFrequencyTimeOffset)
+        //Log.d("funscript", "T=$time P=$position V=$velocity A=$acceleration")
 
-        //Log.d("funscript", "T=$time V=$velocity")
+        val amplitude = calculateOverallAmplitude(velocity, acceleration, exponent = scalingExponent)
 
-        var amplitude = scaleFunscriptVelocity(velocity, exponent = scalingExponent)
-        amplitude = limitAmplitudeDrop(time, amplitude, maxAmplitudeDropPerSecond = 5.0)
-
-        var (amplitudeA, amplitudeB) = when (amplitudeAlgorithm) {
-            AmplitudeAlgorithmType.DEFAULT -> calculatePositionalEffect(amplitude, position, funscriptPositionalEffectStrength.toDouble())
-            AmplitudeAlgorithmType.PENETRATIVE -> {
-                val (posAmpA, posAmpB) = calculatePositionalEffect(amplitude, position, funscriptPositionalEffectStrength.toDouble())
-                val (penAmpA, penAmpB) = calculatePenetrativeEffect(time, amplitude, position)
-                Pair(min(posAmpA + penAmpA, 1.0), min(posAmpB + penAmpB, 1.0))
-            }
-        }
+        val (amplitudeA, amplitudeB) = calculatePositionalEffect(amplitude, position, funscriptPositionalEffectStrength)
 
         var (freqA, freqB) = when (frequencyAlgorithm) {
             FrequencyAlgorithmType.POSITION -> Pair(offsetPosition, position)
@@ -211,6 +174,10 @@ class FunscriptPulseSource : PulseSource {
                     posB * (1.0 - frequencyBlendRatio) + varB * frequencyBlendRatio
                 )
             }
+            FrequencyAlgorithmType.FIXED -> Pair(
+                Prefs.funscriptFrequencyFixedA.value.toDouble(),
+                Prefs.funscriptFrequencyFixedB.value.toDouble()
+            )
         }
 
         return Pulse(
@@ -302,7 +269,6 @@ class FunscriptPulseSource : PulseSource {
         displayName = title
         duration = timePositionData.lastKey()
         isRemote = true
-        remoteLatency = DataRepository.playerAdvancedControlsState.value.funscriptRemoteLatency.toDouble()
         readyToPlay = true
         return duration
     }

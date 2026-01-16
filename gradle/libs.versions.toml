@@ -1,5 +1,5 @@
 [versions]
-agp = "8.13.0"
+agp = "8.13.2"
 kotlin = "2.2.0"
 coreKtx = "1.16.0"
 junit = "4.13.2"
@@ -9,9 +9,9 @@ lifecycleRuntimeKtx = "2.9.2"
 activityCompose = "1.10.1"
 composeBom = "2025.07.00"
 
-room = "2.7.2"
+room = "2.8.4"
 lifecycle = "2.9.2"
-ktor = "3.2.3"
+ktor = "3.3.3"
 kotlinx-serialization = "1.9.0"
 bluetooth = "1.0.0-alpha02"
 ksp = "2.2.0-2.0.2"
@@ -43,6 +43,7 @@ ktor-server-content-negotiation = { group = "io.ktor", name = "ktor-server-conte
 ktor-server-core = { group = "io.ktor", name = "ktor-server-core", version.ref = "ktor" }
 ktor-serialization-kotlinx-json = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
 ktor-server-cio = { group = "io.ktor", name = "ktor-server-cio", version.ref = "ktor" }
+ktor-server-auth = { group = "io.ktor", name = "ktor-server-auth", version.ref = "ktor" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

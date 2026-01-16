@@ -1,4 +1,5 @@
 package com.example.howl
+import android.util.Log
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,7 +24,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -31,45 +31,196 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.howl.ui.theme.HowlTheme
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
-class MainOptionsViewModel() : ViewModel() {
-    val mainOptionsState: StateFlow<DataRepository.MainOptionsState> = DataRepository.mainOptionsState
-    val miscOptionsState: StateFlow<DataRepository.MiscOptionsState> = DataRepository.miscOptionsState
+data class MainOptionsState (
+    val channelAPower: Int = 0,
+    val channelBPower: Int = 0,
+    val globalMute: Boolean = false,
+    val autoIncreasePower: Boolean = false,
+    val swapChannels: Boolean = false,
+    val frequencyRange: IntRange = 100..1000,
+    val frequencyRangeSelectedSubset: ClosedFloatingPointRange<Float> = 0.0f..1.0f,
+) {
+    val minFrequency: Int
+        get() {
+            val rangeSpan = frequencyRange.last - frequencyRange.first
+            return frequencyRange.first + (rangeSpan * frequencyRangeSelectedSubset.start).toInt()
+        }
 
-    fun updateMainOptionsState(newMainOptionsState: DataRepository.MainOptionsState) {
-        DataRepository.setMainOptionsState(newMainOptionsState)
+    val maxFrequency: Int
+        get() {
+            val rangeSpan = frequencyRange.last - frequencyRange.first
+            return frequencyRange.first + (rangeSpan * frequencyRangeSelectedSubset.endInclusive).toInt()
+        }
+}
+
+object MainOptions {
+    private val _state = MutableStateFlow(MainOptionsState())
+    val state: StateFlow<MainOptionsState> = _state.asStateFlow()
+    private var autoIncrementPowerCounterA: Long = 0L
+    private var autoIncrementPowerCounterB: Long = 0L
+
+    fun setChannelPower(channel: Int, power: Int) {
+        when (channel) {
+            0 -> {
+                val limit = Prefs.powerLimitA.value
+                val newPower = power.coerceIn(0..limit)
+                _state.update { it.copy(channelAPower = newPower) }
+            }
+            1 -> {
+                val limit = Prefs.powerLimitB.value
+                val newPower = power.coerceIn(0..limit)
+                _state.update { it.copy(channelBPower = newPower) }
+            }
+            else -> {}
+        }
     }
 
-    fun setChannelAPower(power: Int) {
-        DataRepository.setChannelAPower(power)
+    fun incrementChannelPower(channel: Int, step: Int = 0) {
+        val current = getChannelPower(channel)
+        val stepSize = if (step == 0) getChannelPowerStep(channel) else step
+        setChannelPower(channel, current + stepSize)
     }
 
-    fun setChannelBPower(power: Int) {
-        DataRepository.setChannelBPower(power)
+    fun decrementChannelPower(channel: Int, step: Int = 0) {
+        val current = getChannelPower(channel)
+        val stepSize = if (step == 0) getChannelPowerStep(channel) else step
+        setChannelPower(channel, current - stepSize)
+    }
+
+    fun getChannelPower(channel: Int): Int {
+        return when (channel) {
+            0 -> state.value.channelAPower
+            1 -> state.value.channelBPower
+            else -> 0
+        }
+    }
+
+    fun getPowerLevels(): Pair<Int, Int> {
+        return Pair(state.value.channelAPower, state.value.channelBPower)
+    }
+
+    fun getChannelPowerStep(channel: Int): Int {
+        return when (channel) {
+            0 -> Prefs.powerStepA.value
+            1 -> Prefs.powerStepB.value
+            else -> 1
+        }
+    }
+
+    fun autoIncreasePower(elapsed: Double) {
+        val options = state.value
+
+        if (options.autoIncreasePower && !options.globalMute) {
+            // Using milliseconds internally avoids an annoying issue where the channel updates
+            // can desynchronise from each other over time due to floating point errors
+            val elapsedMs = (elapsed * 1000).toLong()
+            if (options.channelAPower > 0)
+                autoIncrementPowerCounterA += elapsedMs
+            if (options.channelBPower > 0)
+                autoIncrementPowerCounterB += elapsedMs
+
+            val autoIncrementDelayA = (Prefs.powerAutoIncrementDelayA.value * 1000).toLong()
+            val autoIncrementDelayB = (Prefs.powerAutoIncrementDelayB.value * 1000).toLong()
+            //Log.d("MainControls", "Auto increment calculation $autoIncrementPowerCounterA / $autoIncrementDelayA      $autoIncrementPowerCounterB / $autoIncrementDelayB")
+            if (autoIncrementPowerCounterA >= autoIncrementDelayA) {
+                autoIncrementPowerCounterA = 0L
+                incrementChannelPower(0, 1)
+            }
+            if (autoIncrementPowerCounterB >= autoIncrementDelayB) {
+                autoIncrementPowerCounterB = 0L
+                incrementChannelPower(1, 1)
+            }
+        }
+    }
+
+    fun singleChannelMode(): Boolean {
+        val aActive = state.value.channelAPower > 0
+        val bActive = state.value.channelBPower > 0
+        return aActive != bActive
     }
 
     fun setGlobalMute(muted: Boolean) {
-        DataRepository.setGlobalMute(muted)
+        _state.update { it.copy(globalMute = muted)}
     }
 
     fun setAutoIncreasePower(autoIncrease: Boolean) {
-        DataRepository.setAutoIncreasePower(autoIncrease)
+        autoIncrementPowerCounterA = 0L
+        autoIncrementPowerCounterB = 0L
+        _state.update { it.copy(autoIncreasePower = autoIncrease)}
     }
 
     fun setSwapChannels(swap: Boolean) {
-        DataRepository.setSwapChannels(swap)
+        _state.update { it.copy(swapChannels = swap)}
+    }
+
+    fun setFrequencyRange(range: IntRange, overrideSelectedSubset: Boolean = false) {
+        _state.update { currentState ->
+            if (overrideSelectedSubset) {
+                currentState.copy(
+                    frequencyRange = range,
+                    frequencyRangeSelectedSubset = 0.0f..1.0f
+                )
+            } else {
+                currentState.copy(
+                    frequencyRange = range,
+                )
+            }
+        }
     }
 
     fun setFrequencyRangeSelectedSubset(range: ClosedFloatingPointRange<Float>) {
-        DataRepository.setFrequencyRangeSelectedSubset(range)
+        _state.update { it.copy(frequencyRangeSelectedSubset = range) }
+    }
+
+    fun setFrequenciesToOutputDefaults(output: Output) {
+        val frequencyRangeSubset = output.defaultFrequencyRange.toProportionOf(output.allowedFrequencyRange)
+        _state.update { it.copy(
+            frequencyRange = output.allowedFrequencyRange,
+            frequencyRangeSelectedSubset = frequencyRangeSubset,
+        ) }
+    }
+}
+
+class MainOptionsViewModel() : ViewModel() {
+    private val _pulseChartMode = MutableStateFlow(PulseChartMode.Off)
+    val pulseChartMode: StateFlow<PulseChartMode> = _pulseChartMode.asStateFlow()
+
+    fun setChannelPower(channel: Int, power: Int) {
+        MainOptions.setChannelPower(channel, power)
+    }
+
+    fun incrementChannelPower(channel: Int) {
+        MainOptions.incrementChannelPower(channel)
+    }
+
+    fun decrementChannelPower(channel: Int) {
+        MainOptions.decrementChannelPower(channel)
+    }
+
+    fun setGlobalMute(muted: Boolean) {
+        MainOptions.setGlobalMute(muted)
+    }
+
+    fun setAutoIncreasePower(autoIncrease: Boolean) {
+        MainOptions.setAutoIncreasePower(autoIncrease)
+    }
+
+    fun setSwapChannels(swap: Boolean) {
+        MainOptions.setSwapChannels(swap)
+    }
+
+    fun setFrequencyRangeSelectedSubset(range: ClosedFloatingPointRange<Float>) {
+        MainOptions.setFrequencyRangeSelectedSubset(range)
     }
 
     fun cyclePulseChart() {
-        val newMode = mainOptionsState.value.pulseChartMode.next()
-        DataRepository.setPulseChartMode(newMode)
-        //if (newMode == PulseChartMode.Off)
-        //    DataRepository.clearPulseHistory()
+        val newMode = _pulseChartMode.value.next()
+        _pulseChartMode.update { newMode }
     }
 }
 
@@ -78,14 +229,16 @@ fun MainOptionsPanel(
     viewModel: MainOptionsViewModel,
     modifier: Modifier = Modifier
 ) {
-    val mainOptionsState by viewModel.mainOptionsState.collectAsStateWithLifecycle()
-    val miscOptionsState by viewModel.miscOptionsState.collectAsStateWithLifecycle()
-    val minSeparation = 5f
+    val mainOptionsState by MainOptions.state.collectAsStateWithLifecycle()
+    val showPowerMeter by Prefs.miscShowPowerMeter.collectAsStateWithLifecycle()
+    val pulseChartMode by viewModel.pulseChartMode.collectAsStateWithLifecycle()
+
+    val minSeparation = 0.05
     val muted = mainOptionsState.globalMute
     val autoIncreasePower = mainOptionsState.autoIncreasePower
     val swapChannels = mainOptionsState.swapChannels
     val toolbarButtonHeight = 50.dp
-    val activeButtonColour = Color.Red
+    val activeButtonColour = MaterialTheme.colorScheme.tertiary
 
     Column(
         modifier = modifier
@@ -101,14 +254,14 @@ fun MainOptionsPanel(
         ) {
             // Left side: Channel A controls
             PowerLevelPanel(
-                channel = "A",
+                channelIndex = 0,
+                channelLabel = "A",
                 power = mainOptionsState.channelAPower,
-                onPowerChange = viewModel::setChannelAPower,
-                stepSize = miscOptionsState.powerStepSizeA
+                viewModel = viewModel
             )
 
             // Center: Power meters (grouped together)
-            if (miscOptionsState.showPowerMeter) {
+            if (showPowerMeter) {
                 Row(
                     horizontalArrangement = Arrangement.Center
                 ) {
@@ -121,10 +274,10 @@ fun MainOptionsPanel(
 
             // Right side: Channel B controls
             PowerLevelPanel(
-                channel = "B",
+                channelIndex = 1,
+                channelLabel = "B",
                 power = mainOptionsState.channelBPower,
-                onPowerChange = viewModel::setChannelBPower,
-                stepSize = miscOptionsState.powerStepSizeB
+                viewModel = viewModel
             )
         }
         Spacer(modifier = Modifier.height(16.dp))
@@ -168,7 +321,7 @@ fun MainOptionsPanel(
                     viewModel.cyclePulseChart()
                 },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (mainOptionsState.pulseChartMode != PulseChartMode.Off) activeButtonColour else ButtonDefaults.buttonColors().containerColor
+                    containerColor = if (pulseChartMode != PulseChartMode.Off) activeButtonColour else ButtonDefaults.buttonColors().containerColor
                 )
             ) {
                 Icon(painter = painterResource(R.drawable.chart), contentDescription = "Pulse chart")
@@ -207,7 +360,7 @@ fun MainOptionsPanel(
                 // make it continuous and round in onValueChange instead as a workaround
                 //onValueChange = { viewModel.setFrequencyRangeSelectedSubset(it) },
                 onValueChange = { newRange ->
-                    if (newRange.endInclusive - newRange.start >= 0.05) {
+                    if (newRange.endInclusive - newRange.start >= minSeparation) {
                         viewModel.setFrequencyRangeSelectedSubset(newRange)
                     }
                 },
@@ -216,7 +369,7 @@ fun MainOptionsPanel(
             )
             Text(text = "${mainOptionsState.maxFrequency}Hz", modifier = modifier.widthIn(40.dp), style = MaterialTheme.typography.labelMedium)
         }
-        when (mainOptionsState.pulseChartMode) {
+        when (pulseChartMode) {
             PulseChartMode.Combined -> {
                 PulsePlotter(
                     modifier = Modifier
@@ -269,10 +422,10 @@ fun MainOptionsPanel(
 
 @Composable
 fun PowerLevelPanel(
-    channel: String,
+    channelIndex: Int,
+    channelLabel: String,
     power: Int,
-    onPowerChange: (Int) -> Unit,
-    stepSize: Int
+    viewModel: MainOptionsViewModel
 ) {
     Column {
         Text(
@@ -282,8 +435,8 @@ fun PowerLevelPanel(
         )
         Row {
             LongPressButton(
-                onClick = { onPowerChange(maxOf(0, power - stepSize)) },
-                onLongClick = { onPowerChange(0) },
+                onClick = { viewModel.decrementChannelPower(channelIndex) },
+                onLongClick = { viewModel.setChannelPower(channelIndex, 0) },
                 modifier = Modifier.size(68.dp)
             ) {
                 Column {
@@ -291,12 +444,12 @@ fun PowerLevelPanel(
                         painter = painterResource(R.drawable.minus),
                         contentDescription = "Lower power",
                     )
-                    Text(text = channel, modifier = Modifier.align(Alignment.CenterHorizontally))
+                    Text(text = channelLabel, modifier = Modifier.align(Alignment.CenterHorizontally))
                 }
             }
             Spacer(modifier = Modifier.width(8.dp))
             LongPressButton(
-                onClick = { onPowerChange(power + stepSize) },
+                onClick = { viewModel.incrementChannelPower(channelIndex) },
                 onLongClick = {},
                 modifier = Modifier.size(68.dp)
             ) {
@@ -305,7 +458,7 @@ fun PowerLevelPanel(
                         painter = painterResource(R.drawable.plus),
                         contentDescription = "Increase power",
                     )
-                    Text(text = channel, modifier = Modifier.align(Alignment.CenterHorizontally))
+                    Text(text = channelLabel, modifier = Modifier.align(Alignment.CenterHorizontally))
                 }
             }
         }

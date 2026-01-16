@@ -28,14 +28,12 @@ data class Coyote3Parameters (
     val channelBIntensityBalance: Int = 0
 )
 
-class Coyote3Output : Output {
-    override val timerDelay = 0.1
+class Coyote3Output : BaseOutput() {
     override val pulseBatchSize = 4
     override val sendSilenceWhenMuted = false
     override var allowedFrequencyRange = 1..200
     override var defaultFrequencyRange = 10..100
     override var ready = false
-    override var latency = 0.0
     var setupStage: CoyoteSetupStage = CoyoteSetupStage.Initial
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var batteryPollJob: Job? = null
@@ -81,7 +79,7 @@ class Coyote3Output : Output {
                 if (event.serviceUuid == batteryServiceUUID && event.characteristicUuid == batteryCharacteristicUUID) {
                     val batteryLevel = event.data?.first()?.toInt() ?: return
                     HLog.d(TAG, "Fetched Coyote battery level: $batteryLevel%")
-                    DataRepository.setCoyoteBatteryLevel(batteryLevel)
+                    ConnectionManager.setBatteryLevel(batteryLevel)
                 }
             }
             BluetoothEventType.CharacteristicChanged -> {
@@ -98,8 +96,8 @@ class Coyote3Output : Output {
                             previousChannelBPower = powerB
                             if (strengthByte == 0x00.toByte()) {
                                 Log.v(TAG,"Received new power levels from device: A: $powerA B: $powerB")
-                                DataRepository.setChannelAPower(powerA)
-                                DataRepository.setChannelBPower(powerB)
+                                MainOptions.setChannelPower(0, powerA)
+                                MainOptions.setChannelPower(1, powerB)
                             }
                         }
                     }
@@ -127,7 +125,7 @@ class Coyote3Output : Output {
                         return
                     }
                     setupStage = CoyoteSetupStage.SyncParameters
-                    sendParameters(DataRepository.coyoteParametersState.value)
+                    syncParameters()
                 }
             }
             BluetoothEventType.Error -> {
@@ -181,6 +179,19 @@ class Coyote3Output : Output {
         )
         Log.v(TAG, "Sending BF command, data: ${command.toHexString()}")
         BluetoothHandler.sendToDevice(mainServiceUUID, writeCharacteristicUUID, command)
+    }
+
+    fun syncParameters() {
+        // Send the Coyote 3 parameters according to the current app preferences
+        val params = Coyote3Parameters(
+            channelALimit = Prefs.powerLimitA.value,
+            channelBLimit = Prefs.powerLimitB.value,
+            channelAFrequencyBalance = Prefs.outputC3FrequencyBalanceA.value,
+            channelBFrequencyBalance = Prefs.outputC3FrequencyBalanceB.value,
+            channelAIntensityBalance = Prefs.outputC3IntensityBalanceA.value,
+            channelBIntensityBalance = Prefs.outputC3IntensityBalanceB.value
+        )
+        sendParameters(params)
     }
 
     private fun pollBatteryLevel() {

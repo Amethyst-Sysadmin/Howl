@@ -1,6 +1,5 @@
 package com.example.howl
 
-import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -33,11 +32,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.howl.ui.theme.HowlTheme
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.random.Random
@@ -87,11 +87,10 @@ class GeneratorChannel(
         }
     }
     fun makeRandomChanges(timeDelta: Double) {
-        val state = DataRepository.generatorState.value
-        val speedChangeProbability = state.speedChangeProbability
-        val ampChangeProbability = state.amplitudeChangeProbability
-        val freqChangeProbability = state.frequencyChangeProbability
-        val waveChangeProbability = state.waveChangeProbability
+        val speedChangeProbability = Prefs.generatorSpeedChangeProbability.value
+        val ampChangeProbability = Prefs.generatorAmplitudeChangeProbability.value
+        val freqChangeProbability = Prefs.generatorFrequencyChangeProbability.value
+        val waveChangeProbability = Prefs.generatorWaveChangeProbability.value
 
         val baseProbability = 10.0 //average changes per minute at 1.0 probability
 
@@ -203,6 +202,11 @@ data class GeneratorChannelInfo(
     val speed: Double = 1.0,
 )
 
+data class GeneratorState(
+    val channelAInfo: GeneratorChannelInfo = GeneratorChannelInfo(),
+    val channelBInfo: GeneratorChannelInfo = GeneratorChannelInfo(),
+)
+
 object Generator : PulseSource {
     val SPEED_RANGE = 0.1..2.0
     val SPEED_CHANGE_RATE_RANGE = 0.03..0.2
@@ -214,25 +218,28 @@ object Generator : PulseSource {
     val channelA: GeneratorChannel = GeneratorChannel()
     val channelB: GeneratorChannel = GeneratorChannel()
 
+    private val _generatorState = MutableStateFlow(GeneratorState())
+    val generatorState: StateFlow<GeneratorState> = _generatorState.asStateFlow()
+
     override var displayName: String = "Generator output"
     override var duration: Double? = null
     override val isFinite: Boolean = false
     override val shouldLoop: Boolean = false
     override var readyToPlay: Boolean = false
     override var isRemote: Boolean = false
-    override var remoteLatency: Double = 0.0
 
     private var lastSimulationTime = -1.0
     private var lastUpdateTime = -1.0
     private val timerManager = TimerManager()
+    private var initialised = false
 
     override fun updateState(currentTime: Double) {
-        if (lastUpdateTime < 0 || lastUpdateTime > currentTime)
+        if (lastUpdateTime !in 0.0..currentTime)
             lastUpdateTime = currentTime
-        val state = DataRepository.generatorState.value
+        val autoChange = Prefs.generatorAutoChange.value
         val timeDelta = currentTime - lastUpdateTime
         lastUpdateTime = currentTime
-        if (state.autoChange) {
+        if (autoChange) {
             channelA.makeRandomChanges(timeDelta)
             channelB.makeRandomChanges(timeDelta)
         }
@@ -240,36 +247,28 @@ object Generator : PulseSource {
     }
 
     fun initialise() {
-        if(!DataRepository.generatorState.value.initialised) {
+        if(!initialised) {
             channelA.randomise()
             channelB.randomise()
             updateInfo()
         }
-
-        updateGeneratorState(DataRepository.generatorState.value.copy(initialised = true))
-
+        initialised = true
         readyToPlay = true
     }
-
-    fun updateGeneratorState(newGeneratorState: DataRepository.GeneratorState) {
-        DataRepository.setGeneratorState(newGeneratorState)
+    fun setGeneratorState(newGeneratorState: GeneratorState) {
+        _generatorState.update { newGeneratorState }
     }
     fun updateInfo() {
-        val generatorState = DataRepository.generatorState.value
+        val generatorState = generatorState.value
         val newA = channelA.getInfo()
         val newB = channelB.getInfo()
 
         if (generatorState.channelAInfo != newA || generatorState.channelBInfo != newB) {
-            updateGeneratorState(generatorState.copy(
+            setGeneratorState(generatorState.copy(
                 channelAInfo = newA,
                 channelBInfo = newB
             ))
         }
-
-        /*updateGeneratorState(DataRepository.generatorState.value.copy(
-            channelAInfo = channelA.getInfo(),
-            channelBInfo = channelB.getInfo()
-        ))*/
     }
     fun randomise() {
         channelA.randomise()
@@ -281,7 +280,7 @@ object Generator : PulseSource {
     }
 
     override fun getPulseAtTime(time: Double): Pulse {
-        if (lastSimulationTime < 0 || lastSimulationTime > time) {
+        if (lastSimulationTime !in 0.0..time) {
             lastSimulationTime = time
         }
 
@@ -299,10 +298,6 @@ object Generator : PulseSource {
 }
 
 class GeneratorViewModel() : ViewModel() {
-    val generatorState: StateFlow<DataRepository.GeneratorState> = DataRepository.generatorState
-    fun updateGeneratorState(newGeneratorState: DataRepository.GeneratorState) {
-        DataRepository.setGeneratorState(newGeneratorState)
-    }
     fun randomise() {
         Generator.randomise()
     }
@@ -313,22 +308,6 @@ class GeneratorViewModel() : ViewModel() {
         Player.switchPulseSource(Generator)
         Player.startPlayer()
     }
-    fun setAutoChange(enabled: Boolean) {
-        Generator.updateGeneratorState(DataRepository.generatorState.value.copy(autoChange = enabled))
-    }
-    fun setSpeedChangeProbability(probability: Double) {
-        Generator.updateGeneratorState(DataRepository.generatorState.value.copy(speedChangeProbability = probability))
-    }
-    fun setAmplitudeChangeProbability(probability: Double) {
-        Generator.updateGeneratorState(DataRepository.generatorState.value.copy(amplitudeChangeProbability = probability))
-    }
-    fun setFrequencyChangeProbability(probability: Double) {
-        Generator.updateGeneratorState(DataRepository.generatorState.value.copy(frequencyChangeProbability = probability))
-    }
-    fun setWaveChangeProbability(probability: Double) {
-        Generator.updateGeneratorState(DataRepository.generatorState.value.copy(waveChangeProbability = probability))
-    }
-
     fun setSpeed(channel: Int, speed: Double) {
         Generator.getChannel(channel).setSpeed(speed)
         Generator.updateInfo()
@@ -363,12 +342,6 @@ class GeneratorViewModel() : ViewModel() {
         Generator.getChannel(channel).setMaxFreq(frequency)
         Generator.updateInfo()
     }
-
-    fun saveSettings() {
-        viewModelScope.launch {
-            DataRepository.saveSettings()
-        }
-    }
 }
 
 @Composable
@@ -376,9 +349,15 @@ fun GeneratorPanel(
     viewModel: GeneratorViewModel,
     modifier: Modifier = Modifier
 ) {
-    val generatorState by viewModel.generatorState.collectAsStateWithLifecycle()
-    val playerState by DataRepository.playerState.collectAsStateWithLifecycle()
-    val mainOptionsState by DataRepository.mainOptionsState.collectAsStateWithLifecycle()
+    val generatorState by Generator.generatorState.collectAsStateWithLifecycle()
+    val generatorAutoChange by Prefs.generatorAutoChange.collectAsStateWithLifecycle()
+    val generatorSpeedChangeProbability by Prefs.generatorSpeedChangeProbability.collectAsStateWithLifecycle()
+    val generatorAmplitudeChangeProbability by Prefs.generatorAmplitudeChangeProbability.collectAsStateWithLifecycle()
+    val generatorFrequencyChangeProbability by Prefs.generatorFrequencyChangeProbability.collectAsStateWithLifecycle()
+    val generatorWaveChangeProbability by Prefs.generatorWaveChangeProbability.collectAsStateWithLifecycle()
+
+    val playerState by Player.playerState.collectAsStateWithLifecycle()
+    val mainOptionsState by MainOptions.state.collectAsStateWithLifecycle()
     val isPlaying = playerState.isPlaying && playerState.activePulseSource == Generator
     val frequencyRange = mainOptionsState.minFrequency..mainOptionsState.maxFrequency
     var showChannelASettings by remember { mutableStateOf(false) }
@@ -440,46 +419,46 @@ fun GeneratorPanel(
         ) {
             Text(text = "Automatically change parameters", style = MaterialTheme.typography.labelLarge)
             Switch(
-                checked = generatorState.autoChange,
+                checked = generatorAutoChange,
                 onCheckedChange = {
-                    viewModel.setAutoChange(it)
-                    viewModel.saveSettings()
+                    Prefs.generatorAutoChange.value = it
+                    Prefs.generatorAutoChange.save()
                 }
             )
         }
-        if (generatorState.autoChange) {
+        if (generatorAutoChange) {
             SliderWithLabel(
                 label = "Speed change probability",
-                value = generatorState.speedChangeProbability.toFloat(),
-                onValueChange = {viewModel.setSpeedChangeProbability(probability = it.toDouble())},
-                onValueChangeFinished = { viewModel.saveSettings() },
+                value = generatorSpeedChangeProbability,
+                onValueChange = { Prefs.generatorSpeedChangeProbability.value = it },
+                onValueChangeFinished = { Prefs.generatorSpeedChangeProbability.save() },
                 valueRange = 0f..1.0f,
                 steps = 99,
                 valueDisplay = { String.format(Locale.US, "%03.2f", it) }
             )
             SliderWithLabel(
                 label = "Amplitude change probability",
-                value = generatorState.amplitudeChangeProbability.toFloat(),
-                onValueChange = {viewModel.setAmplitudeChangeProbability(probability = it.toDouble())},
-                onValueChangeFinished = { viewModel.saveSettings() },
+                value = generatorAmplitudeChangeProbability,
+                onValueChange = { Prefs.generatorAmplitudeChangeProbability.value = it },
+                onValueChangeFinished = { Prefs.generatorAmplitudeChangeProbability.save() },
                 valueRange = 0f..1.0f,
                 steps = 99,
                 valueDisplay = { String.format(Locale.US, "%03.2f", it) }
             )
             SliderWithLabel(
                 label = "Frequency change probability",
-                value = generatorState.frequencyChangeProbability.toFloat(),
-                onValueChange = {viewModel.setFrequencyChangeProbability(probability = it.toDouble())},
-                onValueChangeFinished = { viewModel.saveSettings() },
+                value = generatorFrequencyChangeProbability,
+                onValueChange = { Prefs.generatorFrequencyChangeProbability.value = it },
+                onValueChangeFinished = { Prefs.generatorFrequencyChangeProbability.save() },
                 valueRange = 0f..1.0f,
                 steps = 99,
                 valueDisplay = { String.format(Locale.US, "%03.2f", it) }
             )
             SliderWithLabel(
                 label = "Shape change probability",
-                value = generatorState.waveChangeProbability.toFloat(),
-                onValueChange = {viewModel.setWaveChangeProbability(probability = it.toDouble())},
-                onValueChangeFinished = { viewModel.saveSettings() },
+                value = generatorWaveChangeProbability,
+                onValueChange = { Prefs.generatorWaveChangeProbability.value = it },
+                onValueChangeFinished = { Prefs.generatorWaveChangeProbability.save() },
                 valueRange = 0f..1.0f,
                 steps = 99,
                 valueDisplay = { String.format(Locale.US, "%03.2f", it) }
@@ -658,9 +637,9 @@ fun GeneratorParametersInfo(
                 value = generatorChannelInfo.freqWaveName
             )
             val freqLow =
-                frequencyRange.start + generatorChannelInfo.minFreq * (frequencyRange.endInclusive - frequencyRange.start)
+                frequencyRange.first + generatorChannelInfo.minFreq * (frequencyRange.last - frequencyRange.first)
             val freqHigh =
-                frequencyRange.start + generatorChannelInfo.maxFreq * (frequencyRange.endInclusive - frequencyRange.start)
+                frequencyRange.first + generatorChannelInfo.maxFreq * (frequencyRange.last - frequencyRange.first)
             val freqText =
                 if (generatorChannelInfo.freqWaveName == "Constant")
                     String.format(Locale.US, "%.1fHz", freqHigh)

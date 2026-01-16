@@ -22,8 +22,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.howl.ui.theme.HowlTheme
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+
+// State specific to connected hardware or Bluetooth connection
+object ConnectionManager {
+    private val _batteryLevel = MutableStateFlow(0)
+    val batteryLevel: StateFlow<Int> = _batteryLevel.asStateFlow()
+
+    private val _connectionStatus = MutableStateFlow(ConnectionStatus.Disconnected)
+    val connectionStatus: StateFlow<ConnectionStatus> = _connectionStatus.asStateFlow()
+
+    fun setBatteryLevel(percent: Int) {
+        _batteryLevel.update { percent }
+    }
+
+    fun setConnectionStatus(status: ConnectionStatus) {
+        _connectionStatus.update { status }
+    }
+}
 
 @Composable
 fun ConnectionStatusBar(
@@ -33,7 +53,7 @@ fun ConnectionStatusBar(
     modifier: Modifier = Modifier
 ) {
     // suppress the connection bar when audio output is selected
-    val outputType = DataRepository.outputState.collectAsStateWithLifecycle().value.outputType
+    val outputType = Prefs.outputType.collectAsStateWithLifecycle().value
     if (outputType == OutputType.AUDIO_WAVELET || outputType == OutputType.AUDIO_CONTINUOUS)
         return
     Card (

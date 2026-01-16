@@ -140,7 +140,7 @@ fun <T> OptionPicker(
 @Composable
 fun PowerLevelMeters(
 ) {
-    val lastPulse by DataRepository.throttledlastPulse.collectAsStateWithLifecycle(initialValue = Pulse())
+    val lastPulse by PulseHistory.lastPulseWithPlayerState.collectAsStateWithLifecycle(initialValue = Pulse())
 
     Row {
         PowerLevelMeter(

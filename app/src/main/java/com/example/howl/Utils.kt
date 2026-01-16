@@ -178,41 +178,6 @@ fun Float.scaleBetween(range: ClosedRange<Double>): Double {
 val ClosedRange<Double>.toFloatRange: ClosedFloatingPointRange<Float>
     get() = this.start.toFloat()..this.endInclusive.toFloat()
 
-// Helper extension function to clamp an IntRange to another range while enforcing minimum separation
-fun IntRange.clamp(bounds: IntRange, minSep: Int): IntRange {
-    require(minSep >= 0) { "minSep must be non-negative" }
-
-    // First, clamp start and end within bounds
-    var start = start.coerceIn(bounds.first, bounds.last)
-    var end = endInclusive.coerceIn(bounds.first, bounds.last)
-
-    // Ensure start <= end
-    if (start > end) start = end
-
-    // Check if we already satisfy minSep
-    if (end - start >= minSep) {
-        return start..end
-    }
-
-    // Try to expand minimally while staying in bounds
-    val needed = minSep - (end - start)
-
-    // Option 1: expand end to the right
-    val expandRight = (end + needed).coerceAtMost(bounds.last)
-    if (expandRight - start >= minSep) {
-        return start..expandRight
-    }
-
-    // Option 2: expand start to the left
-    val expandLeft = (start - needed).coerceAtLeast(bounds.first)
-    if (end - expandLeft >= minSep) {
-        return expandLeft..end
-    }
-
-    // If neither works, fallback to full bounds
-    return bounds
-}
-
 fun randomInRange(range: ClosedRange<Double>, bias: Double = 1.0): Double {
     /*
         Generates a random number in the specified range, optionally with biased probability
@@ -335,6 +300,42 @@ fun hermiteInterpolateWithVelocity(
     return Pair(position, velocity)
 }
 
+fun hermiteInterpolateWithVelocityAndAcceleration(
+    t: Double,
+    t0: Double,
+    p0: Double,
+    m0: Double,
+    t1: Double,
+    p1: Double,
+    m1: Double
+): Triple<Double, Double, Double> {
+
+    val (position, h, hSq, _) = getHermitePositionAndFactors(t, t0, p0, m0, t1, p1, m1)
+
+    val dt = (t1 - t0)
+    if (dt == 0.0) return Triple(position, 0.0, 0.0)
+
+    // -------- Velocity --------
+    val dpdh =
+        (6 * hSq - 6 * h) * p0 +
+                (3 * hSq - 4 * h + 1) * m0 * dt +
+                (-6 * hSq + 6 * h) * p1 +
+                (3 * hSq - 2 * h) * m1 * dt
+
+    val velocity = dpdh / dt
+
+    // -------- Acceleration --------
+    val d2pdh2 =
+        (12 * h - 6) * p0 +
+                (6 * h - 4) * m0 * dt +
+                (-12 * h + 6) * p1 +
+                (6 * h - 2) * m1 * dt
+
+    val acceleration = d2pdh2 / (dt * dt)
+
+    return Triple(position, velocity, acceleration)
+}
+
 fun calculatePositionalEffect(
     amplitude: Double,
     position: Double,
@@ -381,18 +382,13 @@ fun calculateEngulfEffect(
     return Pair(ampA, ampB)
 }
 
-/*fun calculateFeelAdjustment(
-    frequency: Double,
-    feelExponent: Double,
-): Double {
-    return frequency.pow(feelExponent).coerceIn(0.0,1.0)
-}*/
-
 fun calculateFeelAdjustment(
-    frequency: Float,
-    exponent: Float,
+    value: Float,
+    feel: Float,
 ): Float {
-    return frequency.pow(1.0f / exponent).coerceIn(0.0f,1.0f)
+    // we use the inverse as it makes the sliders feel more logical
+    // e.g. increasing frequency feel uses more higher frequencies
+    return value.pow(1.0f / feel).coerceIn(0.0f,1.0f)
 }
 
 class TimerManager {
@@ -583,8 +579,8 @@ class FrequencyConverter(
     }
 }
 
-class CircularBuffer<T>(val capacity: Int): Iterable<T> {
-    private val buffer: Array<T?> = arrayOfNulls(capacity)
+class CircularBuffer<T>(var capacity: Int): Iterable<T> {
+    private var buffer: Array<T?> = arrayOfNulls(capacity)
 
     private var start = 0
     var size = 0
@@ -638,6 +634,21 @@ class CircularBuffer<T>(val capacity: Int): Iterable<T> {
         buffer[index] = null
         size--
         return element
+    }
+
+    fun resize(newCapacity: Int, clear: Boolean = false) {
+        require(newCapacity > 0)
+        if (newCapacity == capacity && !clear)
+            return
+
+        val oldElements = if (clear) emptyList() else toList().takeLast(newCapacity)
+
+        capacity = newCapacity
+        buffer = arrayOfNulls(newCapacity)
+        start = 0
+        size = 0
+
+        addAll(oldElements)
     }
 
     fun toList(): List<T> = List(size) { i -> buffer[(start + i) % capacity]!! }

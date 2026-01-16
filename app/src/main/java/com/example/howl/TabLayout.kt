@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -35,11 +36,9 @@ class TabLayoutViewModel : ViewModel() {
     private val _tabIndex = MutableStateFlow(0)
     val tabIndex: StateFlow<Int> = _tabIndex.asStateFlow()
 
-    val miscOptionsState: StateFlow<DataRepository.MiscOptionsState> = DataRepository.miscOptionsState
-
-    val visibleTabs: StateFlow<List<String>> = miscOptionsState
-        .map { options ->
-            if (options.showDebugLog) {
+    val visibleTabs: StateFlow<List<String>> = Prefs.miscShowDebugLog.flow
+        .map { showDebugLog ->
+            if (showDebugLog) {
                 fixedTabs + debugTab
             } else {
                 fixedTabs
@@ -80,7 +79,13 @@ fun TabLayout(
         ) {
             visibleTabs.forEachIndexed { index, title ->
                 Tab(
-                    text = { Text(title) },
+                    text = {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    },
+                    //text = { Text(title) },
                     selected = tabIndex == index,
                     onClick = { tabLayoutViewModel.setTabIndex(index) },
                     modifier = Modifier.weight(1f, fill = false),
@@ -100,7 +105,7 @@ fun TabLayout(
 
         visibleTabs.getOrNull(tabIndex)?.let { currentTab ->
             when (currentTab) {
-                "Player" -> PlayerPanel(viewModel = playerViewModel)
+                "Player" -> CombinedPanel(viewModel = playerViewModel)
                 "Generator" -> GeneratorPanel(viewModel = generatorViewModel)
                 "Activity" -> ActivityHostPanel(viewModel = activityHostViewModel)
                 "Settings" -> SettingsPanel(viewModel = settingsViewModel)
