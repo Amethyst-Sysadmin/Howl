@@ -22,7 +22,7 @@ enum class FrequencyAlgorithmType(val displayName: String) {
 }
 
 @Serializable
-data class Action(val at: Int, val pos: Int)
+data class Action(val at: Double, val pos: Double)
 
 @Serializable
 data class Funscript(
@@ -192,18 +192,18 @@ class FunscriptPulseSource : PulseSource {
         val jsonConfig = Json { ignoreUnknownKeys = true }
         val funscript = jsonConfig.decodeFromString<Funscript>(content)
         val positions = funscript.actions.map { it.pos }
-        val minPos = positions.minOrNull() ?: 0
-        val maxPos = positions.maxOrNull() ?: 100
+        val minPos = positions.minOrNull() ?: 0.0
+        val maxPos = positions.maxOrNull() ?: 100.0
         val (scaleFactor, offset) = if (minPos != maxPos) {
-            val range = (maxPos - minPos).toDouble()
-            Pair(1.0 / range, -minPos.toDouble())
+            val range = (maxPos - minPos)
+            Pair(1.0 / range, -minPos)
         } else {
             Pair(1.0 / 100.0, 0.0)
         }
 
         val scaledActions = funscript.actions.map { action ->
             val time = action.at / 1000.0
-            val scaledPos = ((action.pos.toDouble() + offset) * scaleFactor).coerceIn(0.0, 1.0)
+            val scaledPos = ((action.pos + offset) * scaleFactor).coerceIn(0.0, 1.0)
             ScaledAction(time, scaledPos)
         }
 

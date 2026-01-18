@@ -6,7 +6,7 @@ import android.os.Build
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-const val howlVersion = "0.8"
+const val howlVersion = BuildConfig.VERSION_NAME
 
 class HowlApp : Application() {
     val database: HowlDatabase by lazy { HowlDatabase.getDatabase(this) }
