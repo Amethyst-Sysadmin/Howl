@@ -7,12 +7,13 @@
 
 Howl is an Android app that controls and generates patterns for estim devices, for erotic adult entertainment.
 
-Current features are: -
-* Playback of funscript files (normally for "stroker" type toys), using an original algorithm.
-* Playback of HWL files, which are preconverted audio files specifically for use with Howl.
-* Several built-in "activities" to enjoy. These are patterns with random elements that Howl generates in real-time.
+Its features include: -
+* Playback of funscript files, using an original positional algorithm.
+* Playback of HWL files, Howl's native format, often used for preconverted audio files.
+* Built-in "activities". These are patterns with random elements that Howl generates in real-time.
 * A wave generator with various different parameters and shapes.
-* Convenient automatic synchronisation of funscript files with videos, via our "Howl Sync" add-on for Kodi.
+* Automatic synchronisation of funscript files with videos, using our "Howl Sync" add-on for Kodi.
+* Ability to record anything that Howl can play to an HWL file, enabling the easy creation of custom patterns.
 
 ## Installation
 
@@ -20,18 +21,16 @@ A pre-built APK file for the latest version can be <a href="https://github.com/A
 
 Additional downloads, including older versions and the Kodi add-on, may be found on the main <a href="https://github.com/Amethyst-Sysadmin/Howl/releases">Releases page</a>.
 
-## Device support
+## Supported devices
 
 The output devices currently supported by Howl are: -
 * DG Lab Coyote 3. This is the device Howl was originally developed for, and generally works well.
 * DG Lab Coyote 2. The main downside of the older Coyote 2 is that it is only capable of updating 10 times per second, as opposed to 40 on the C3. Some of Howl's faster patterns might change too quickly to be well represented (if needed you can use the "playback speed" global setting to slow anything down).
-* Any device that has audio input (more experimental, see [notes in wiki](https://github.com/Amethyst-Sysadmin/Howl/wiki/Audio-output))
+* Almost any device that accepts audio input (more experimental, see [notes in wiki](https://github.com/Amethyst-Sysadmin/Howl/wiki/Audio-output))
 
 The Howl app is intended to run on any version of Android from 8.0 (released in 2017) onwards. However testing with very early versions has been limited.
 
 ## App screenshots
-
-Here are some screenshots of different parts of the application.
 
 <table>
   <tr>
@@ -41,78 +40,24 @@ Here are some screenshots of different parts of the application.
   </tr>
   <tr>
     <td><a href="screenshots/player.png"><img src="screenshots/player.png" width="270" alt="Player"></a></td>
-    <td><a href="screenshots/player2.png"><img src="screenshots/player2.png" width="270" alt="Player with chart"></a></td>
-    <td><a href="screenshots/player_settings.png"><img src="screenshots/player_settings.png" width="270" alt="Player settings"></a></td>
-  </tr>
-</table>
-
-<table>
-  <tr>
-    <td>Generator</td>
-    <td>Activity</td>
-  </tr>
-  <tr>
     <td><a href="screenshots/generator.png"><img src="screenshots/generator.png" width="270" alt="Generator"></a></td>
     <td><a href="screenshots/activity.png"><img src="screenshots/activity.png" width="270" alt="Activity"></a></td>
   </tr>
 </table>
 
-<table>
-  <tr>
-    <td>Settings (1)</td>
-    <td>Settings (2)</td>
-  </tr>
-  <tr>
-    <td><a href="screenshots/settings.png"><img src="screenshots/settings.png" width="270" alt="Settings"></a></td>
-    <td><a href="screenshots/settings2.png"><img src="screenshots/settings2.png" width="270" alt="Settings 2"></a></td>
-  </tr>
-</table>
+## Electrode setup
 
-## Electrode setup and balance
-
-We suggest setting up your electrodes such that channel "A" produces a sensation you feel lower down, and channel "B" produces a sensation that you feel higher up. This is especially important for funscripts and some of the built-in activities which use positional effects.
-
-Exactly what electrodes to use and where to place them is personal preference. Most common is to have two separate poles on each channel, which usually means two electrodes (e.g. two TENS pads or two conductive rubber loops on a channel), but some toys will be connected as both poles on their own. You can also use a configuration with three poles in total, with both channels sharing one common electrode in the middle (and having an additional dedicated one each).
-
-Either type of setup can work well with Howl, it's just a matter of finding what electrodes and placements feel best to you. The only important thing is that activity on channel "A" gives you a lower sensation, and activity on channel "B" gives you a higher sensation. For example when playing back a funscript we will send a stronger signal on A if the stroker device we're simulating would be at the bottom, or a stronger signal on B if the stroker would be at the top.
+Howl expects you to set up your electrodes such that channel A creates a "lower down" sensation, and channel B creates a "higher up" one. This is especially important when playing funscripts, as our algorithm will distribute power according to the positions in the funscript, so that you feel sensations in the right place.
 
 Always follow best practice and your device manufacturer's instructions, and do not under any circumstances connect any electrode above your waist.
 
-We've provided some calibration patterns (found on the "Activity" tab) to help you choose optimal settings to get the best effect with your chosen electrode configuration.
-
-### Calibration 1 - positional effects
-
-To optimally experience positional effects, it helps if the power levels to each channel are well balanced, with signals to A and B feeling equally strong.
-
-Calibration 1 is a pattern that moves from channel A to channel B and back, repeating every 4 seconds. Just a single frequency (the middle of the configured range) is used. The goal is to adjust your main power levels for channel A and B so that each end (when the signal is fully on A or fully on B) feels equally strong to you.
-
-Once you've done this adjustment, you should hopefully find that you can feel the illusion of sensation travelling through the middle (where you don't directly have electrodes) as it moves back and forth. This is the intended positional effect.
-
-It's not an exact science as you'll probably want to adjust power levels over the course of a session. But the calibration should at least give you rough guide to think "Ah, I always need to set the channel A power higher to get a good balance with these electrodes" (or whatever you discovered, depending on your setup).
-
-### Calibration 2 - frequency balance
-
-Calibration 2 is a pattern that sweeps through all of the configured frequency range. It's designed to help you optimally set the frequency balance parameters (which are a feature of the Coyote hardware) so that high and low frequencies feel equally strong.
-
-The pattern changes channels periodically, as follows: -
-* Channel A only (16 seconds)
-* Channel B only (16 seconds)
-* Both channels simultaneously (16 seconds)
-* Then back to channel A only, with the same pattern repeating forever.
-
-Your goal is to make the lowest (most thumpy) frequency and the highest (most buzzy) frequency on each channel feel equally strong to you. This can be a little tricky as they are different types of sensations, but this is all about your perception, so just give it your best shot.
-
-You adjust this by changing "Channel A Frequency Balance" (or the equivalent for channel B), which is found on the "Settings" page.
-* If the low frequencies are too weak and the highs feel stronger, increase the frequency balance.
-* If the low frequencies are too strong and the highs feel weaker, reduce the frequency balance.
-
-Take a note of the optimal frequency balance numbers that you discovered for your electrode configuration. As this is a Coyote feature, you can also reuse it in other places (e.g. the DG Labs app supports the same frequency balance setting).
-
-Having a nice balance between the high and low frequencies helps give you a good experience across the whole frequency range. It also helps to limit "surprises" where a pattern might change frequency and suddenly feel much stronger.
+[The wiki](https://github.com/Amethyst-Sysadmin/Howl/wiki/Electrode-setup-and-calibration) provides further details, including information on calibrating frequencies optimally for your setup for Coyote 3 owners.
 
 ## Main controls
 
 Howl's main controls are displayed in the top section of the screen.
+
+<a href="screenshots/controls_annotated.png"><img src="screenshots/controls_annotated.png" width="600" alt="Annotated controls"></a>
 
 ### Channel A/B power controls
 
