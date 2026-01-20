@@ -35,8 +35,8 @@ The Howl app is intended to run on any version of Android from 8.0 (released in 
 <table>
   <tr>
     <td>Player</td>
-    <td>Player with chart</td>
-    <td>Player settings</td>
+    <td>Generator</td>
+    <td>Activity</td>
   </tr>
   <tr>
     <td><a href="screenshots/player.png"><img src="screenshots/player.png" width="270" alt="Player"></a></td>
@@ -61,30 +61,35 @@ Howl's main controls are displayed in the top section of the screen.
 
 ### Channel A/B power controls
 
-The plus and minus buttons adjust the overall power on their corresponding channel up and down. This directly corresponds to the power level on the Coyote, and has a maximum range of 0 to 200. The maximum level you can turn the power up to is also governed by the power limit configured on the settings page.
+The plus and minus buttons adjust the overall power on their corresponding channel up and down. The full range is 0 to 200. The maximum level you can turn the power up to is also governed by the power limit configured on the settings page (70 by default).
 
 The step size for the power controls defaults to 1, but this can be increased on the settings page if you would like larger steps. A long press on the minus control allows power on the corresponding channel to be quickly set to zero.
 
-### Mute pulse output button
+### Pulse meters
 
-This button mutes all pulse output to the Coyote when activated, until it is pressed again. Files keep playing during this time, but no output is sent. This control is very handy if you want to briefly mute in order to adjust your electrodes. The fact that playback continues allows funscripts to remain in sync.
+Gives a quick visual indication on what is being output on channel A (left meter) and channel B (right meter). The height of the coloured bar shows the amplitude (pattern power). The colour of the bar gives a guide to the frequency between red (lowest frequency) and yellow (highest frequency).
 
-### Automatic power increase button
+### Mute output button
 
-When toggled on, the power level will automatically be increased periodically. The delay is configurable on the "Settings" page, and can optionally be different for each channel.
+Toggles the mute function. When muted, Howl will not send any output to your device. This is useful if you need a short break, for example to adjust your electrodes.
+
+Player time still advances when mute is on, allowing funscripts to remain in sync.
+
+### Auto increase power button
+
+Toggles a function that automatically increases the power periodically. The time delay between increases is configurable on the "Settings" page, and can optionally be different for each channel.
 
 To help with safety and predictability, the auto increase will only happen when the following conditions are met: -
-
-* The automatic increase toggle button is on.
+* The auto increase toggle button is on.
 * Something is actively being played.
-* The mute output control is off.
-* Power on the channel is higher than zero (you must manually set the power level to at least 1 before the automatic increases will begin).
+* Mute is off.
+* Power on the channel is higher than zero (you must manually set the power to at least 1 before automatic increases will start).
 
-The power level increases by 1 each time the configured delay elapses, it does not use the configured power step size. This is by design and allows for the smoothest possible increase over time.
+The power level increases by 1 each time the configured delay elapses - this function does not use the configured power step size. This is by design and allows for the smoothest possible increase over time.
 
-### Pulse chart toggle button
+### Chart button
 
-The chart toggle button (looks like a section of line graph) can show a basic pulse chart to give a visual display of what output Howl is generating. This is extremely useful for development and debugging, or just general interest. The chart cannot be used to diagnose performance issues as it only shows what we generated, not when or if the pulse was actually sent.
+Toggles the display of pulse charts, which give a visual representation of what output Howl generated recently.
 
 The button toggles between 3 chart modes: -
 
@@ -95,21 +100,19 @@ No chart is displayed, and there is no performance overhead.
 A single chart is displayed, with time on the X axis (most recent on the right) and power on the Y axis. The top of the chart corresponds to maximum output power, and the bottom of the chart to zero power. The colour of each point denotes the channel and gives a rough guide to the frequency. Channel A points go between red (lowest frequency) and yellow (highest frequency). Channel B points go between blue (lowest frequency) and green (highest frequency).
 
 **Split**
-Two separate charts are displayed. For both charts the X axis is time (most recent on the right), red points are on channel A, and blue points are on channel B. The chart on the left shows power (maximum at the top and minimum at the bottom). The chart on the right shows frequency (maximum at the top and minimum at the bottom). The split chart can be harder to understand, but is useful if you need a more accurate display of what the frequency is doing.
+Two separate charts are displayed. For both charts the X axis is time (most recent on the right), red points are on channel A, and blue points are on channel B. The chart on the left shows power (maximum at the top and minimum at the bottom). The chart on the right shows frequency (maximum at the top and minimum at the bottom). The split chart can be harder to understand, but is useful if you need a more accurate display of exactly what the frequency is doing.
 
-Each point represents a set of values we've calculated to send to the Coyote, so points occur on each channel every 1/40th of a second to correspond to its maximum update rate. The last 200 pulses we've calculated (5 seconds of data) are shown by the charts.
+The charts record the last 5 seconds of data. The charts and meters always show 40 pulses per second, regardless of the actual pulse rate of the output device.
 
-### Channel swap button
+### Swap channels button
 
-The channel swap button (with two opposing arrows) swaps the output on channel A and channel B when active. This is helpful if you connected your electrodes the wrong way round, or if you are playing an HWL file where the original audio had different electrode placement to Howl's preferred setup.
+Toggles the channel swap feature. When active, the output on channel A and channel B is swapped. This is helpful if you connected your electrodes the wrong way round, or if you are playing a converted audio file that had different electrode placement to Howl's preferred setup.
 
-It does not swap the power controls, only what is output (i.e. channel A power always controls Coyote channel A regardless of this setting).
+It does not swap the power controls, only what is output (i.e. channel A power always controls Coyote channel A regardless of this setting). Special effects options always apply to the channel they are labelled with, and do not swap.
 
 ### Frequency range slider
 
-This slider sets the minimum and maximum frequency that Howl can use during playback. The full range of frequencies between these values may be used for output. Everything Howl plays is mapped in real-time to the range you've set. Don't forget that you can always adjust this control to your liking, whatever content happens to be playing.
-
-Not every feature uses the entire frequency range you've set, but everything uses at least a subset of your configured range, so adjusting it will always do something.
+This slider sets the minimum and maximum frequency that Howl can use during playback. The full range of frequencies between these values may be used for output. Everything Howl plays is mapped in real-time to the range you've set. So you can always adjust this control to your liking, whatever content happens to be playing.
 
 ## Player
 
@@ -172,67 +175,11 @@ The probability of speed, power, frequency and shape changes can all be set inde
 
 ## Activity
 
-Howl offers a number of built-in "activities". These are small programs, usually with some random elements. They're intended to offer a more interesting alternative to having fixed preset patterns, or just playing back a file.
+Howl offers a number of built-in "activities". These are patterns with random elements that Howl generates in real-time (they are individual small programs). They are intended as a more interesting alternative to having fixed preset patterns.
 
-The activities are generally designed with the default 10Hz-100Hz frequency range in mind (but you can certainly change it and experiment). They do not necessarily use the full configured range, as each activity is intended to feel unique and noticeably different from the others.
+The activities are generally designed with the default 10Hz-100Hz frequency range in mind (but you can certainly change that and experiment). They do not necessarily use the full configured range, as each activity is intended to feel unique and noticeably different from the others.
 
-A short description of the currently available activities is given below. Please keep in mind that nothing is gender restricted, regardless of how it's described. One of the great things about estim is that it's all just electrons, and your perception of patterns could be different from mine.
-
-### Additive
-Inspired by the audio technique of additive synthesis, this activity takes two simple underlying waves and combines them in different proportions to generate the output amplitudes. Frequencies are generated in a similar way, by combining another two waves in different proportions. We periodically change the speeds and shapes of the underlying waves, as well as the proportions used to combine them. The end result produces some very complicated and interesting patterns, which will keep changing over time as we modify parameters.
-
-### BJ megamix
-An ambitious activity that moves randomly between four distinct stages, intended to represent aspects of a blowjob. The stages are suck, deepthroat, tip licks, and full length (base to tip) licks. The licking stages are typically shorter and are intended to break up the main patterns and make the flow of the activity more interesting. Can you feel the differences between all four patterns?
-
-### Chaos
-Generates completely random frequencies and amplitudes on both channels, the Coyote equivalent of "white noise". To add a bit of additional interest, how long each value is held for changes periodically and can be anywhere from 1-10 cycles (0.025 seconds to 0.25 seconds).
-
-### Fast/slow
-One channel has a very fast sawtooth wave, and the other has a very slow sawtooth wave. One starts at the maximum frequency, and one starts at the minimum frequency. Over the course of an iteration of the pattern, the slow wave speeds up, the fast wave slows down, the minimum frequency wave inreases in frequency, and the maximum frequency wave reduces in frequency. Until the waves on each channel have essentially swapped, and then the pattern repeats. To make things a bit more interesting the sawtooth waves can go in either direction and can be linear or hermite interpolated. Sometimes aspects of the pattern will swap instantaneously at the end of an iteration.
-
-### Infinite licks
-A phantom tongue (or is it multiple tongues?) repeatedly licks you at varying positions and speeds, with little regard for the laws of physics. It's a complicated pattern with instantaneous jumps and a high level of speed and amplitude variance. This is generally one for high frequency enjoyers, as only the top half of the configured frequency range is used.
-
-### Luxury HJ
-Inspired by some good old fashioned stroking, there's lots of smooth top to bottom activity using our positional algorithm. The speed shifts around smoothly and fairly often. "What makes it luxury?" you may ask. From time to time a different "bonus" pattern can appear on either channel which is supposed to feel like flickering touches around those electrodes directly. That might be a sweeping palm, or a probing finger. Depends on your imagination and where you put your electrodes I guess. Ooh la la!
-
-### Milkmaster 3000
-A merciless milking machine from the year 3000. This one can be pretty intense. Moo.
-
-There are two very distinct stages. First the "WOMP" stage where strokes (which are randomly either top to bottom or bottom to top) continually increase in speed. So I think of it as going WOMP.... WOMP.... (getting faster and faster) WOMPWOMPWOMPWOMPWOMP! Then comes the BUZZ stage which continuously plays a low frequency on channel A and a high frequency on channel B (the exact frequencies vary randomly a bit and change over the buzz duration a bit). Then repeat.
-
-### Opposites
-Channel A's frequency and power both each shift around the whole range in fairly smooth curves at varying speeds. Channel B always does the exact opposite. So if A is at full power, B is at zero power. If A is at the highest frequency, B is at the lowest frequency. It's a simple idea, but I liked the result.
-
-### Overflowing
-This is probably more of a "finisher" pattern. Channel B sits at high power the majority of the time (fluctuating slightly in a smooth lapping effect). Channel A cycles repeatedly from low to high power in smooth waves. High frequencies are always used on both channels (60-100% of the range) and vary over time. Use the channel swap button with the player controls to try it the other way round with channel A holding high power.
-
-### Penetration
-Inspired by: just sex innit mate. The channel B part of the wave is quite unusually shaped and is designed to peak at different points to the A wave, helping to represent the in/out movements. Lots of smooth speed changes over time. There are also some more subtle random changes to "feel" and how the frequency range is used over time. Uses plenty of artistic licence and needs a healthy dose of imagination (as with most of these).
-
-### Random shapes
-Generates waves where the amplitude has a random shape. They always start and end at zero, but the middle section of each wave has between 2 and 5 completely random points, which we then interpolate between to form a smooth shape. Periodically we switch to a new iteration of the pattern and generate new random shapes. The frequency on each channel is fixed per iteration, but will change each time we change the shapes.
-
-### Relentless
-Generates patterns that are always based around a classic repeating wave shape at moderate speeds (which is why it's relentless). The wave shapes actually have a lot of subtle randomness and can have different attack and decay characteristics, and sometimes a hold of varying length at the top. The output channels always share the same basic shape, but one channel will repeat it at exactly 1, 2, 3 or 4 times the speed of the other channel. The frequency on each channel is fixed per iteration, but will change periodically (as will the wave shapes).
-
-### Simplex
-An activity based on simplex noise, which is a computer graphics technique that could be used to generate a random landscape in a game (for example). We use it here to generate a seemingly endless pattern of unpredictable rolling peaks and troughs. This version produces a classic simplex noise pattern, with a chart that looks very much like a landscape. Parameters such as the traversal speed  will vary smoothly over time. Because this classic simplex generation completely lacks any repetition, you might not find it as pleasurable as the other options.
-
-Frequency generation works in a similar way, but traverses the pattern at a fixed slow speed. The frequencies will shift around their range slowly in a fairly pleasing and natural way (all three of the simplex patterns actually use exactly the same frequency generation).
-
-### Simplex Pro
-An enhanced simplex pattern that introduces a repetitive element, while still being able to vary endlessly. Our classic simplex pattern took the A and B channel amplitudes from either side of a circle centred at our position in the landscape. So they often move in a connected way (as the points are close to each other) but aren't exactly the same. I thought "Hmm, what if we also spin the circle round?" and the unholy abomination that is our simplex pro pattern was born.
-
-Because we move forward at a slower rate, and our circle is spinning, we usually pass close to the same points on the landscape several times. This introduces some very nice repetition which the standard simplex pattern lacked, and very often results in "pumping" patterns that go back and forth between our two channels.
-
-Simplex pro is the most varied of our simplex noise based patterns, and the level of repetition will vary significantly as our traversal speed and rotation speed smoothly shift around their ranges.
-
-### Simplex Turbo
-Essentially the same pattern as simplex pro, but the rotation speed only goes between very fast and absolutely ridiculous. Probably not suitable for humans! ;)
-
-### Sliding vibrator
-Designed to feel like a vibrator being slowly and teasingly moved over... well whatever you put your electrodes on! Power is based on our positional algorithm and varies as the vibrator slowly moves around. Movement is smooth and at varying (but generally slow) speeds. Sometimes it will stop and hold position for a few seconds. The frequency sits on a fixed value for a while and only changes from time to time (representing the vibrator being switched to a different speed).
+The [list of activities wiki page](https://github.com/Amethyst-Sysadmin/Howl/wiki/List-of-activities) gives some information about each available activity, such as how it works, or what it is intended to represent.
 
 ## Settings
 
