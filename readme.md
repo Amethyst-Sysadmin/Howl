@@ -189,42 +189,45 @@ Selects what kind of output device Howl is using. When connecting a Bluetooth de
 
 Supported output types are: -
 * Coyote 3
+* Coyote 2
 * Audio (continuous) - continuous output for audio devices, [see wiki](https://github.com/Amethyst-Sysadmin/Howl/wiki/Audio-output) for details.
 * Audio (wavelet) - wavelet output for audio devices, [see wiki](https://github.com/Amethyst-Sysadmin/Howl/wiki/Audio-output) for details.
 
-### Coyote parameters
+### Coyote 3 parameters
 
-These are all the parameters that can be set on the Coyote itself. Functionality should be exactly the same as the equivalent settings in the DG Labs app.
+These additional parameters, which are implemented by the Coyote hardware, are available when using a Coyote 3. Functionality should be exactly the same as the equivalent settings in the DG Labs app.
 
 **Channel A/B Frequency Balance**
-This controls the relative strength of high and low frequencies on that channel. Higher values give stronger low frequencies. Our default is 200 (refer to the "Calibration 2" section above to optimise for your own electrode setup).
+This controls the relative strength of high and low frequencies on that channel. Higher values give stronger low frequencies. Howl's default is 200. Some guidance on optimising this for your own electrode setup is available in [the wiki](https://github.com/Amethyst-Sysadmin/Howl/wiki/Electrode-setup-and-calibration).
 
 **Channel A/B Intensity Balance**
-This seems to be another way to adjust the low frequencies on the relevant channel. I haven't found it very useful and tend to leave it at 0. It seems to mainly affect the very lowest supported frequencies, e.g. instead of playing at 1Hz it will actually send 10Hz if you increase the intensity balance a bit. I don't think it's particularly helpful for this app, since if you don't want the very lowest frequencies, you can just adjust the main frequency range control.
+This seems to be another way to adjust the very lowest supported frequencies. E.g. when it would normally play 1Hz, the hardware might play 10Hz instead if you increase the intensity balance a bit. I don't find this useful, and always leave it set to 0.
 
 ### Power options
+
+All of the power options can be configured independently for each channel, which is helpful when using different types of electrode.
 
 **Channel A/B Power Limit**
 Limits output device power on that channel to the selected level. The maximum output power level is 200.
 
 **Power control step size**
-This sets how much the power level changes by when you press the large plus/minus buttons in Howl to change the channel A or B power. The default is 1. This is a convenience setting for users who like to use high power levels, allowing them to be reached without having to press the adjustment buttons as many times. The step size can be independently configured for each channel, which can be helpful when using different types of electrode.
+This sets how much the power level changes by when you press the large plus/minus buttons in Howl to change the channel A or B power. The default is 1. This is a convenience setting for users who like to use high power levels, allowing them to be reached without having to press the adjustment buttons as many times.
 
 **Power auto increase delay**
-This sets the delay in seconds which should elapse each time we automatically increase the power. It only has an effect when the automatic power increase button on the main control panel is toggled on. See the section on the automatic power increase button for further caveats around when the automatic increase happens.
+This sets how long the auto power increase feature will wait between power level increases. See the section on the auto increase power button (under "Main controls") for further details.
 
-The delay can be configured independently for each channel, which can be helpful when using different types of electrode.
+### Remote access options
+
+**Allow remote access**
+This setting enables Howl's remote access API, allowing it to be controlled by other apps, such as the Howl Sync Kodi add-on. Remote access is disabled by default.
+
+**Remote access key**
+This sets the key that other apps must submit (using HTTP bearer authentication) in order to use Howl's remote access API. This acts as a basic security measure. Use of the API on unsecured networks is not recommended, since the key is sent in plain text, so an attacker could easily obtain it. The key is set to a random 12 character string by default.
 
 ### Misc options
 
-**Allow remote access (not secured)**
-This setting enables remote access to Howl so that it can be controlled by other apps (such as the Howl Sync Kodi add-on). It says "not secured" as a reminder that there are no access passwords or keys required - Howl will accept requests from anything that connects to the port. It's expected that you will be using this feature on a typical home network that sits behind a NAT router. You should not forward ports or allow access from the internet.
-
-**Smoother charts & meters**
-This setting causes our charts and meters to update with every pulse (40 times per second) instead of every batch (10 times per second). This looks nicer, but uses additional resources and energy. The difference is only visual, pulse output remains smooth with either setting.
-
 **Show animated power meters**
-This setting causes animated power meters to be shown for each channel on the main control panel. Disabling it removes the meters, reducing resource usage.
+This setting causes animated pulse meters to be shown for each channel on the main control panel. Disabling it may help users who find animations distracting, and also reduces Howl's battery usage (as display refreshes by the meters or charts are a large factor in that).
 
 **Show debug log tab**
 When this setting is enabled, a "Debug" tab becomes visible, located to the right of "Settings" on the main tab bar (on narrower devices you may need to scroll the bar to see it). The debug tab shows information from Howl's internal log, which may sometimes be useful for troubleshooting issues.
