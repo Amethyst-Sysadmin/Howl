@@ -122,8 +122,6 @@ The open button (folder icon) allows you to play back files that are stored loca
 
 ### Player settings
 
-Global settings for the player that affect all app output (features like the generator and activities also send their output via the player).
-
 **Playback speed**
 This controls the rate at which the player counts time, allowing any content Howl can play to be sped up or slowed down. The playback speed can be set from 0.25x to 4.0x, in increments of 0.25. For example setting this control to 0.5 will play at half speed. Setting it to 2.0 will play at double speed. 1.0 is the standard setting and plays at normal rate.
 
