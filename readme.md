@@ -116,56 +116,51 @@ This slider sets the minimum and maximum frequency that Howl can use during play
 
 ## Player
 
-The "Player" tab allows you to play back different kinds of files. Currently it supports funscripts and HWL files. Your files need to be stored somewhere on your device that doesn't require any special permissions to access (I just put mine in a subfolder inside "Documents").
+The "Player" tab contains Howl's central functionality, the media player and pulse recorder. Everything in Howl plays via the player, including features in other tabs like the generator and activities. So settings that the player offers like changing playback speed, or applying special effects, can be applied to anything that Howl can play.
 
-See the [funscript wiki page](https://github.com/Amethyst-Sysadmin/Howl/wiki/Funscripts) for more details about funscripts and using them with Howl.
+The open button (folder icon) allows you to play back files that are stored locally on your device. HWL files and funscript files are currently supported. Your files need to be stored somewhere on your device that doesn't require any special permissions to access (I generally just use a subfolder inside "Documents").
 
-### Player advanced options
-
-This section explains the function of all the player options.
-
-#### Player settings
+### Player settings
 
 Global settings for the player that affect all app output (features like the generator and activities also send their output via the player).
 
-**Show sync fine tune**
-When enabled, a control will appear below the player allowing slight adjustments to Howl's playback position (up to +/- 0.5 seconds). This can be helpful if the content you're trying to play is supposed to sync up with something else (for example a video) and makes it easier to obtain perfect sync. The sync adjustment is a temporary control and will reset to zero upon opening a new file. For correcting typical funscript latency when using the Kodi add-on, use the "Remote funscript latency" setting instead.
-
 **Playback speed**
-This controls the rate at which the player counts time, allowing any content Howl can play to be sped up or slowed down. The playback speed can be set from 0.25x to 4.0x, in increments of 0.25. For example setting this control to 0.5 will play at half speed. Setting it to 2.0 will play at double speed. 1.0 is the most typical setting and plays at normal rate.
+This controls the rate at which the player counts time, allowing any content Howl can play to be sped up or slowed down. The playback speed can be set from 0.25x to 4.0x, in increments of 0.25. For example setting this control to 0.5 will play at half speed. Setting it to 2.0 will play at double speed. 1.0 is the standard setting and plays at normal rate.
 
-The player settings section also contains the advanced settings for funscripts, which are explained on the [funscript wiki page](https://github.com/Amethyst-Sysadmin/Howl/wiki/Funscripts).
+**Remote latency (seconds)**
+This setting configures the expected latency between Howl and the "Howl Sync" Kodi add-on when funscripts or HWL files are loaded using Howl's remote API. The player will correct for this latency, so adjusting this control to an appropriate value should allow near perfect sync to be obtained. This setting is for remotely loaded files only, and has no affect on files you load locally from your Android device.
+
+**Show sync fine tune**
+When enabled, a control will appear below the player allowing slight adjustments to Howl's playback position (up to +/- 0.5 seconds). This can be helpful if you are trying to sync up a file you played manually with other content (for example a video). The sync adjustment is a temporary control and will reset to zero upon opening a new file. For correcting typical latency when using the Kodi add-on, use the persistent "Remote latency" setting instead.
+
+The player settings page also contains the advanced settings for funscripts, which are explained on the [funscript wiki page](https://github.com/Amethyst-Sysadmin/Howl/wiki/Funscripts).
 
 ### Special effects
-The player can optionally apply various interesting special effects, which are accessed via the "magic wand" button. These work with all types of content, and can sometimes very significantly change the output.
+Advanced users who want to further tweak Howl's output can apply various interesting special effects (accessed via the "magic wand" button). These work with all types of content, and can sometimes very significantly change the output.
 
-**Apply special effects**
-When toggled on, any configured special effects are applied. When toggled off, all controls in the "Special effects" section are ignored and have no effect on output.
+See the [special effects wiki page](https://github.com/Amethyst-Sysadmin/Howl/wiki/Special-effects) for descriptions of all the available effects and their functions.
 
-**Invert channel A/B frequencies**
-This inverts all the frequencies played on that channel. So if it would have played the lowest frequency, it will instead play the highest frequency (and vice versa). Setting one or both of these when playing a converted audio file can be interesting, and sometimes gives a very different experience.
+## Recorder
 
-**Scale amplitude (channel A/B)**
-This allows the amplitude of all output on a channel to be scaled down or up. For example setting scale amplitude to 0.5 will halve the power of the file or pattern so that it does not go beyond 50%. The main purpose of this setting is to assist some Coyote 3 users who found that the output was too strong with certain very conductive electrodes, even with the output power set to the minimum of 1.
+Howl's pulse recorder is situated at the bottom of the "Player" tab, below the media player control. It is capable of recording output from anything Howl can play, and saving it as an HWL file for later use. This makes it easy to create your own custom patterns by combining any existing content.
 
-**Frequency feel adjustment**
-This changes the way in which the configured frequency range is used, which allows some control over the general feeling of the output. The default value is 1.0. Values lower than 1 result in more use of lower frequencies, which can feel more "thumpy" and "physical". Values higher than 1 result in more use of higher frequencies, which can feel more "buzzy" and "electrical". It's probably easiest to think of the control as shifting where the middle of the frequency range is (but everything is rescaled around this so the full range is still used).
+The recorder has two different modes: -
 
-Lower values like 0.5 or 0.75 can work quite well with funscripts if you'd like a more physical overall sensation.
+**Passive (switched off)**
+The last 2 minutes of output are continuously recorded to a circular buffer. This means that if you're playing one of Howl's random activities and happen to get a pattern you really like, it isn't gone forever once the pattern changes. You can simply head over to the recorder and save the recent output, allowing you to play it again later, or make your favourite part into a loop.
 
-**Random amplitude noise (amount/speed)**
-Introduces an element of random noise into the power values we would output. The easiest way to understand it is to play the "Calibration 1" activity and look at the output chart - you will see it's a nice smooth repeating curve. Now set this control to 0.1, and observe the difference. You'll see that the output follows approximately the same shape, but it's now jagged and bouncy instead of smooth, which will feel different.
+**Active (switched on)**
+Allows you to create your own custom recording (up to 2 hours). You can record anything that Howl can play, for example generator patterns, or parts of other HWL files. This allows you to combine different content into a custom pattern that's perfect for you.
 
-There's also a control for the speed of our generated noise. Higher values will cause the output to bounce around more rapidly, and lower values will cause it to bounce around more slowly.
+When in active mode a dedicated toggle button turns recording on and off. This allows you to "punch in" and "punch out" at the right points when playing back a file, in order to capture the part you want. You can also just leave it toggled on if you want to record everything the player plays.
 
-**Random frequency noise (amount/speed)**
-The same concept as the random amplitude noise control, but affects frequency instead. This can be very useful with something like a converted audio file that just sits on one frequency (which is pretty common). By applying some random frequency noise at a slow speed, you can make the frequency shift around in a pleasing way instead.
+It's best to leave the recorder in passive mode when you are not using it. When in active mode, Howl uses a special playback mode that is pulse accurate rather than time accurate. This allows the recording of content like existing HWL files without quality loss. But this mode is worse for general playback, since funscripts will no longer stay in sync with videos, and all timing effects such as latency compensation are disabled.
 
 ## Generator
 
-The "Generator" feature is capable of playing back continuous waves with a number of different shapes and a wide range of parameters. These are generated mathematically, so should usually be as close to perfect waves as it's possible to represent on the Coyote.
+The "Generator" feature generates continuous waves in real-time, with a wide range of parameters. The shapes, speeds and frequencies of the waves can all vary, so a vast number of different combinations is possible.
 
-The shapes, speeds and frequencies of the waves can all vary, so a vast number of different combinations is possible. You'll probably find some that are highly pleasurable, and some that aren't great. Every time you press the "Random" button, you'll get a different wave with a new set of parameters. Keep trying your luck, and you're almost guaranteed to find something you enjoy.
+You'll probably find some patterns that are highly pleasurable, and some that aren't great. Every time you press the "Random" button, you'll get different waves with a new set of parameters. Keep trying your luck, and you're almost guaranteed to find something you enjoy.
 
 You can tap on the "Channel A" or "Channel B" parameter box if you'd like to manually configure the wave parameters yourself.
 
