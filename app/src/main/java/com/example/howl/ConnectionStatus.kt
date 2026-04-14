@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.howl.ui.theme.HowlTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,6 +51,7 @@ fun ConnectionStatusBar(
     status: ConnectionStatus,
     batteryLevel: Int,
     connectFunction: () -> Unit,
+    disconnectFunction: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     // suppress the connection bar when audio output is selected
@@ -121,6 +123,13 @@ fun ConnectionStatusBar(
                             contentDescription = "Battery level",
                         )
                     }
+                    Row {
+                        Button(
+                            onClick = disconnectFunction,
+                        ) {
+                            Text(text = "Disconnect")
+                        }
+                    }
                 }
             }
         }
@@ -132,9 +141,10 @@ fun ConnectionStatusBar(
 fun ConnectionStatusBarPreview() {
     HowlTheme {
         ConnectionStatusBar (
-            status = ConnectionStatus.Disconnected,
+            status = ConnectionStatus.Connected,
             batteryLevel = 75,
             connectFunction = {},
+            disconnectFunction = {},
             modifier = Modifier.fillMaxHeight()
         )
     }

@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlin.math.roundToInt
 
 data class MainOptionsState (
     val channelAPower: Int = 0,
@@ -48,13 +49,13 @@ data class MainOptionsState (
     val minFrequency: Int
         get() {
             val rangeSpan = frequencyRange.last - frequencyRange.first
-            return frequencyRange.first + (rangeSpan * frequencyRangeSelectedSubset.start).toInt()
+            return frequencyRange.first + (rangeSpan * frequencyRangeSelectedSubset.start).roundToInt()
         }
 
     val maxFrequency: Int
         get() {
             val rangeSpan = frequencyRange.last - frequencyRange.first
-            return frequencyRange.first + (rangeSpan * frequencyRangeSelectedSubset.endInclusive).toInt()
+            return frequencyRange.first + (rangeSpan * frequencyRangeSelectedSubset.endInclusive).roundToInt()
         }
 }
 
@@ -81,12 +82,26 @@ object MainOptions {
     }
 
     fun incrementChannelPower(channel: Int, step: Int = 0) {
+        if (channel == -1) {
+            // Apply to both channels
+            incrementChannelPower(0, step)
+            incrementChannelPower(1, step)
+            return
+        }
+
         val current = getChannelPower(channel)
         val stepSize = if (step == 0) getChannelPowerStep(channel) else step
         setChannelPower(channel, current + stepSize)
     }
 
     fun decrementChannelPower(channel: Int, step: Int = 0) {
+        if (channel == -1) {
+            // Apply to both channels
+            decrementChannelPower(0, step)
+            decrementChannelPower(1, step)
+            return
+        }
+
         val current = getChannelPower(channel)
         val stepSize = if (step == 0) getChannelPowerStep(channel) else step
         setChannelPower(channel, current - stepSize)

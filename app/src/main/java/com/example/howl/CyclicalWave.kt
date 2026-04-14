@@ -1,9 +1,16 @@
 package com.example.howl
 
+import android.util.Log
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlin.collections.zipWithNext
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.floor
+import kotlin.math.max
 import kotlin.math.sin
+import kotlin.math.sign
 import kotlin.random.Random
 
 class CyclicalWave(val shape: WaveShape) {
@@ -124,65 +131,95 @@ fun CyclicalWave.createRepeatedWave(repeats: Int, newName: String): CyclicalWave
     )
 }
 
-class VarianceHandler(
-    initialFactor: Double = 1.0,
-    private val varianceFunction: (Double) -> Double
-) {
-    private var previousFactor: Double = initialFactor
-    private var currentFactor: Double = initialFactor
-    private var variance: Double = 0.0
+class JitterHandler {
+    private var previousFactor: Double = 1.0
+    private var currentFactor: Double = 1.0
+    private var lastCycle: Int = -1
+
+    var jitter: Double = 0.0
+        private set
+
     var easeIn: Double = 0.0
         private set
 
-    fun setVariance(newVariance: Double) {
-        variance = newVariance
+    fun setJitter(jitter: Double) {
+        this.jitter = jitter.coerceIn(0.0, 1.0)
     }
 
     fun setEaseIn(easeIn: Double) {
-        this.easeIn = easeIn.coerceIn(0.0..1.0)
+        this.easeIn = easeIn.coerceIn(0.0, 1.0)
     }
 
-    fun applyNewCycle() {
-        previousFactor = currentFactor
-        currentFactor = if (variance == 0.0) 1.0 else varianceFunction(variance)
+    fun update(time: Double) {
+        val cycle = floor(time).toInt()
+
+        if (cycle != lastCycle) {
+            if (lastCycle == -1) {
+                // First update cycle or restarted.
+                // Initialize both factors to the same random value to ensure
+                // consistent jitter application from the very start.
+                val initialFactor = generateFactor()
+                previousFactor = initialFactor
+                currentFactor = initialFactor
+            } else {
+                // Standard cycle transition: advance factors.
+                previousFactor = currentFactor
+                currentFactor = generateFactor()
+            }
+            lastCycle = cycle
+        }
     }
 
-    fun getInterpolatedFactor(phase: Double): Double {
-        val weight = if (easeIn == 0.0) 1.0 else (phase / easeIn).coerceIn(0.0..1.0)
-        return previousFactor + (currentFactor - previousFactor) * weight
+    private fun generateFactor(): Double {
+        return if (jitter == 0.0) 1.0 else 1.0 + Random.nextDouble(-jitter, jitter)
+    }
+
+    fun reset() {
+        lastCycle = -1
+        previousFactor = 1.0
+        currentFactor = 1.0
+    }
+
+    fun getInterpolatedFactor(time: Double): Double {
+        val phase = time % 1.0
+        val weight = if (easeIn == 0.0) 1.0 else (phase / easeIn).coerceIn(0.0, 1.0)
+        val rawFactor = previousFactor + (currentFactor - previousFactor) * weight
+        // Clamp to the expected range as there are times when the jitter setting can change
+        // mid-cycle e.g. when it's controlled by the user
+        return rawFactor.coerceIn(1.0 - jitter, 1.0 + jitter)
     }
 }
 
-class WaveManager {
+class WaveManager : ActivityComponent {
     private val waves = mutableMapOf<String, CyclicalWave>()
     private var currentTime: Double = 0.0
 
     private var baseAmplitude: Double = 1.0
-    private val baseSpeed = SmoothedValue(1.0)
-    private var lastCycle: Int = 0
+    val baseSpeed = NiceSmoother(1.0, 0.01..10.0)
 
     private var isStopped: Boolean = false
     private var stopTargetCycle: Double? = null
     private var stopCallback: (() -> Unit)? = null
 
-    private val amplitudeVarianceHandler = VarianceHandler(1.0) { variance ->
-        1.0 - Random.nextDouble(0.0, variance)
-    }
-
-    private val speedVarianceHandler = VarianceHandler(1.0) { variance ->
-        1.0 + Random.nextDouble(-variance, variance)
-    }
+    private val amplitudeJitterHandler = JitterHandler()
+    private val speedJitterHandler = JitterHandler()
 
     val currentAmplitude: Double
         get() {
-            val phase = currentTime % 1.0
-            return baseAmplitude * amplitudeVarianceHandler.getInterpolatedFactor(phase)
+            // Reduce base amplitude to leave "space" for the desired amount of jitter
+            val jitter = amplitudeJitterHandler.jitter
+            val safeBase = if (jitter == 0.0) {
+                baseAmplitude
+            } else {
+                baseAmplitude / (1.0 + jitter)
+            }
+
+            return (safeBase * amplitudeJitterHandler.getInterpolatedFactor(currentTime)).coerceIn(0.0..1.0)
         }
 
     val currentSpeed: Double
         get() {
-            val phase = currentTime % 1.0
-            return baseSpeed.current * speedVarianceHandler.getInterpolatedFactor(phase)
+            return baseSpeed.value * speedJitterHandler.getInterpolatedFactor(currentTime)
         }
 
     fun addWave(wave: CyclicalWave, name: String? = null) {
@@ -203,47 +240,42 @@ class WaveManager {
         waves.remove(wave.name)
     }
 
-    fun update(delta: Double) {
-        require(delta >= 0.0) { "Time delta may not be negative"}
+    override fun update(deltaTime: Double) {
+        require(deltaTime >= 0.0) { "Time delta may not be negative"}
         if (isStopped)
             return
 
-        baseSpeed.update(delta)
+        baseSpeed.update(deltaTime)
 
-        val deltaTime = delta * currentSpeed
-        val newTime = currentTime + deltaTime
-        val newCycle = floor(newTime).toInt()
-        if (newCycle != lastCycle)
-            applyCycleVariance(newCycle)
+        val playbackTime = deltaTime * currentSpeed
 
-        if (stopTargetCycle != null && currentTime + deltaTime >= stopTargetCycle!!) {
-            currentTime = stopTargetCycle!!.toDouble()
+        if (stopTargetCycle != null && currentTime + playbackTime >= stopTargetCycle!!) {
+            currentTime = stopTargetCycle!!
             isStopped = true
             stopCallback?.invoke()
         } else {
-            currentTime += deltaTime
+            currentTime += playbackTime
         }
+        amplitudeJitterHandler.update(currentTime)
+        speedJitterHandler.update(currentTime)
     }
 
-    private fun applyCycleVariance(newCycle: Int) {
-        lastCycle = newCycle
-        amplitudeVarianceHandler.applyNewCycle()
-        speedVarianceHandler.applyNewCycle()
-    }
-
-    fun getPositionAndVelocity(name: String, applyAmplitudeVariance: Boolean = true): Pair<Double, Double> {
+    fun getPositionAndVelocity(name: String, applyAmplitude: Boolean = false, clampResult: Boolean = true, offset: Double = 0.0): Pair<Double, Double> {
         val wave = waves[name] ?: throw IllegalArgumentException("Wave '$name' not found")
-        val (position, velocity) = wave.getPositionAndVelocity(currentTime)
-        val amplitude = if (applyAmplitudeVariance) currentAmplitude else baseAmplitude
-        val scaledPosition = amplitude * position
-        val scaledVelocity = amplitude * currentSpeed * velocity
-        return Pair(scaledPosition, scaledVelocity)
+        val (position, velocity) = wave.getPositionAndVelocity(currentTime + offset)
+        val scalePosition = if (applyAmplitude) currentAmplitude else 1.0
+        val scaleVelocity = if (applyAmplitude) currentAmplitude * currentSpeed else currentSpeed
+        val scaledPosition = scalePosition * position
+        val scaledVelocity = scaleVelocity * velocity
+        val clampedPosition = if (clampResult) scaledPosition.coerceIn(0.0..1.0) else scaledPosition
+        return Pair(clampedPosition, scaledVelocity)
     }
 
-    fun getPosition(name: String, applyAmplitudeVariance: Boolean = true): Double {
+    fun getPosition(name: String, applyAmplitude: Boolean = false, clampResult: Boolean = true, offset: Double = 0.0): Double {
         val wave = waves[name] ?: throw IllegalArgumentException("Wave '$name' not found")
-        val amplitude = if (applyAmplitudeVariance) currentAmplitude else baseAmplitude
-        return amplitude * wave.getPosition(currentTime)
+        val scale = if (applyAmplitude) currentAmplitude else 1.0
+        val result = scale * wave.getPosition(currentTime + offset)
+        return if (clampResult) result.coerceIn(0.0..1.0) else result
     }
 
     fun stopAtEndOfCycle(callback: () -> Unit) {
@@ -260,6 +292,8 @@ class WaveManager {
         stopTargetCycle = null
         isStopped = false
         currentTime = 0.0
+        amplitudeJitterHandler.reset()
+        speedJitterHandler.reset()
     }
 
     fun setSpeed(newSpeed: Double) {
@@ -270,28 +304,154 @@ class WaveManager {
         baseAmplitude = newAmplitude
     }
 
-    fun setAmplitudeVariance(variance: Double) {
-        amplitudeVarianceHandler.setVariance(variance.coerceIn(0.0..1.0))
+    fun setAmplitudeJitter(jitter: Double) {
+        amplitudeJitterHandler.setJitter(jitter.coerceIn(0.0, 1.0))
     }
 
-    fun setSpeedVariance(variance: Double) {
-        speedVarianceHandler.setVariance(variance.coerceIn(0.0..1.0))
+    fun setSpeedJitter(jitter: Double) {
+        speedJitterHandler.setJitter(jitter.coerceIn(0.0, 1.0))
     }
 
-    fun setAmplitudeVarianceEaseIn(easeIn: Double) {
-        amplitudeVarianceHandler.setEaseIn(easeIn)
+    fun setAmplitudeJitterEaseIn(easeIn: Double) {
+        amplitudeJitterHandler.setEaseIn(easeIn)
     }
 
-    fun setSpeedVarianceEaseIn(easeIn: Double) {
-        speedVarianceHandler.setEaseIn(easeIn)
+    fun setSpeedJitterEaseIn(easeIn: Double) {
+        speedJitterHandler.setEaseIn(easeIn)
     }
 
-    fun setTargetSpeed(target: Double, rate: Double, onReached: (() -> Unit)? = null) {
+    fun setTargetSpeed(target: Double, rate: Double? = null, onReached: (() -> Unit)? = null) {
         baseSpeed.setTarget(target, rate = rate, onReached = onReached)
     }
 
     fun getTargetSpeed(): Double {
-        return baseSpeed.getTarget()
+        return baseSpeed.target
+    }
+}
+
+class NiceSmoother(initialValue: Double = 0.0, val range: ClosedFloatingPointRange<Double> = 0.0..1.0) : ActivityComponent {
+    // Implements a value that moves towards a target at a specified rate.
+    // Movement has an "S" curve profile with gentle start and end.
+    // Gracefully handles the target changing during the transition.
+
+    // Backing fields for the flows
+    private val _valueFlow = MutableStateFlow(initialValue.coerceIn(range))
+    private val _rateFlow = MutableStateFlow(1.0)
+    private val _targetFlow = MutableStateFlow(initialValue.coerceIn(range))
+
+    // Exposed read-only StateFlows for UI observation
+    val valueFlow: StateFlow<Double> = _valueFlow.asStateFlow()
+    val rateFlow: StateFlow<Double> = _rateFlow.asStateFlow()
+    val targetFlow: StateFlow<Double> = _targetFlow.asStateFlow()
+
+    var value: Double
+        get() = _valueFlow.value
+        private set(v) {
+            _valueFlow.value = v.coerceIn(range)
+        }
+
+    var velocity: Double = 0.0
+        private set
+
+    // Units per second, higher values transition faster.
+    var rate: Double
+        get() = _rateFlow.value
+        set(value) {
+            val safeRate = max(0.0001, value)
+            _rateFlow.value = safeRate
+
+            if (isTransitioning)
+                setTarget(target, onReached = onReached)
+        }
+
+    var target: Double
+        get() = _targetFlow.value
+        private set(value) {
+            _targetFlow.value = value.coerceIn(range)
+        }
+
+    private var startValue: Double = initialValue
+    private var startVelocity: Double = 0.0
+
+    private var duration: Double = 0.0
+    private var elapsed: Double = 0.0
+    private var isTransitioning = false
+
+    private var onReached: (() -> Unit)? = null
+
+    override fun update(deltaTime: Double) {
+        require(deltaTime >= 0.0)
+
+        if (!isTransitioning) return
+
+        elapsed += deltaTime
+
+        if (elapsed >= duration) {
+            finishTransition()
+            return
+        }
+
+        val (pos, vel) = hermiteInterpolateWithVelocity(
+            t = elapsed,
+            t0 = 0.0,
+            p0 = startValue,
+            m0 = startVelocity,
+            t1 = duration,
+            p1 = target,
+            m1 = 0.0
+        )
+
+        value = pos
+        velocity = vel
+    }
+
+    fun setTarget(
+        target: Double,
+        rate: Double? = null,
+        onReached: (() -> Unit)? = null
+    ) {
+        this.onReached = onReached
+        if (rate != null)
+            this._rateFlow.value = rate.coerceAtLeast(0.0001)
+
+        // Capture current motion state
+        startValue = value
+        startVelocity = velocity
+        this.target = target
+        elapsed = 0.0
+
+        val distance = abs(target - startValue)
+        val direction = sign(target - startValue)
+
+        val wrongDirectionPenalty =
+            if (startVelocity * direction < 0.0)
+                abs(startVelocity) / this.rate
+            else
+                0.0
+
+        // additional fixed time component so that very short movements aren't too fast
+        val smoothTime = 0.2 / this.rate
+
+        duration = (distance / this.rate) + wrongDirectionPenalty + smoothTime
+
+        isTransitioning = true
+    }
+
+    fun setImmediately(value: Double) {
+        this.value = value
+        velocity = 0.0
+        target = value
+        isTransitioning = false
+        onReached = null
+    }
+
+    private fun finishTransition() {
+        value = target
+        velocity = 0.0
+        isTransitioning = false
+        val callback = onReached
+        onReached = null
+        callback?.invoke()
     }
 }
 

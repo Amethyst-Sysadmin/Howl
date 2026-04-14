@@ -122,7 +122,7 @@ object BluetoothHandler {
                     if (foundDevice != null) {
                         HLog.d(TAG, "Found ${foundDevice.deviceName}, connecting...")
                         timeoutHandler.removeCallbacksAndMessages(null)
-                        scanner.stopScan(this)
+                        scanner?.stopScan(this)
                         connectToDevice(foundDevice)
                     }
                 }
@@ -134,11 +134,11 @@ object BluetoothHandler {
         }
 
         HLog.d(TAG, "Starting BLE scan...")
-        scanner.startScan(scanFilters, scanSettings, scanCallback)
+        scanner?.startScan(scanFilters, scanSettings, scanCallback)
 
         timeoutHandler.postDelayed({
             HLog.d(TAG, "Scan timeout, disconnecting.")
-            scanner.stopScan(scanCallback)
+            scanner?.stopScan(scanCallback)
             disconnect()
         }, scanTimeoutDelay)
     }

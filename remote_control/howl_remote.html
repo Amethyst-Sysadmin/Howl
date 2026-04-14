@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Howl Remote</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --text-color: #e0e0e0;
+            --accent-color: #cebdfe;
+			--accent-hover: #d4a4ff;
+            --danger-color: #efb8c9;
+            --success-color: #cbc3dc;
+            --btn-bg: #2d2d2d;
+            --btn-hover: #3d3d3d;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 400px;
+            padding: 20px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            margin-top: 0;
+            font-size: 1.5rem;
+            text-align: center;
+            color: var(--accent-color);
+        }
+
+        h2 {
+            font-size: 1rem;
+            color: #aaa;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+        }
+
+        /* Forms */
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+            color: #aaa;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #333;
+            background-color: #2d2d2d;
+            color: var(--text-color);
+            box-sizing: border-box;
+            font-size: 1rem;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        /* Buttons */
+        button {
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+
+        .btn-primary {
+            background-color: var(--accent-color);
+            color: #000;
+            width: 100%;
+            padding: 12px;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .btn-control {
+            background-color: var(--btn-bg);
+            color: var(--text-color);
+            padding: 8px 12px;
+            min-width: 50px;
+        }
+
+        .btn-control:hover {
+            background-color: var(--btn-hover);
+        }
+
+        .btn-toggle {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--btn-bg);
+            color: #888;
+            text-align: center;
+        }
+
+        .btn-toggle.active {
+            background-color: var(--accent-color);
+            color: #000;
+        }
+
+        /* Control Layout */
+        .control-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .channel-control {
+            background-color: #252525;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .power-display {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 10px 0;
+            color: var(--text-color);
+        }
+
+        .power-limit {
+            font-size: 0.75rem;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .power-btn-group {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .toggle-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+        .status-bar {
+            margin-top: 20px;
+            font-size: 0.8rem;
+            text-align: center;
+            color: #666;
+        }
+
+        .error-msg {
+            color: var(--danger-color);
+            text-align: center;
+            margin-top: 10px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        /* Screen Management */
+        #screen-connect {
+            display: block;
+        }
+        #screen-control {
+            display: none;
+        }
+
+        .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .btn-disconnect {
+            background-color: transparent;
+            color: var(--danger-color);
+            font-size: 0.9rem;
+            padding: 5px 10px;
+        }
+
+        /* Player Section */
+        .player-section {
+            background-color: #252525;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .player-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .playing-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #555;
+            flex-shrink: 0;
+            transition: background-color 0.3s;
+        }
+
+        .playing-indicator.active {
+            background-color: var(--accent-hover);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(255, 204, 255, 0.6); }
+            50% { opacity: 0.8; box-shadow: 0 0 0 6px rgba(255, 204, 255, 0); }
+        }
+
+        .player-state-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #888;
+        }
+
+        .player-state-label.active {
+            color: var(--success-color);
+        }
+
+        .player-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-color);
+            margin-bottom: 12px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .player-title.empty {
+            color: #555;
+            font-weight: 400;
+            font-style: italic;
+        }
+
+        .player-progress {
+            margin-bottom: 14px;
+        }
+
+        .progress-bar-track {
+            width: 100%;
+            height: 6px;
+            background-color: #333;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 6px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .progress-bar-track:hover {
+            background-color: #444;
+        }
+
+        .progress-bar-track:hover .progress-bar-fill {
+            opacity: 0.85;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background-color: var(--accent-color);
+            border-radius: 2px;
+            width: 0%;
+            transition: width 0.5s linear;
+        }
+
+        .progress-time {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: #888;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .player-btn-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .btn-player {
+            flex: 1;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .btn-play {
+            background-color: var(--accent-color);
+            color: #000;
+        }
+
+        .btn-play:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .btn-stop {
+            background-color: var(--danger-color);
+            color: #000;
+        }
+
+        .btn-stop:hover {
+            background-color: #e07a8a;
+        }
+
+        /* Activity loader */
+        .activity-loader {
+            margin-bottom: 14px;
+        }
+
+        .activity-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .activity-row select {
+            flex: 1;
+            padding: 9px 10px;
+            border-radius: 6px;
+            border: 1px solid #333;
+            background-color: #2d2d2d;
+            color: var(--text-color);
+            font-size: 0.85rem;
+            font-family: inherit;
+            appearance: none;
+            -webkit-appearance: none;
+            padding-right: 30px;
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+
+        .activity-row select:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        .btn-load-activity {
+            padding: 9px 14px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-align: center;
+            background-color: var(--btn-bg);
+            color: var(--text-color);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .btn-load-activity:hover {
+            background-color: var(--btn-hover);
+        }
+
+        .btn-load-activity:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* File load buttons */
+        .load-btn-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .btn-load {
+            padding: 9px 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-align: center;
+            background-color: var(--btn-bg);
+            color: var(--text-color);
+        }
+
+        .btn-load:hover {
+            background-color: var(--btn-hover);
+        }
+
+        .btn-load:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* Hidden file inputs */
+        .file-input-hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+
+        <!-- Connection Screen -->
+        <div id="screen-connect" class="card">
+            <h1>Howl Remote Control</h1>
+            <div class="input-group">
+                <label for="ip-address">Device IP Address</label>
+                <input type="text" id="ip-address" placeholder="e.g. 192.168.1.50">
+            </div>
+            <div class="input-group">
+                <label for="access-key">Access Key</label>
+                <input type="text" id="access-key" placeholder="Enter access key">
+            </div>
+            <button id="btn-connect" class="btn-primary">Connect</button>
+            <div id="connect-error" class="error-msg"></div>
+        </div>
+
+        <!-- Control Screen -->
+        <div id="screen-control" class="card">
+            <div class="header-bar">
+                <h1>Howl Remote</h1>
+                <button id="btn-disconnect" class="btn-disconnect">Disconnect</button>
+            </div>
+
+            <!-- Power Levels -->
+            <h2>Power Levels</h2>
+            <div class="control-grid">
+                <!-- Channel A -->
+                <div class="channel-control">
+                    <label>Channel A</label>
+                    <div id="power-a-display" class="power-display">0</div>
+                    <div id="power-a-limit" class="power-limit"></div>
+                    <div class="power-btn-group">
+                        <button class="btn-control" onclick="decrementPower(0)">-</button>
+                        <button class="btn-control" onclick="incrementPower(0)">+</button>
+                    </div>
+                </div>
+                <!-- Channel B -->
+                <div class="channel-control">
+                    <label>Channel B</label>
+                    <div id="power-b-display" class="power-display">0</div>
+                    <div id="power-b-limit" class="power-limit"></div>
+                    <div class="power-btn-group">
+                        <button class="btn-control" onclick="decrementPower(1)">-</button>
+                        <button class="btn-control" onclick="incrementPower(1)">+</button>
+                    </div>
+                </div>
+            </div>
+
+            <h2>Feature Toggles</h2>
+            <div class="toggle-grid">
+                <button id="btn-mute" class="btn-toggle" onclick="toggleMute()">Mute</button>
+                <button id="btn-swap" class="btn-toggle" onclick="toggleSwap()">Swap Channels</button>
+                <button id="btn-auto" class="btn-toggle" onclick="toggleAutoIncrease()">Auto Increase</button>
+            </div>
+
+            <!-- Player -->
+            <h2>Player</h2>
+            <div class="player-section">
+                <div class="player-header">
+                    <div id="playing-dot" class="playing-indicator"></div>
+                    <span id="playing-label" class="player-state-label">Stopped</span>
+                </div>
+                <div id="player-title" class="player-title empty">No file loaded</div>
+                <div class="player-progress">
+                    <div id="progress-bar-track" class="progress-bar-track">
+                        <div id="progress-fill" class="progress-bar-fill"></div>
+                    </div>
+                    <div class="progress-time">
+                        <span id="time-current">0:00</span>
+                        <span id="time-total">0:00</span>
+                    </div>
+                </div>
+                <div class="player-btn-group">
+                    <button id="btn-play" class="btn-player btn-play">Start</button>
+                    <button id="btn-stop" class="btn-player btn-stop">Stop</button>
+                </div>
+
+                <!-- Built-in activity loader -->
+                <div class="activity-loader">
+                    <div class="activity-row">
+                        <select id="activity-select" disabled>
+                            <option value="">Loading activities...</option>
+                        </select>
+                        <button id="btn-load-activity" class="btn-load-activity" disabled>Load activity</button>
+                    </div>
+                </div>
+
+                <div class="load-btn-group">
+                    <button id="btn-load-hwl" class="btn-load">Load HWL</button>
+                    <button id="btn-load-funscript" class="btn-load">Load Funscript</button>
+                </div>
+                <input type="file" id="file-input-hwl" class="file-input-hidden" accept=".hwl">
+                <input type="file" id="file-input-funscript" class="file-input-hidden" accept=".funscript">
+            </div>
+
+            <div class="status-bar">
+                Connected to <span id="status-ip">?</span>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        /**
+         * HOWL API LIBRARY
+         */
+        class HowlClient {
+            constructor() {
+                this.baseUrl = '';
+                this.accessToken = '';
+            }
+
+            configure(ip, token) {
+                this.baseUrl = `http://${ip}:4695`;
+                this.accessToken = token;
+            }
+
+            async _request(endpoint, body = {}) {
+                const response = await fetch(`${this.baseUrl}${endpoint}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${this.accessToken}`
+                    },
+                    body: JSON.stringify(body)
+                });
+
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    let errorMsg = `HTTP Error ${response.status}`;
+                    try {
+                        const errorData = await response.json();
+                        errorMsg = errorData.error?.message || errorMsg;
+                    } catch (e) {}
+                    throw new Error(errorMsg);
+                }
+            }
+
+            async getStatus() {
+                return this._request('/status');
+            }
+
+            async getAvailableActivities() {
+                return this._request('/available_activities');
+            }
+
+            async loadActivity(name) {
+                return this._request('/load_activity', { name: name, play: false });
+            }
+
+            async startPlayer(from = null) {
+                const body = (from !== null) ? { from } : {};
+                return this._request('/start_player', body);
+            }
+
+            async stopPlayer() {
+                return this._request('/stop_player');
+            }
+
+            async seek(position) {
+                return this._request('/seek', { position });
+            }
+
+            async loadFunscript(title, funscript) {
+                return this._request('/load_funscript', { title: title, play: false, loop: false, funscript: funscript });
+            }
+
+            async loadHwl(title, hwlBase64) {
+                return this._request('/load_hwl', { title: title, play: false, loop: true, hwl: hwlBase64 });
+            }
+
+            async setPower(powerA, powerB) {
+                const body = {};
+                if (powerA !== undefined) body.power_a = powerA;
+                if (powerB !== undefined) body.power_b = powerB;
+                return this._request('/set_power', body);
+            }
+
+            async incrementPower(channel, step = 0) {
+                return this._request('/increment_power', { channel, step });
+            }
+
+            async decrementPower(channel, step = 0) {
+                return this._request('/decrement_power', { channel, step });
+            }
+
+            async setMute(value) {
+                const body = (value !== undefined) ? { value } : {};
+                return this._request('/set_mute', body);
+            }
+
+            async setSwapChannels(value) {
+                const body = (value !== undefined) ? { value } : {};
+                return this._request('/set_swap_channels', body);
+            }
+
+            async setAutoIncrease(value) {
+                const body = (value !== undefined) ? { value } : {};
+                return this._request('/set_auto_increase', body);
+            }
+
+            async setFreqRange(min, max) {
+                return this._request('/set_freq_range', { min, max });
+            }
+        }
+
+        /**
+         * APPLICATION LOGIC
+         */
+        const client = new HowlClient();
+        let state = {
+            options: {
+                power_a: 0,
+                power_b: 0,
+                power_a_limit: 0,
+                power_b_limit: 0,
+                mute: false,
+                swap_channels: false,
+                auto_increase_power: false
+            },
+            player: {
+                playing: false,
+                position: 0,
+                title: '',
+                duration: 0
+            }
+        };
+
+        let availableActivities = [];
+        let pollInterval = null;
+
+        // DOM Elements
+        const screenConnect = document.getElementById('screen-connect');
+        const screenControl = document.getElementById('screen-control');
+        const btnConnect = document.getElementById('btn-connect');
+        const btnDisconnect = document.getElementById('btn-disconnect');
+        const inputIp = document.getElementById('ip-address');
+        const inputKey = document.getElementById('access-key');
+        const errorDiv = document.getElementById('connect-error');
+        const statusIp = document.getElementById('status-ip');
+
+        // Control Elements
+        const powerADisplay = document.getElementById('power-a-display');
+        const powerBDisplay = document.getElementById('power-b-display');
+        const powerALimit = document.getElementById('power-a-limit');
+        const powerBLimit = document.getElementById('power-b-limit');
+        const btnMute = document.getElementById('btn-mute');
+        const btnSwap = document.getElementById('btn-swap');
+        const btnAuto = document.getElementById('btn-auto');
+
+        // Player Elements
+        const playingDot = document.getElementById('playing-dot');
+        const playingLabel = document.getElementById('playing-label');
+        const playerTitle = document.getElementById('player-title');
+        const progressBarTrack = document.getElementById('progress-bar-track');
+        const progressFill = document.getElementById('progress-fill');
+        const timeCurrent = document.getElementById('time-current');
+        const timeTotal = document.getElementById('time-total');
+        const btnPlay = document.getElementById('btn-play');
+        const btnStop = document.getElementById('btn-stop');
+
+        // Activity loader elements
+        const activitySelect = document.getElementById('activity-select');
+        const btnLoadActivity = document.getElementById('btn-load-activity');
+
+        // File loading elements
+        const btnLoadHwl = document.getElementById('btn-load-hwl');
+        const btnLoadFunscript = document.getElementById('btn-load-funscript');
+        const fileInputHwl = document.getElementById('file-input-hwl');
+        const fileInputFunscript = document.getElementById('file-input-funscript');
+
+        // --- Utility Functions ---
+
+        function formatTime(seconds) {
+            if (seconds == null || isNaN(seconds)) return '0:00';
+            const s = Math.max(0, Math.floor(seconds));
+            const m = Math.floor(s / 60);
+            const sec = s % 60;
+            return `${m}:${sec.toString().padStart(2, '0')}`;
+        }
+
+        function readFileAsArrayBuffer(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(new Error('Failed to read file'));
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        function readFileAsText(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(new Error('Failed to read file'));
+                reader.readAsText(file);
+            });
+        }
+
+        function arrayBufferToBase64(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return btoa(binary);
+        }
+
+        // --- UI Update Functions ---
+
+        function updateUI() {
+            const opts = state.options;
+            powerADisplay.innerText = opts.power_a;
+            powerBDisplay.innerText = opts.power_b;
+            powerALimit.innerText = `Limit: ${opts.power_a_limit}`;
+            powerBLimit.innerText = `Limit: ${opts.power_b_limit}`;
+
+            btnMute.classList.toggle('active', opts.mute);
+            btnSwap.classList.toggle('active', opts.swap_channels);
+            btnAuto.classList.toggle('active', opts.auto_increase_power);
+
+            updatePlayerUI();
+        }
+
+        function updatePlayerUI() {
+            const p = state.player;
+
+            const isPlaying = !!p.playing;
+            playingDot.classList.toggle('active', isPlaying);
+            playingLabel.classList.toggle('active', isPlaying);
+            playingLabel.textContent = isPlaying ? 'Playing' : 'Stopped';
+
+            if (p.title) {
+                playerTitle.textContent = p.title;
+                playerTitle.classList.remove('empty');
+            } else {
+                playerTitle.textContent = 'No file loaded';
+                playerTitle.classList.add('empty');
+            }
+
+            const position = p.position || 0;
+            const duration = p.duration || 0;
+
+            timeCurrent.textContent = formatTime(position);
+            timeTotal.textContent = formatTime(duration);
+
+            const pct = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;
+            progressFill.style.width = `${pct}%`;
+        }
+
+        function showError(msg) {
+            errorDiv.innerText = msg;
+            errorDiv.style.display = 'block';
+        }
+
+        function clearError() {
+            errorDiv.innerText = '';
+            errorDiv.style.display = 'none';
+        }
+
+        function populateActivityDropdown(activities) {
+            activitySelect.innerHTML = '';
+
+            if (activities.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'No activities available';
+                activitySelect.appendChild(opt);
+                activitySelect.disabled = true;
+                btnLoadActivity.disabled = true;
+                return;
+            }
+
+            const defaultOpt = document.createElement('option');
+            defaultOpt.value = '';
+            defaultOpt.textContent = 'Select activity...';
+            activitySelect.appendChild(defaultOpt);
+
+            for (const activity of activities) {
+                const opt = document.createElement('option');
+                opt.value = activity.name;
+                opt.textContent = activity.display_name;
+                activitySelect.appendChild(opt);
+            }
+
+            activitySelect.disabled = false;
+            btnLoadActivity.disabled = true;
+        }
+
+        // --- Polling ---
+
+        function startPolling() {
+            stopPolling();
+            pollInterval = setInterval(async () => {
+                try {
+                    const response = await client.getStatus();
+                    state = response;
+                    updateUI();
+                } catch (err) {
+                    console.error('Poll error:', err.message);
+                }
+            }, 1000);
+        }
+
+        function stopPolling() {
+            if (pollInterval !== null) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+            }
+        }
+
+        // --- Connection Logic ---
+
+        btnConnect.addEventListener('click', async () => {
+            clearError();
+            const ip = inputIp.value.trim();
+            const key = inputKey.value.trim();
+
+            if (!ip) {
+                showError("Please enter an IP address.");
+                return;
+            }
+
+            client.configure(ip, key);
+
+            try {
+                const response = await client.getStatus();
+                state = response;
+                statusIp.innerText = ip;
+
+                screenConnect.style.display = 'none';
+                screenControl.style.display = 'block';
+                updateUI();
+                startPolling();
+
+                // Fetch available activities once on connect
+                try {
+                    const activitiesResponse = await client.getAvailableActivities();
+                    availableActivities = activitiesResponse.activities || [];
+                    populateActivityDropdown(availableActivities);
+                } catch (err) {
+                    console.error('Failed to fetch activities:', err);
+                    availableActivities = [];
+                    populateActivityDropdown([]);
+                }
+            } catch (err) {
+                console.error(err);
+                showError(`Connection failed: ${err.message}. Check IP/Key and network.`);
+            }
+        });
+
+        btnDisconnect.addEventListener('click', () => {
+            stopPolling();
+            screenControl.style.display = 'none';
+            screenConnect.style.display = 'block';
+            clearError();
+            availableActivities = [];
+            activitySelect.innerHTML = '<option value="">Loading activities...</option>';
+            activitySelect.disabled = true;
+            btnLoadActivity.disabled = true;
+        });
+
+        // --- Control Logic ---
+
+        async function handleApiCall(promise) {
+            try {
+                const response = await promise;
+                state = response;
+                updateUI();
+            } catch (err) {
+                console.error("API Error:", err);
+                alert(`Error: ${err.message}`);
+            }
+        }
+
+        function incrementPower(channel) {
+            handleApiCall(client.incrementPower(channel, 1));
+        }
+
+        function decrementPower(channel) {
+            handleApiCall(client.decrementPower(channel, 1));
+        }
+
+        function toggleMute() {
+            handleApiCall(client.setMute());
+        }
+
+        function toggleSwap() {
+            handleApiCall(client.setSwapChannels());
+        }
+
+        function toggleAutoIncrease() {
+            handleApiCall(client.setAutoIncrease());
+        }
+
+        // --- Player Controls ---
+
+        btnPlay.addEventListener('click', () => {
+            handleApiCall(client.startPlayer());
+        });
+
+        btnStop.addEventListener('click', () => {
+            handleApiCall(client.stopPlayer());
+        });
+
+        // --- Seek on Progress Bar Click ---
+
+        progressBarTrack.addEventListener('click', async (e) => {
+            const duration = state.player.duration || 0;
+            if (duration <= 0) return;
+
+            const rect = progressBarTrack.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const percentage = Math.max(0, Math.min(1, clickX / rect.width));
+            const seekPosition = Math.floor(percentage * duration);
+
+            try {
+                const response = await client.seek(seekPosition);
+                state = response;
+                updateUI();
+            } catch (err) {
+                console.error('Seek error:', err);
+            }
+        });
+
+        // --- Activity Loading ---
+
+        activitySelect.addEventListener('change', () => {
+            btnLoadActivity.disabled = !activitySelect.value;
+        });
+
+        btnLoadActivity.addEventListener('click', async () => {
+            const name = activitySelect.value;
+            if (!name) return;
+
+            btnLoadActivity.disabled = true;
+            btnLoadHwl.disabled = true;
+            btnLoadFunscript.disabled = true;
+
+            try {
+                const response = await client.loadActivity(name);
+                state = response;
+                updateUI();
+            } catch (err) {
+                console.error('Load activity error:', err);
+                alert(`Failed to load activity: ${err.message}`);
+            } finally {
+                btnLoadActivity.disabled = !activitySelect.value;
+                btnLoadHwl.disabled = false;
+                btnLoadFunscript.disabled = false;
+            }
+        });
+
+        // --- File Loading ---
+
+        btnLoadHwl.addEventListener('click', () => {
+            fileInputHwl.value = '';
+            fileInputHwl.click();
+        });
+
+        btnLoadFunscript.addEventListener('click', () => {
+            fileInputFunscript.value = '';
+            fileInputFunscript.click();
+        });
+
+        fileInputHwl.addEventListener('change', async () => {
+            const file = fileInputHwl.files[0];
+            if (!file) return;
+
+            btnLoadHwl.disabled = true;
+            btnLoadFunscript.disabled = true;
+            btnLoadActivity.disabled = true;
+
+            try {
+                const buffer = await readFileAsArrayBuffer(file);
+                const base64 = arrayBufferToBase64(buffer);
+                const response = await client.loadHwl(file.name, base64);
+                state = response;
+                updateUI();
+            } catch (err) {
+                console.error('HWL load error:', err);
+                alert(`Failed to load HWL: ${err.message}`);
+            } finally {
+                btnLoadHwl.disabled = false;
+                btnLoadFunscript.disabled = false;
+                btnLoadActivity.disabled = !activitySelect.value;
+                fileInputHwl.value = '';
+            }
+        });
+
+        fileInputFunscript.addEventListener('change', async () => {
+            const file = fileInputFunscript.files[0];
+            if (!file) return;
+
+            btnLoadHwl.disabled = true;
+            btnLoadFunscript.disabled = true;
+            btnLoadActivity.disabled = true;
+
+            try {
+                const text = await readFileAsText(file);
+                const response = await client.loadFunscript(file.name, text);
+                state = response;
+                updateUI();
+            } catch (err) {
+                console.error('Funscript load error:', err);
+                alert(`Failed to load funscript: ${err.message}`);
+            } finally {
+                btnLoadHwl.disabled = false;
+                btnLoadFunscript.disabled = false;
+                btnLoadActivity.disabled = !activitySelect.value;
+                fileInputFunscript.value = '';
+            }
+        });
+    </script>
+</body>
+</html>

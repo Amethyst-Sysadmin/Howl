@@ -12,6 +12,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 interface PreferenceAdapter<T> {
     fun serialise(value: T): String
@@ -43,10 +45,33 @@ object StringAdapter : PreferenceAdapter<String> {
     override fun deserialise(value: String) = value
 }
 
+object StringListAdapter : PreferenceAdapter<List<String>> {
+    override fun serialise(value: List<String>): String {
+        return Json.encodeToString(value)
+    }
+
+    override fun deserialise(value: String): List<String> {
+        return Json.decodeFromString(value)
+    }
+}
+
 class EnumAdapter<T : Enum<T>>(private val values: Array<T>) : PreferenceAdapter<T> {
     override fun serialise(value: T) = value.name
     override fun deserialise(value: String) =
         values.first { it.name == value }
+}
+
+class EnumListAdapter<T : Enum<T>>(private val values: Array<T>) : PreferenceAdapter<List<T>> {
+    override fun serialise(value: List<T>): String {
+        return Json.encodeToString(value.map { it.name })
+    }
+
+    override fun deserialise(value: String): List<T> {
+        val names: List<String> = Json.decodeFromString(value)
+        return names.map { name ->
+            values.first { it.name == name }
+        }
+    }
 }
 
 class Preference<T>(
@@ -65,8 +90,6 @@ class Preference<T>(
         set(newValue) {
             _state.value = newValue
         }
-
-    //fun get(): T = _state.value
 
     fun serialise(): String = adapter.serialise(_state.value)
 
@@ -110,17 +133,6 @@ object Prefs {
             onComplete()
         }
     }
-
-    /*suspend fun loadAll() {
-        // Switch to IO context for database operation
-        withContext(Dispatchers.IO) {
-            val entities = database?.preferencesDao()?.getAll()
-            entities?.forEach { entity ->
-                Log.d("Preferences","Loading preference ${entity.name} -> ${entity.value}")
-                registry[entity.name]?.loadFromString(entity.value)
-            }
-        }
-    }*/
 
     fun save(pref: Preference<*>) {
         Log.d("Preferences", "Saving preference ${pref.name} -> ${pref.serialise()}")
@@ -194,8 +206,18 @@ object Prefs {
     val generatorFrequencyChangeProbability = register("generator_freq_change_prob", 0.2f, FloatAdapter)
     val generatorWaveChangeProbability = register("generator_wave_change_prob", 0.2f, FloatAdapter)
 
-    // Activity related
+    // Activity related (global)
     val activityChangeProbability = register("activity_change_prob", 0.0f, FloatAdapter)
+    val activityExcludedFromRandom = register("activity_excluded_from_random", listOf(ActivityType.CALIBRATION1, ActivityType.CALIBRATION2), EnumListAdapter(ActivityType.entries.toTypedArray()))
+    // Activity related (individual activity options)
+    val activityVibePulseDutyCycle = register("activity_vibe_pulse_duty_cycle", 1.0f, FloatAdapter)
+    val activityVibePulseTime = register("activity_vibe_pulse_time", 0.3f, FloatAdapter)
+    val activityVibeHoldProbability = register("activity_vibe_hold_probability", 0.25f, FloatAdapter)
+    val activityChaosCycleTime = register("activity_chaos_cycle_time", 1.0f, FloatAdapter)
+    val activityLuxuryHJBonusProbability = register("activity_luxury_hj_bonus_prob", 0.7f, FloatAdapter)
+    val activityLuxuryHJAmplitudeJitter = register("activity_luxury_hj_amplitude_jitter", 0.15f, FloatAdapter)
+    val activityLuxuryHJTimingJitter = register("activity_luxury_hj_timing_jitter", 0.15f, FloatAdapter)
+    val activitySimplexPreset = register("activity_simplex_preset", SimplexPreset.PRO, EnumAdapter(SimplexPreset.entries.toTypedArray()))
 
     // Misc options
     val miscShowPowerMeter = register("misc_show_power_meter", true, BooleanAdapter)

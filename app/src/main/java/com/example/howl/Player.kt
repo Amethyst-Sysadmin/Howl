@@ -87,7 +87,7 @@ data class RecordState(
 )
 
 interface PulseSource {
-    val displayName: String
+    val displayName: StateFlow<String>
     val duration: Double?
     val isFinite: Boolean
     val shouldLoop: Boolean
@@ -944,9 +944,13 @@ fun PlayerPanel(
     modifier: Modifier = Modifier
 ) {
     val playerState by viewModel.playerState.collectAsStateWithLifecycle()
+    val activeSource = playerState.activePulseSource
     val playerShowSyncFineTune by Prefs.playerShowSyncFineTune.collectAsStateWithLifecycle()
     val sfxEnabled by Prefs.sfxEnabled.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    val displayName by (activeSource?.displayName ?: remember { MutableStateFlow("Player") })
+        .collectAsStateWithLifecycle()
 
     val activeButtonColour = MaterialTheme.colorScheme.tertiary
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -969,7 +973,6 @@ fun PlayerPanel(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             // File Name Display
-            val displayName = playerState.activePulseSource?.displayName ?: "Player"
             Text(
                 text = displayName,
                 maxLines = 1,

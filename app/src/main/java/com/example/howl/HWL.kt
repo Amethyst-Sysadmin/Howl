@@ -2,6 +2,8 @@ package com.example.howl
 
 import android.content.Context
 import android.net.Uri
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.ByteBuffer
@@ -71,10 +73,11 @@ fun readHWLFile(input: InputStream): List<Pulse> {
 }
 
 class HWLPulseSource : PulseSource {
-    override var displayName: String = "HWL"
+    private val _displayName = MutableStateFlow("HWL")
+    override val displayName = _displayName.asStateFlow()
     override var duration: Double? = null
     override val isFinite: Boolean = true
-    override val shouldLoop: Boolean = true
+    override var shouldLoop: Boolean = true
     override var readyToPlay: Boolean = false
     override var isRemote: Boolean = false
     var pulseData: MutableList<Pulse> = mutableListOf<Pulse>()
@@ -120,17 +123,16 @@ class HWLPulseSource : PulseSource {
     private fun loadPulses(
         pulses: List<Pulse>,
         name: String,
-        isRemoteSource: Boolean
+        isRemoteSource: Boolean,
     ): Double {
         readyToPlay = false
 
         pulseData.clear()
         pulseData.addAll(pulses)
 
-        displayName = name
+        _displayName.value = name
         duration = pulseData.size * HWL_PULSE_TIME
         isRemote = isRemoteSource
-
         readyToPlay = true
         return duration ?: 0.0
     }
@@ -151,8 +153,10 @@ class HWLPulseSource : PulseSource {
     fun loadFromBytes(
         data: ByteArray,
         title: String = "Remote HWL",
+        loop: Boolean = true
     ): Double {
         val pulses = data.inputStream().use(::readHWLFile)
+        shouldLoop = loop
 
         return loadPulses(
             pulses = pulses,

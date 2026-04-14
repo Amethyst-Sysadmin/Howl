@@ -19,16 +19,6 @@ enum class InterpolationType {
     HERMITE, LINEAR
 }
 
-data class FrequencyConverterPoint(
-    val position: Double,
-    val frequency: Double
-)
-
-enum class FrequencyInterpolationType {
-    SMOOTHSTEP, LINEAR
-}
-
-
 class WaveShape(
     val name: String,
     points: List<WavePoint>,
@@ -218,6 +208,10 @@ fun smoothstep(t: Double): Double {
     return clamped * clamped * (3.0 - 2.0 * clamped)
 }
 
+fun calculateSliderSteps(range: ClosedFloatingPointRange<Float>, increment: Float): Int {
+    return ((range.endInclusive - range.start) / increment).roundToInt() - 1
+}
+
 fun linearInterpolate(
     t: Double,
     t0: Double,
@@ -362,26 +356,6 @@ fun calculatePositionalEffectLinear(
     return Pair(amplitudeA, amplitudeB)
 }
 
-fun calculateEngulfEffect(
-    amplitude: Double,
-    position: Double,
-    channelAEngulfPoint: Double,
-    channelBEngulfPoint: Double,
-): Pair<Double, Double> {
-    fun calculateChannelAmplitude(position: Double, engulfPoint: Double): Double {
-        val distance = abs(position - engulfPoint)
-        val falloffFactor = 0.8
-        return if (position <= engulfPoint) {
-            if (engulfPoint == 0.0) 1.0 else sqrt(position / engulfPoint)
-        } else {
-            sqrt(1.0 - distance * falloffFactor)
-        }
-    }
-    val ampA = calculateChannelAmplitude(position, channelAEngulfPoint) * amplitude
-    val ampB = calculateChannelAmplitude(position, channelBEngulfPoint) * amplitude
-    return Pair(ampA, ampB)
-}
-
 fun calculateFeelAdjustment(
     value: Float,
     feel: Float,
@@ -389,194 +363,6 @@ fun calculateFeelAdjustment(
     // we use the inverse as it makes the sliders feel more logical
     // e.g. increasing frequency feel uses more higher frequencies
     return value.pow(1.0f / feel).coerceIn(0.0f,1.0f)
-}
-
-class TimerManager {
-    private val timers = mutableMapOf<String, Timer>()
-
-    fun addTimer(key: String, duration: Double, callback: () -> Unit) {
-        if (duration <= 0) {
-            callback()
-            return
-        }
-        timers[key] = Timer(duration, duration, callback)
-    }
-
-    fun cancelTimer(key: String) {
-        timers.remove(key)
-    }
-
-    fun hasTimer(key: String): Boolean = timers.containsKey(key)
-
-    fun getRemainingTime(key: String): Double? {
-        return timers[key]?.remainingTime
-    }
-
-    fun getElapsedTime(key: String): Double? {
-        val timer = timers[key] ?: return null
-        return timer.initialDuration - timer.remainingTime
-    }
-
-    fun getProportionElapsed(key: String): Double? {
-        val timer = timers[key] ?: return null
-        return (timer.initialDuration - timer.remainingTime) / timer.initialDuration
-    }
-
-    fun update(delta: Double) {
-        require(delta >= 0.0) { "Time delta may not be negative"}
-        // Create a snapshot of keys to avoid concurrent modification
-        val keysSnapshot = timers.keys.toList()
-
-        keysSnapshot.forEach { key ->
-            timers[key]?.let { timer ->
-                timer.remainingTime -= delta
-                if (timer.remainingTime <= 0) {
-                    // Remove before callback to prevent interference
-                    timers.remove(key)
-                    timer.callback()
-                }
-            }
-        }
-    }
-
-    private data class Timer(
-        val initialDuration: Double,
-        var remainingTime: Double,
-        val callback: () -> Unit
-    )
-}
-
-class SmoothedValue(initialValue: Double = 0.0) {
-    //implements a value that is capable of smoothly transitioning towards a target over time
-    private var start: Double = initialValue
-    private var target: Double = initialValue
-    private var elapsed: Double = 0.0
-    private var duration: Double = 0.0
-    private var onReached: (() -> Unit)? = null
-
-    val current: Double
-        get() = if (!isTransitioning) target else calculateInterpolatedValue()
-
-    val isTransitioning: Boolean
-        get() = elapsed < duration && duration > 0.0
-
-    fun setTarget(
-        target: Double,
-        rate: Double? = null,
-        duration: Double? = null,
-        onReached: (() -> Unit)? = null
-    ) {
-        require((rate == null) xor (duration == null)) {
-            "Must specify exactly one of rate or duration"
-        }
-
-        start = current
-        this.target = target
-        val difference = abs(target - start)
-
-        this.duration = when {
-            rate != null -> if (rate > 0.0) difference / rate else 0.0
-            duration != null -> if (difference > 0.0) duration else 0.0
-            else -> 0.0 // Impossible due to require check
-        }
-
-        elapsed = 0.0
-        this.onReached = onReached
-
-        if (!isTransitioning) {
-            handleTransitionComplete()
-        }
-    }
-
-    fun getTarget(): Double {
-        return target
-    }
-
-    fun setImmediately(value: Double) {
-        start = value
-        target = value
-        elapsed = 0.0
-        duration = 0.0
-        onReached = null
-    }
-
-    fun update(delta: Double) {
-        require(delta >= 0.0) { "Time delta may not be negative"}
-        if (!isTransitioning) return
-
-        elapsed += delta
-        if (!isTransitioning) {
-            handleTransitionComplete()
-        }
-    }
-
-    private fun calculateInterpolatedValue(): Double {
-        val t = (elapsed / duration).coerceIn(0.0..1.0)
-        return start + (target - start) * smoothstep(t)
-    }
-
-    private fun handleTransitionComplete() {
-        val callback = onReached
-        onReached = null
-        callback?.invoke()
-    }
-}
-
-class FrequencyConverter(
-    points: List<FrequencyConverterPoint>,
-    private val interpolationType: FrequencyInterpolationType
-) {
-    private val sortedPoints: List<FrequencyConverterPoint>
-
-    init {
-        require(points.isNotEmpty()) { "At least one point is required" }
-        sortedPoints = points.sortedBy { it.position }
-    }
-
-    fun getFrequency(position: Double): Double {
-        if (sortedPoints.size == 1) {
-            return sortedPoints.first().frequency
-        }
-
-        if (position <= sortedPoints.first().position) {
-            return sortedPoints.first().frequency
-        }
-
-        if (position >= sortedPoints.last().position) {
-            return sortedPoints.last().frequency
-        }
-
-        for (i in 0 until sortedPoints.size - 1) {
-            val current = sortedPoints[i]
-            val next = sortedPoints[i + 1]
-            if (position in current.position..next.position) {
-                return interpolate(current, next, position)
-            }
-        }
-
-        throw IllegalStateException("Failed to find interval for position $position during frequency conversion")
-    }
-
-    private fun interpolate(
-        lower: FrequencyConverterPoint,
-        upper: FrequencyConverterPoint,
-        position: Double
-    ): Double {
-        return when (interpolationType) {
-            FrequencyInterpolationType.LINEAR -> linearInterpolate(
-                t = position,
-                t0 = lower.position,
-                p0 = lower.frequency,
-                t1 = upper.position,
-                p1 = upper.frequency
-            )
-            FrequencyInterpolationType.SMOOTHSTEP -> {
-                val h = (position - lower.position) / (upper.position - lower.position)
-                val smoothH = smoothstep(h)
-                lower.frequency + smoothH * (upper.frequency - lower.frequency)
-            }
-        }
-    }
 }
 
 class CircularBuffer<T>(var capacity: Int): Iterable<T> {

@@ -1,25 +1,20 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
 }
 
-kotlin {
-    jvmToolchain(11)
-}
-
 android {
     namespace = "com.example.howl"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.example.howl"
         minSdk = 26
-        targetSdk = 36
-        versionCode = 81
-        versionName = "0.8.1"
+        targetSdk = 37
+        versionCode = 90
+        versionName = "0.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -68,4 +63,5 @@ dependencies {
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.ktor.server.cio)
     implementation(libs.ktor.server.auth)
+    implementation(libs.ktor.server.cors)
 }

@@ -1,42 +1,79 @@
 package com.example.howl
 
 import android.util.Log
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.abs
-import kotlin.math.pow
 import kotlin.random.Random
 
-sealed class Activity {
-    val timerManager = TimerManager()
+abstract class Activity {
+    val manager = ActivityManager()
 
     open fun initialise() {
         // Default empty implementation
     }
     open fun runSimulation(deltaSimulationTime: Double) {
-        timerManager.update(deltaSimulationTime)
+        manager.update(deltaSimulationTime)
     }
     abstract fun getPulse(): Pulse
+
+    open val permanentSettings: (@Composable () -> Unit)? = null
+    open val temporarySettings: (@Composable () -> Unit)? = null
 }
 
 class LickActivity : Activity() {
-    enum class LickType {
-        UNIDIRECTIONAL,
-        BIDIRECTIONAL
+    enum class LickType(val displayName: String) {
+        UNIDIRECTIONAL("Unidirectional"),
+        BIDIRECTIONAL("Bidirectional"),
     }
-
+    enum class AmpType(val displayName: String) {
+        CONSISTENT("Consistent"),
+        LICK("Lick"),
+        DIP("Dip"),
+        RAMP("Ramp"),
+        FLICKS("Flicks")
+    }
     var waveManager: WaveManager = WaveManager()
-    var lickStartPoint = 0.0
-    var lickEndPoint = 1.0
-    var lickType = LickType.BIDIRECTIONAL
+    val lickPositionRange = 0.0 .. 1.0
 
+    private val _lickStartPoint = MutableStateFlow(randomInRange(lickPositionRange))
+    val lickStartPoint: StateFlow<Double> = _lickStartPoint.asStateFlow()
+    private val _lickEndPoint = MutableStateFlow(randomInRange(lickPositionRange))
+    val lickEndPoint: StateFlow<Double> = _lickEndPoint.asStateFlow()
+    private val _lickType = MutableStateFlow(LickType.entries.random())
+    val lickType: StateFlow<LickType> = _lickType.asStateFlow()
+    private val _ampType = MutableStateFlow(AmpType.entries.random())
+    val ampType: StateFlow<AmpType> = _ampType.asStateFlow()
+    private val _manual = MutableStateFlow(false)
+    val manual: StateFlow<Boolean> = _manual.asStateFlow()
 
     override fun initialise() {
         val bidirectional = CyclicalWave(
             WaveShape(
                 name = "bidirectional",
                 points = listOf(
-                    WavePoint(0.0, 0.0, 0.0),
-                    WavePoint(0.5, 1.0, 0.0),
+                    WavePoint(0.0, 0.0),
+                    WavePoint(0.5, 1.0),
                 ),
                 interpolationType = InterpolationType.HERMITE
             )
@@ -45,25 +82,96 @@ class LickActivity : Activity() {
             WaveShape(
                 name = "unidirectional",
                 points = listOf(
-                    WavePoint(0.0, 0.0, 0.0),
-                    WavePoint(1.0 - SMALL_AMOUNT, 1.0, 0.0),
+                    WavePoint(0.0, 0.0),
+                    WavePoint(1.0 - SMALL_AMOUNT, 1.0),
+                ),
+                interpolationType = InterpolationType.HERMITE
+            )
+        )
+        val ampConsistent = CyclicalWave(
+            WaveShape(
+                name = "consistent",
+                points = listOf(
+                    WavePoint(0.0, 0.85),
+                    WavePoint(0.5, 0.95),
+                ),
+                interpolationType = InterpolationType.HERMITE
+            )
+        )
+        val ampLick = CyclicalWave(
+            WaveShape(
+                name = "lick",
+                points = listOf(
+                    WavePoint(0.0, 0.0),
+                    WavePoint(0.05, 0.6),
+                    WavePoint(0.5, 1.0),
+                    WavePoint(0.95, 0.6),
+                    WavePoint(1.0 - SMALL_AMOUNT, 0.0),
+                ),
+                interpolationType = InterpolationType.HERMITE
+            )
+        )
+        val ampDip = CyclicalWave(
+            WaveShape(
+                name = "dip",
+                points = listOf(
+                    WavePoint(0.0, 0.9),
+                    WavePoint(0.35, 0.8),
+                    WavePoint(0.5, 0.6),
+                    WavePoint(0.65, 0.8),
+                ),
+                interpolationType = InterpolationType.HERMITE
+            )
+        )
+        val ampRamp = CyclicalWave(
+            WaveShape(
+                name = "ramp",
+                points = listOf(
+                    WavePoint(0.0, 0.4),
+                    WavePoint(0.5, 0.7),
+                    WavePoint(1.0 - SMALL_AMOUNT, 1.0),
+                ),
+                interpolationType = InterpolationType.HERMITE
+            )
+        )
+        val ampFlicks = CyclicalWave(
+            WaveShape(
+                name = "flicks",
+                points = listOf(
+                    WavePoint(0.0, 0.0),
+                    WavePoint(0.0833, 1.0),
+                    WavePoint(0.25, 1.0),
+                    WavePoint(0.3333, 0.0),
+                    WavePoint(0.4166, 1.0),
+                    WavePoint(0.5833, 1.0),
+                    WavePoint(0.6666, 0.0),
+                    WavePoint(0.75, 1.0),
+                    WavePoint(0.9166, 1.0),
                 ),
                 interpolationType = InterpolationType.HERMITE
             )
         )
         waveManager.addWave(bidirectional)
         waveManager.addWave(unidirectional)
-        waveManager.setAmplitudeVariance(0.5)
-        waveManager.setSpeedVariance(0.5)
+        waveManager.addWave(ampConsistent)
+        waveManager.addWave(ampLick)
+        waveManager.addWave(ampDip)
+        waveManager.addWave(ampRamp)
+        waveManager.addWave(ampFlicks)
+        waveManager.setSpeedJitter(0.5)
+        waveManager.setAmplitudeJitter(0.1)
+        manager.register(waveManager)
         newLick()
     }
 
     fun newLick() {
-        lickType = LickType.entries.random()
-        lickStartPoint = Random.nextDouble()
-        lickEndPoint = Random.nextDouble()
+        //Log.d("Activity", "New lick called")
+        _lickType.value = LickType.entries.random()
+        _ampType.value = AmpType.entries.random()
+        _lickStartPoint.value = randomInRange(lickPositionRange)
+        _lickEndPoint.value = randomInRange(lickPositionRange)
 
-        val distance = abs(lickEndPoint - lickStartPoint)
+        val distance = abs(lickEndPoint.value - lickStartPoint.value)
         val maxSpeed = (-3.0 * distance) + 4.5
         val speed = Random.nextDouble(0.3, maxSpeed)
         val desiredTimeSeconds = Random.nextDouble(1.0, 5.0)
@@ -71,26 +179,43 @@ class LickActivity : Activity() {
 
         waveManager.restart()
         waveManager.setSpeed(speed)
-        waveManager.stopAfterIterations(calculatedReps) { newLick() }
+        waveManager.stopAfterIterations(calculatedReps) { lickComplete() }
     }
 
-    override fun runSimulation(deltaSimulationTime: Double) {
-        super.runSimulation(deltaSimulationTime)
-        waveManager.update(deltaSimulationTime)
+    private fun lickComplete() {
+        newLick()
+    }
+
+    private fun setManual(manual: Boolean) {
+        _manual.value = manual
+        if(manual) {
+            waveManager.restart()
+        }
+        else {
+            lickComplete()
+        }
     }
 
     override fun getPulse(): Pulse {
-        val waveName = when (lickType) {
+        val waveName = when (lickType.value) {
             LickType.UNIDIRECTIONAL -> "unidirectional"
             LickType.BIDIRECTIONAL -> "bidirectional"
         }
-        val (position, velocity) = waveManager.getPositionAndVelocity(waveName)
-        val lickPosition = (lickEndPoint - lickStartPoint) * position + lickStartPoint
-        val scaledVelocity = scaleVelocity(velocity, 0.1)
+        val ampWaveName = when (ampType.value) {
+            AmpType.CONSISTENT -> "consistent"
+            AmpType.LICK -> "lick"
+            AmpType.DIP -> "dip"
+            AmpType.RAMP -> "ramp"
+            AmpType.FLICKS -> "flicks"
+        }
+        val position = waveManager.getPosition(waveName)
+        val power = waveManager.getPosition(ampWaveName)
+        val lickPosition = (lickEndPoint.value - lickStartPoint.value) * position + lickStartPoint.value
+        val amp = power * waveManager.currentAmplitude
 
         val freqA = lickPosition * 0.5 + 0.5
         val freqB = lickPosition * 0.52 + 0.48
-        val (ampA, ampB) = calculatePositionalEffect(scaledVelocity, lickPosition, 1.0)
+        val (ampA, ampB) = calculatePositionalEffect(amp, lickPosition, 1.0)
 
         return Pulse(
             freqA = freqA.toFloat(),
@@ -99,19 +224,131 @@ class LickActivity : Activity() {
             ampB = ampB.toFloat()
         )
     }
+
+    override val temporarySettings: @Composable () -> Unit = {
+        val lickStartPoint by lickStartPoint.collectAsStateWithLifecycle()
+        val lickEndPoint by lickEndPoint.collectAsStateWithLifecycle()
+        val lickType by lickType.collectAsStateWithLifecycle()
+        val ampType by ampType.collectAsStateWithLifecycle()
+        val manual by manual.collectAsStateWithLifecycle()
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 2.dp,
+            border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                //horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                )
+                {
+                    Text(
+                        text = "Manual control",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    Switch(
+                        checked = manual,
+                        onCheckedChange = { enable ->
+                            setManual(enable)
+                        }
+                    )
+                }
+                SliderWithLabel(
+                    label = "Lick start point",
+                    value = lickStartPoint.toFloat(),
+                    onValueChange = {
+                        _lickStartPoint.value = it.toDouble()
+                    },
+                    onValueChangeFinished = { },
+                    valueRange = lickPositionRange.toFloatRange,
+                    steps = calculateSliderSteps(lickPositionRange.toFloatRange, 0.01f),
+                    valueDisplay = { String.format(Locale.US, "%03.2f", it) },
+                    enabled = manual
+                )
+                SliderWithLabel(
+                    label = "Lick end point",
+                    value = lickEndPoint.toFloat(),
+                    onValueChange = {
+                        _lickEndPoint.value = it.toDouble()
+                    },
+                    onValueChangeFinished = { },
+                    valueRange = lickPositionRange.toFloatRange,
+                    steps = calculateSliderSteps(lickPositionRange.toFloatRange, 0.01f),
+                    valueDisplay = { String.format(Locale.US, "%03.2f", it) },
+                    enabled = manual
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(text = "Lick type", style = MaterialTheme.typography.labelLarge)
+                    OptionPicker(
+                        currentValue = lickType,
+                        onValueChange = {
+                            _lickType.value = it
+                        },
+                        options = LickType.entries,
+                        getText = { it.displayName }
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(text = "Amp type", style = MaterialTheme.typography.labelLarge)
+                    OptionPicker(
+                        currentValue = ampType,
+                        onValueChange = {
+                            _ampType.value = it
+                        },
+                        options = AmpType.entries,
+                        getText = { it.displayName }
+                    )
+                }
+                NiceSmootherControl(
+                    smoother = waveManager.baseSpeed,
+                    targetLabel = "Average speed",
+                    targetRange = 0.1f..5.0f,
+                    rateRange = 0.1f..1.0f,
+                    enabled = manual
+                )
+            }
+        }
+    }
 }
 
 class PenetrationActivity : Activity() {
     var waveManager: WaveManager = WaveManager()
-    val penetrationSpeedChangeSecsRange = 1.0..20.0
     val penetrationSpeedRange = 0.3..3.0
     val penetrationSpeedChangeRateRange = 0.05..0.3
-    val penetrationFeelExponentRange = 1.0..2.0
+    val penetrationFeelExponentRange = 0.5..1.0
     val penetrationFeelExponentChangeRateRange = 0.05..0.1
-    val penetrationFeelChangeSecsRange = 2.0..10.0
-    //var penetrationFeelExponent = 1.0
+    private val _manual = MutableStateFlow(false)
+    val manual: StateFlow<Boolean> = _manual.asStateFlow()
 
-    private val penetrationFeelExponent = SmoothedValue(randomInRange(penetrationFeelExponentRange))
+    val speedChange = Timer(
+        durationProvider = { randomInRange(1.0..20.0) },
+        repeating = true,
+        onTrigger = { speedChange() }
+    )
+
+    val feelChange = Timer(
+        durationProvider = { randomInRange(2.0..10.0) },
+        repeating = true,
+        onTrigger = { feelChange() }
+    )
+
+    private val penetrationFeelExponent = NiceSmoother(randomInRange(penetrationFeelExponentRange))
 
     override fun initialise() {
         val penetrationWave = CyclicalWave(
@@ -127,38 +364,44 @@ class PenetrationActivity : Activity() {
             )
         )
         waveManager.addWave(penetrationWave)
-        waveManager.setSpeedVariance(0.2)
-        waveManager.setAmplitudeVariance(0.1)
+        waveManager.setSpeedJitter(0.2)
+        waveManager.setAmplitudeJitter(0.1)
+        waveManager.setSpeed(0.5)
         speedChange()
         feelChange()
-        waveManager.setSpeed(0.15)
-        waveManager.setTargetSpeed(0.5, 0.1)
+        manager.register(speedChange)
+        manager.register(feelChange)
+        manager.register(penetrationFeelExponent)
+        manager.register(waveManager)
+        speedChange.start()
+        feelChange.start()
     }
 
     fun speedChange() {
+        Log.d("Activity", "speedChange called")
+        val rate = randomInRange(penetrationSpeedChangeRateRange)
         val newSpeed = randomInRange(penetrationSpeedRange)
-        val changeRate = randomInRange(penetrationSpeedChangeRateRange)
-        val nextSpeedChangeSecs = randomInRange(penetrationSpeedChangeSecsRange)
-        waveManager.setTargetSpeed(newSpeed, changeRate)
-        timerManager.addTimer("speedChange", nextSpeedChangeSecs) {
-            speedChange()
-        }
+        waveManager.setTargetSpeed(newSpeed, rate)
     }
 
     fun feelChange() {
-        val target = randomInRange(penetrationFeelExponentRange)
+        Log.d("Activity", "feelChange called")
         val rate = randomInRange(penetrationFeelExponentChangeRateRange)
-        penetrationFeelExponent.setTarget(target, rate)
-        val nextFeelChangeSecs = randomInRange(penetrationFeelChangeSecsRange)
-        timerManager.addTimer("feelChange", nextFeelChangeSecs) {
-            feelChange()
-        }
+        val newFeel = randomInRange(penetrationFeelExponentRange)
+        penetrationFeelExponent.setTarget(newFeel, rate)
     }
 
-    override fun runSimulation(deltaSimulationTime: Double) {
-        super.runSimulation(deltaSimulationTime)
-        penetrationFeelExponent.update(deltaSimulationTime)
-        waveManager.update(deltaSimulationTime)
+    private fun setManual(manual: Boolean) {
+        Log.d("Activity", "setManual called")
+        _manual.value = manual
+        if(manual) {
+            speedChange.pause()
+            feelChange.pause()
+        }
+        else {
+            speedChange.resume()
+            feelChange.resume()
+        }
     }
 
     override fun getPulse(): Pulse {
@@ -170,84 +413,164 @@ class PenetrationActivity : Activity() {
 
         val freqBaseA = position * 0.7
         val freqBaseB = scaledVelocity * 0.5 + position * 0.4
-        val freqA = freqBaseA.pow(penetrationFeelExponent.current).coerceIn(0.0,1.0)
-        val freqB = freqBaseB.pow(penetrationFeelExponent.current).coerceIn(0.0,1.0)
+        val freqA = calculateFeelAdjustment(freqBaseA.toFloat(), penetrationFeelExponent.value.toFloat())
+        val freqB = calculateFeelAdjustment(freqBaseB.toFloat(), penetrationFeelExponent.value.toFloat())
 
         val ampA = position * ampFactor
         val ampB = (scaledVelocity * 0.6 + position * 0.4) * ampFactor
 
         return Pulse(
-            freqA = freqA.toFloat(),
-            freqB = freqB.toFloat(),
+            freqA = freqA,
+            freqB = freqB,
             ampA = ampA.toFloat(),
             ampB = ampB.toFloat()
         )
     }
+
+    override val temporarySettings: @Composable () -> Unit = {
+        val manual by manual.collectAsStateWithLifecycle()
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 2.dp,
+            border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                )
+                {
+                    Text(
+                        text = "Manual control",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    Switch(
+                        checked = manual,
+                        onCheckedChange = { enable ->
+                            setManual(enable)
+                        }
+                    )
+                }
+                NiceSmootherControl(
+                    smoother = waveManager.baseSpeed,
+                    targetLabel = "Target speed",
+                    targetRange = penetrationSpeedRange.toFloatRange,
+                    rateRange = penetrationSpeedChangeRateRange.toFloatRange,
+                    enabled = manual
+                )
+                NiceSmootherControl(
+                    smoother = penetrationFeelExponent,
+                    targetLabel = "Target feel exponent",
+                    targetRange = penetrationFeelExponentRange.toFloatRange,
+                    rateRange = penetrationFeelExponentChangeRateRange.toFloatRange,
+                    enabled = manual
+                )
+            }
+        }
+    }
 }
 
-
 class VibroActivity : Activity() {
-    val vibeSpeedRange = 0.0..1.0
-    val vibeMoveSpeedRange = 0.04..0.3
-    val vibeHoldTimeRange = 0.0..3.0
-    val vibeSpeedChangeTimeRange = 5.0..30.0
+    val vibeFrequencyRange = 0.0..1.0
     val vibePower = 0.9
     val vibePositionRange = 0.0 .. 1.0
-    val vibeHoldProbability = 0.5
+    val vibeMoveSpeedRange = 0.08..0.2
 
-    var vibeSpeed = 0.3
-    var vibeTargetPosition = 0.5
-    var vibeMoveSpeed = 0.1
-    private val vibePosition = SmoothedValue(randomInRange(vibePositionRange))
+    private val _frequency = MutableStateFlow(randomInRange(vibeFrequencyRange))
+    val frequency: StateFlow<Double> = _frequency.asStateFlow()
+
+    private val _manual = MutableStateFlow(false)
+    val manual: StateFlow<Boolean> = _manual.asStateFlow()
+
+    private val position = NiceSmoother(randomInRange(vibePositionRange))
+
+    // Variables for pulsing feature
+    private var pulseTracker = 0.0
+    private var vibeActive = false
+
+    val frequencyChange = Timer(
+        durationProvider = { randomInRange(5.0..30.0) },
+        repeating = true,
+        onTrigger = { frequencyChange() }
+    )
+    val holdTimer = Timer(
+        durationProvider = { randomInRange(1.0..3.0) },
+        repeating = false,
+        onTrigger = { newTarget() }
+    )
 
     override fun initialise() {
-        initializeWithRandomValues()
+        position.rate = randomInRange(vibeMoveSpeedRange)
+        manager.register(frequencyChange)
+        manager.register(holdTimer)
+        manager.register(position)
+        newTarget()
+        frequencyChange.start()
     }
 
-    private fun initializeWithRandomValues() {
-        vibeSpeed = randomInRange(vibeSpeedRange)
-        vibePosition.setImmediately(randomInRange(vibePositionRange))
-        newTarget()
-        scheduleSpeedChangeTimer()
+    private fun frequencyChange() {
+        _frequency.value = randomInRange(vibeFrequencyRange)
     }
 
     private fun newTarget() {
-        vibeTargetPosition = randomInRange(vibePositionRange)
-        vibeMoveSpeed = randomInRange(vibeMoveSpeedRange)
-        vibePosition.setTarget(vibeTargetPosition, vibeMoveSpeed, onReached = { targetPositionReached() } )
-    }
-
-    private fun scheduleSpeedChangeTimer() {
-        timerManager.addTimer("speedChange", randomInRange(vibeSpeedChangeTimeRange)) {
-            vibeSpeed = randomInRange(vibeSpeedRange)
-            scheduleSpeedChangeTimer() // Reschedule
-        }
-    }
-
-    private fun scheduleHoldTimer() {
-        timerManager.addTimer("hold", randomInRange(vibeHoldTimeRange)) {
-            newTarget()
-        }
+        val newTarget = randomInRange(vibePositionRange)
+        val vibeMoveSpeed = randomInRange(vibeMoveSpeedRange)
+        position.rate = vibeMoveSpeed
+        position.setTarget(newTarget, onReached = { targetPositionReached() })
     }
 
     private fun targetPositionReached() {
-        if (Random.nextDouble() < vibeHoldProbability) {
-            scheduleHoldTimer()
+        if (Random.nextDouble() < Prefs.activityVibeHoldProbability.value) {
+            holdTimer.reset()
         }
         else {
             newTarget()
         }
     }
 
+    private fun setManual(manual: Boolean) {
+        _manual.value = manual
+        holdTimer.cancel()
+        if(manual) {
+            position.setTarget(position.value)
+            frequencyChange.cancel()
+        }
+        else {
+            targetPositionReached()
+            frequencyChange.reset()
+        }
+    }
+
     override fun runSimulation(deltaSimulationTime: Double) {
         super.runSimulation(deltaSimulationTime)
-        vibePosition.update(deltaSimulationTime)
+
+        val pulseTime = Prefs.activityVibePulseTime.value
+        val pulseDutyCycle = Prefs.activityVibePulseDutyCycle.value
+
+        pulseTracker += deltaSimulationTime
+        val pulsePhase = pulseTracker % pulseTime
+        val offDuration = pulseTime * (1.0 - pulseDutyCycle)
+        vibeActive = pulsePhase >= offDuration
     }
 
     override fun getPulse(): Pulse {
-        val freqA = vibeSpeed
-        val freqB = vibeSpeed
-        val (ampA, ampB) = calculatePositionalEffect(vibePower, vibePosition.current, 1.0)
+        val freqA = frequency.value
+        val freqB = frequency.value
+        var ampA = 0.0
+        var ampB = 0.0
+
+        if (vibeActive) {
+            val (amplitudeA, amplitudeB) = calculatePositionalEffect(vibePower, position.value, 1.0)
+            ampA = amplitudeA
+            ampB = amplitudeB
+        }
 
         return Pulse(
             freqA = freqA.toFloat(),
@@ -255,6 +578,96 @@ class VibroActivity : Activity() {
             ampA = ampA.toFloat(),
             ampB = ampB.toFloat()
         )
+    }
+
+    override val permanentSettings: @Composable () -> Unit = {
+        val pulseTime by Prefs.activityVibePulseTime.collectAsStateWithLifecycle()
+        val pulseDutyCycle by Prefs.activityVibePulseDutyCycle.collectAsStateWithLifecycle()
+        val holdProbability by Prefs.activityVibeHoldProbability.collectAsStateWithLifecycle()
+
+        SliderWithLabel(
+            label = "Hold probability",
+            value = holdProbability,
+            onValueChange = { Prefs.activityVibeHoldProbability.value = it },
+            onValueChangeFinished = { Prefs.activityVibeHoldProbability.save() },
+            valueRange = 0.0f..1.0f,
+            steps = 19,
+            valueDisplay = { String.format(Locale.US, "%03.2f", it) }
+        )
+        SliderWithLabel(
+            label = "Pulse duty cycle",
+            value = pulseDutyCycle,
+            onValueChange = { Prefs.activityVibePulseDutyCycle.value = it },
+            onValueChangeFinished = { Prefs.activityVibePulseDutyCycle.save() },
+            valueRange = 0.1f..1.0f,
+            steps = 17,
+            valueDisplay = { String.format(Locale.US, "%03.2f", it) }
+        )
+        SliderWithLabel(
+            label = "Pulse time",
+            value = pulseTime,
+            onValueChange = { Prefs.activityVibePulseTime.value = it },
+            onValueChangeFinished = { Prefs.activityVibePulseTime.save() },
+            valueRange = 0.1f..1.0f,
+            steps = 17,
+            valueDisplay = { String.format(Locale.US, "%03.2f", it) }
+        )
+    }
+
+    override val temporarySettings: @Composable () -> Unit = {
+        val frequency by frequency.collectAsStateWithLifecycle()
+        val manual by manual.collectAsStateWithLifecycle()
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 2.dp,
+            border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                //horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                )
+                {
+                    Text(
+                        text = "Manual control",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    Switch(
+                        checked = manual,
+                        onCheckedChange = { enable ->
+                            setManual(enable)
+                        }
+                    )
+                }
+                NiceSmootherControl(
+                    smoother = position,
+                    targetLabel = "Target position",
+                    targetRange = 0.0f..1.0f,
+                    rateRange = 0.05f..0.5f,
+                    enabled = manual
+                )
+                SliderWithLabel(
+                    label = "Frequency",
+                    value = frequency.toFloat(),
+                    onValueChange = {
+                        _frequency.value = it.toDouble()
+                    },
+                    onValueChangeFinished = { },
+                    valueRange = 0.0f..1.0f,
+                    steps = 99,
+                    valueDisplay = { String.format(Locale.US, "%03.2f", it) },
+                    enabled = manual
+                )
+            }
+        }
     }
 }
 
@@ -268,7 +681,6 @@ class MilkerActivity : Activity() {
     val buzzFreqARange = 0.0..0.3
     val buzzFreqBRange = 0.7..1.0
     val buzzSpeedRange = 0.4..0.8
-    val buzzDurationRange = 6.0..12.0
 
     var currentStage = MilkerStage.Womp
     var buzzFreqAStart = 0.75
@@ -281,6 +693,12 @@ class MilkerActivity : Activity() {
         Womp,
         Buzz,
     }
+
+    val buzzTimer = Timer(
+        durationProvider = { randomInRange(6.0..12.0) },
+        repeating = false,
+        onTrigger = { wompStart() }
+    )
 
     override fun initialise() {
         val wompWave = CyclicalWave(
@@ -306,8 +724,8 @@ class MilkerActivity : Activity() {
 
         waveManager.addWave(wompWave)
         waveManager.addWave(buzzWave)
-        waveManager.setSpeedVariance(0.0)
-        waveManager.setAmplitudeVariance(0.0)
+        manager.register(waveManager)
+        manager.register(buzzTimer)
         wompStart()
     }
 
@@ -331,14 +749,7 @@ class MilkerActivity : Activity() {
         val speed = randomInRange(buzzSpeedRange)
         waveManager.restart()
         waveManager.setSpeed(speed)
-        timerManager.addTimer("buzzEnd", randomInRange(buzzDurationRange)) {
-            wompStart()
-        }
-    }
-
-    override fun runSimulation(deltaSimulationTime: Double) {
-        super.runSimulation(deltaSimulationTime)
-        waveManager.update(deltaSimulationTime)
+        buzzTimer.start()
     }
 
     override fun getPulse(): Pulse {
@@ -359,7 +770,7 @@ class MilkerActivity : Activity() {
             }
             MilkerStage.Buzz -> {
                 val position = waveManager.getPosition("buzz")
-                val phase = timerManager.getProportionElapsed("buzzEnd") ?: 1.0
+                val phase = buzzTimer.progress
                 val freqRangeA = buzzFreqAEnd - buzzFreqAStart
                 val freqRangeB = buzzFreqBEnd - buzzFreqBStart
 
@@ -382,10 +793,8 @@ class MilkerActivity : Activity() {
 class ChaosActivity : Activity() {
     val freqRange = 0.0..1.0
     val ampRange = 0.0..1.0
-    val randomisePulseTimeSecsRange = 10.0..30.0
-    val pulseTimeRange = 0.025..0.25
-    var pulseTime = 0.025
-    var pulseTimeCounter = 0.0
+    var cycleTimeCounter = 0.0
+
     var ampA = 0.0
     var ampB = 0.0
     var freqA = 0.0
@@ -393,7 +802,6 @@ class ChaosActivity : Activity() {
 
     override fun initialise() {
         randomise()
-        randomisePulseTime()
     }
 
     fun randomise() {
@@ -403,20 +811,13 @@ class ChaosActivity : Activity() {
         freqB = randomInRange(freqRange)
     }
 
-    fun randomisePulseTime() {
-        pulseTime = randomInRange(pulseTimeRange)
-        val nextChangeSecs = randomInRange(randomisePulseTimeSecsRange)
-        timerManager.addTimer("randomisePulseTime", nextChangeSecs) {
-            randomisePulseTime()
-        }
-    }
-
     override fun runSimulation(deltaSimulationTime: Double) {
         super.runSimulation(deltaSimulationTime)
-        pulseTimeCounter += deltaSimulationTime
-        if(pulseTimeCounter > pulseTime) {
+        val cycleTime = Prefs.activityChaosCycleTime.value
+        cycleTimeCounter += deltaSimulationTime
+        if(cycleTimeCounter > cycleTime) {
             randomise()
-            pulseTimeCounter -= pulseTime
+            cycleTimeCounter -= cycleTime
         }
     }
 
@@ -428,20 +829,55 @@ class ChaosActivity : Activity() {
             ampB = ampB.toFloat()
         )
     }
+
+    override val permanentSettings: @Composable () -> Unit = {
+        val cycleTime by Prefs.activityChaosCycleTime.collectAsStateWithLifecycle()
+        val cycleTimeRange = 0.1f..5.0f
+
+        SliderWithLabel(
+            label = "Cycle time",
+            value = cycleTime,
+            onValueChange = {
+                Prefs.activityChaosCycleTime.value = it
+            },
+            onValueChangeFinished = {
+                Prefs.activityChaosCycleTime.save()
+            },
+            valueRange = cycleTimeRange.start..cycleTimeRange.endInclusive,
+            steps = calculateSliderSteps(cycleTimeRange, 0.1f),
+            valueDisplay = { String.format(Locale.US, "%03.2f", it) },
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+        )
+    }
 }
 
 class LuxuryHJActivity : Activity() {
     val hjWaveManager: WaveManager = WaveManager()
     val bonusWaveManager: WaveManager = WaveManager()
-    val hjSpeedChangeSecsRange = 1.0..20.0
     val hjSpeedRange = 0.3..3.0
     val hjSpeedChangeRateRange = 0.05..0.3
-    val bonusTimeRange = 10.0..25.0
     val bonusSpeedRange = 1.5..5.0
     val startFreq = 0.15
     val endFreq = 0.65
     val bonusStartFreq = 0.8
     val bonusEndFreq = 1.0
+    var bonusChannel = 0
+
+    private val _manual = MutableStateFlow(false)
+    val manual: StateFlow<Boolean> = _manual.asStateFlow()
+
+    val speedChangeTimer = Timer(
+        durationProvider = { randomInRange(1.0..20.0) },
+        repeating = true,
+        onTrigger = { speedChange() }
+    )
+
+    val bonusTimer = Timer(
+        durationProvider = { randomInRange(10.0..25.0) },
+        repeating = false,
+        onTrigger = { }
+    )
+
 
     override fun initialise() {
         val hjWave = CyclicalWave(
@@ -467,64 +903,81 @@ class LuxuryHJActivity : Activity() {
         hjWaveManager.addWave(hjWave)
         bonusWaveManager.addWave(bonusWave)
 
-        hjWaveManager.setSpeedVariance(0.2)
-        hjWaveManager.setAmplitudeVariance(0.2)
-        hjWaveManager.setAmplitudeVarianceEaseIn(1.0)
-        bonusWaveManager.setSpeedVariance(0.5)
-        bonusWaveManager.setAmplitudeVariance(0.15)
-        bonusWaveManager.setSpeed(1.0)
-        hjWaveManager.setSpeed(0.5)
-        speedChange()
+        updateJitter()
+        hjWaveManager.setAmplitudeJitterEaseIn(1.0)
+        bonusWaveManager.setSpeedJitter(0.5)
+        bonusWaveManager.setAmplitudeJitter(0.075)
+        bonusWaveManager.setSpeed(randomInRange(bonusSpeedRange))
+        hjWaveManager.setSpeed(randomInRange(hjSpeedRange))
+        hjWaveManager.baseSpeed.rate = randomInRange(hjSpeedChangeRateRange)
+        manager.register(speedChangeTimer)
+        manager.register(bonusTimer)
+        manager.register(hjWaveManager)
+        manager.register(bonusWaveManager)
+        speedChangeTimer.start()
+    }
+
+    fun updateJitter() {
+        val amplitudeJitter = Prefs.activityLuxuryHJAmplitudeJitter.value.toDouble()
+        val timingJitter = Prefs.activityLuxuryHJTimingJitter.value.toDouble()
+
+        hjWaveManager.setSpeedJitter(timingJitter)
+        hjWaveManager.setAmplitudeJitter(amplitudeJitter)
     }
 
     fun speedChange() {
         val newSpeed = randomInRange(hjSpeedRange)
         val changeRate = randomInRange(hjSpeedChangeRateRange)
-        val nextSpeedChangeSecs = randomInRange(hjSpeedChangeSecsRange)
         hjWaveManager.setTargetSpeed(newSpeed, changeRate)
-        timerManager.addTimer("speedChange", nextSpeedChangeSecs) {
-            speedChange()
+    }
+
+    fun startBonus(channel: Int = Random.nextInt(2)) {
+        bonusWaveManager.setSpeed(randomInRange(bonusSpeedRange))
+        bonusChannel = channel
+        bonusTimer.start()
+    }
+
+    private fun setManual(manual: Boolean) {
+        _manual.value = manual
+        if(manual) {
+            speedChangeTimer.pause()
+            bonusTimer.cancel()
+        }
+        else {
+            speedChangeTimer.resume()
         }
     }
 
     override fun runSimulation(deltaSimulationTime: Double) {
         super.runSimulation(deltaSimulationTime)
-        hjWaveManager.update(deltaSimulationTime)
-        bonusWaveManager.update(deltaSimulationTime)
-        val bonusAProbability = (0.7 * deltaSimulationTime) / 60.0
-        val bonusBProbability = (0.7 * deltaSimulationTime) / 60.0
-        if (Random.nextDouble() < bonusAProbability && !timerManager.hasTimer("bonusB")) {
-            bonusWaveManager.setSpeed(randomInRange(bonusSpeedRange))
-            timerManager.addTimer("bonusA", randomInRange(bonusTimeRange)) {}
-        }
-        if (Random.nextDouble() < bonusBProbability && !timerManager.hasTimer("bonusA")) {
-            bonusWaveManager.setSpeed(randomInRange(bonusSpeedRange))
-            timerManager.addTimer("bonusB", randomInRange(bonusTimeRange)) {}
-        }
+
+        val bonusProbability = Prefs.activityLuxuryHJBonusProbability.value
+
+        if (!bonusTimer.isRunning && !_manual.value && Random.nextDouble() < (bonusProbability * deltaSimulationTime) / 60.0)
+            startBonus()
     }
 
     override fun getPulse(): Pulse {
-        var freqA = 0.0
-        var freqB = 0.0
-
-        val position = hjWaveManager.getPosition("hj", applyAmplitudeVariance = false)
+        val position = hjWaveManager.getPosition("hj")
         val baseAmp = hjWaveManager.currentAmplitude
+        //Log.d("Activity", "baseAmp=$baseAmp")
         var (ampA, ampB) = calculatePositionalEffect(baseAmp, position, 1.0)
-        freqA = ((position * (endFreq - startFreq)) + startFreq) * 0.98
-        freqB = (position * (endFreq - startFreq)) + startFreq
+        var freqA = ((position * (endFreq - startFreq)) + startFreq) * 0.98
+        var freqB = (position * (endFreq - startFreq)) + startFreq
 
-        val ampBonus = bonusWaveManager.getPosition("bonus")
-        val freqBonus = (ampBonus * (bonusEndFreq - bonusStartFreq)) + bonusStartFreq
+        if (bonusTimer.isRunning) {
+            val bonusWeight = 0.7
+            val ampBonus = bonusWaveManager.getPosition("bonus")
+            val freqBonus = (ampBonus * (bonusEndFreq - bonusStartFreq)) + bonusStartFreq
 
-        val bonusWeight = 0.7
-
-        if(timerManager.hasTimer("bonusA")) {
-            ampA = ampBonus * bonusWeight + (ampA * (1.0 - bonusWeight))
-            freqA = freqBonus * bonusWeight + (freqA * (1.0 - bonusWeight))
-        }
-        if(timerManager.hasTimer("bonusB")) {
-            ampB = ampBonus * bonusWeight + (ampB * (1.0 - bonusWeight))
-            freqB = freqBonus * bonusWeight + (freqB * (1.0 - bonusWeight))
+            if(bonusChannel == 0) {
+                ampA = ampBonus * bonusWeight + (ampA * (1.0 - bonusWeight))
+                freqA = freqBonus * bonusWeight + (freqA * (1.0 - bonusWeight))
+            }
+            else if(bonusChannel == 1) {
+                ampB = ampBonus * bonusWeight + (ampB * (1.0 - bonusWeight))
+                freqB = freqBonus * bonusWeight + (freqB * (1.0 - bonusWeight))
+            }
         }
 
         return Pulse(
@@ -534,6 +987,109 @@ class LuxuryHJActivity : Activity() {
             ampB = ampB.toFloat()
         )
     }
+
+    override val permanentSettings: @Composable () -> Unit = {
+        val bonusProbability by Prefs.activityLuxuryHJBonusProbability.collectAsStateWithLifecycle()
+        val bonusProbabilityRange = 0.0f..3.0f
+        val amplitudeJitter by Prefs.activityLuxuryHJAmplitudeJitter.collectAsStateWithLifecycle()
+        val timingJitter by Prefs.activityLuxuryHJTimingJitter.collectAsStateWithLifecycle()
+        val jitterRange = 0.0f..0.5f
+
+        SliderWithLabel(
+            label = "Bonus pattern probability",
+            value = bonusProbability,
+            onValueChange = { Prefs.activityLuxuryHJBonusProbability.value = it },
+            onValueChangeFinished = { Prefs.activityLuxuryHJBonusProbability.save() },
+            valueRange = bonusProbabilityRange,
+            steps = calculateSliderSteps(bonusProbabilityRange, 0.1f),
+            valueDisplay = { String.format(Locale.US, "%03.2f", it) }
+        )
+        SliderWithLabel(
+            label = "Amplitude jitter",
+            value = amplitudeJitter,
+            onValueChange = {
+                Prefs.activityLuxuryHJAmplitudeJitter.value = it
+                updateJitter()
+                            },
+            onValueChangeFinished = { Prefs.activityLuxuryHJAmplitudeJitter.save() },
+            valueRange = jitterRange,
+            steps = calculateSliderSteps(jitterRange, 0.05f),
+            valueDisplay = { String.format(Locale.US, "%03.2f", it) }
+        )
+        SliderWithLabel(
+            label = "Timing jitter",
+            value = timingJitter,
+            onValueChange = {
+                Prefs.activityLuxuryHJTimingJitter.value = it
+                updateJitter()
+            },
+            onValueChangeFinished = { Prefs.activityLuxuryHJTimingJitter.save() },
+            valueRange = jitterRange,
+            steps = calculateSliderSteps(jitterRange, 0.05f),
+            valueDisplay = { String.format(Locale.US, "%03.2f", it) }
+        )
+    }
+
+    override val temporarySettings: @Composable () -> Unit = {
+        val manual by manual.collectAsStateWithLifecycle()
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 2.dp,
+            border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                )
+                {
+                    Text(
+                        text = "Manual control",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    Switch(
+                        checked = manual,
+                        onCheckedChange = { enable ->
+                            setManual(enable)
+                        }
+                    )
+                }
+                NiceSmootherControl(
+                    smoother = hjWaveManager.baseSpeed,
+                    targetLabel = "Target stroke speed",
+                    targetRange = hjSpeedRange.toFloatRange,
+                    rateRange = hjSpeedChangeRateRange.toFloatRange,
+                    enabled = manual
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { startBonus(0) },
+                        modifier = Modifier.weight(1f),
+                        enabled = manual
+                    ) {
+                        Text("Bonus A")
+                    }
+                    Button(
+                        onClick = { startBonus(1) },
+                        modifier = Modifier.weight(1f),
+                        enabled = manual
+                    ) {
+                        Text("Bonus B")
+                    }
+                }
+            }
+        }
+    }
 }
 
 class OppositesActivity : Activity() {
@@ -541,37 +1097,37 @@ class OppositesActivity : Activity() {
     val freqRange = 0.0..1.0
     val overallSpeedRange = 0.5..3.0
     val overallSpeedChangeRateRange = 0.2..0.5
-    val overallSpeedChangeSecsRange = 10.0..20.0
     val baseChangeRateRange = 0.15..0.4
 
-    private val ampA = SmoothedValue(randomInRange(ampRange))
-    private val freqA = SmoothedValue(randomInRange(freqRange))
-    private val overallSpeed = SmoothedValue(randomInRange(overallSpeedRange))
+    private val ampA = NiceSmoother(randomInRange(ampRange))
+    private val freqA = NiceSmoother(randomInRange(freqRange))
+    private val overallSpeed = NiceSmoother(randomInRange(overallSpeedRange), overallSpeedRange)
+
+    val speedChangeTimer = Timer(
+        durationProvider = { randomInRange(10.0..20.0) },
+        repeating = true,
+        onTrigger = { speedChange() }
+    )
 
     override fun initialise() {
         newRandomAmplitudeTarget(ampA)
         newRandomFrequencyTarget(freqA)
         speedChange()
-    }
-
-    private fun getChangeRate() : Double {
-        val range = baseChangeRateRange.start * overallSpeed.current .. baseChangeRateRange.endInclusive * overallSpeed.current
-        return randomInRange(range)
+        speedChangeTimer.start()
+        manager.register(ampA)
+        manager.register(freqA)
+        manager.register(overallSpeed)
     }
 
     private fun speedChange() {
         val newSpeed = randomInRange(overallSpeedRange)
         val changeRate = randomInRange(overallSpeedChangeRateRange)
-        val nextSpeedChangeSecs = randomInRange(overallSpeedChangeSecsRange)
         overallSpeed.setTarget(newSpeed, changeRate)
-        timerManager.addTimer("speedChange", nextSpeedChangeSecs) {
-            speedChange()
-        }
     }
 
-    private fun newRandomFrequencyTarget(freq: SmoothedValue) {
+    private fun newRandomFrequencyTarget(freq: NiceSmoother) {
         val targetFreq = randomInRange(freqRange)
-        val changeRate = getChangeRate()
+        val changeRate = randomInRange(baseChangeRateRange) * overallSpeed.value
         freq.setTarget(
             target = targetFreq,
             rate = changeRate,
@@ -579,9 +1135,9 @@ class OppositesActivity : Activity() {
         )
     }
 
-    private fun newRandomAmplitudeTarget(amp: SmoothedValue) {
+    private fun newRandomAmplitudeTarget(amp: NiceSmoother) {
         val targetAmp = randomInRange(ampRange)
-        val changeRate = getChangeRate()
+        val changeRate = randomInRange(baseChangeRateRange) * overallSpeed.value
         amp.setTarget(
             target = targetAmp,
             rate = changeRate,
@@ -589,21 +1145,13 @@ class OppositesActivity : Activity() {
         )
     }
 
-    override fun runSimulation(deltaSimulationTime: Double) {
-        super.runSimulation(deltaSimulationTime)
-
-        ampA.update(deltaSimulationTime)
-        freqA.update(deltaSimulationTime)
-        overallSpeed.update(deltaSimulationTime)
-    }
-
     override fun getPulse(): Pulse {
-        val ampB = 1.0 - ampA.current
-        val freqB = 1.0 - freqA.current
+        val ampB = 1.0 - ampA.value
+        val freqB = 1.0 - freqA.value
         return Pulse(
-            freqA = freqA.current.toFloat(),
+            freqA = freqA.value.toFloat(),
             freqB = freqB.toFloat(),
-            ampA = ampA.current.toFloat(),
+            ampA = ampA.value.toFloat(),
             ampB = ampB.toFloat()
         )
     }
@@ -628,13 +1176,7 @@ class Calibration1Activity : Activity() {
         )
         calibrationWaveManager.addWave(calibrationWave)
         calibrationWaveManager.setSpeed(waveSpeed)
-        calibrationWaveManager.setSpeedVariance(0.0)
-        calibrationWaveManager.setAmplitudeVariance(0.0)
-    }
-
-    override fun runSimulation(deltaSimulationTime: Double) {
-        super.runSimulation(deltaSimulationTime)
-        calibrationWaveManager.update(deltaSimulationTime)
+        manager.register(calibrationWaveManager)
     }
 
     override fun getPulse(): Pulse {
@@ -654,8 +1196,13 @@ class Calibration2Activity : Activity() {
     val calibrationWaveManager: WaveManager = WaveManager()
     val waveSpeed = 0.25
     val wavePower = 0.9
-    val phaseChangeSecs = 16.0
     var currentPhase: Phase = Phase.CHANNEL_A
+
+    val phaseTimer = Timer(
+        duration = 16.0,
+        repeating = true,
+        onTrigger = { nextPhase() }
+    )
 
     enum class Phase {
         CHANNEL_A,
@@ -676,23 +1223,12 @@ class Calibration2Activity : Activity() {
         )
         calibrationWaveManager.addWave(calibrationWave)
         calibrationWaveManager.setSpeed(waveSpeed)
-        calibrationWaveManager.setSpeedVariance(0.0)
-        calibrationWaveManager.setAmplitudeVariance(0.0)
-        timerManager.addTimer("nextPhase", phaseChangeSecs) {
-            nextPhase()
-        }
+        manager.register(phaseTimer)
+        manager.register(calibrationWaveManager)
     }
 
     fun nextPhase() {
         currentPhase = currentPhase.next()
-        timerManager.addTimer("nextPhase", phaseChangeSecs) {
-            nextPhase()
-        }
-    }
-
-    override fun runSimulation(deltaSimulationTime: Double) {
-        super.runSimulation(deltaSimulationTime)
-        calibrationWaveManager.update(deltaSimulationTime)
     }
 
     override fun getPulse(): Pulse {
@@ -703,209 +1239,6 @@ class Calibration2Activity : Activity() {
         return Pulse(
             freqA = frequency.toFloat(),
             freqB = frequency.toFloat(),
-            ampA = ampA.toFloat(),
-            ampB = ampB.toFloat()
-        )
-    }
-}
-
-class BJActivity : Activity() {
-    val waveManager: WaveManager = WaveManager()
-    val primaryDurationRange = 20.0..60.0
-    val secondaryDurationRange = 6.0..20.0
-    val deepthroatFrequencyConverter = FrequencyConverter(
-        points = listOf(
-            FrequencyConverterPoint(0.0, 1.0),
-            FrequencyConverterPoint(0.7, 0.0),
-            FrequencyConverterPoint(1.0, 0.3),
-        ),
-        interpolationType = FrequencyInterpolationType.SMOOTHSTEP
-    )
-    val suckFrequencyConverterA = FrequencyConverter(
-        points = listOf(
-            FrequencyConverterPoint(0.0, 0.7),
-            FrequencyConverterPoint(1.0, 0.3),
-        ),
-        interpolationType = FrequencyInterpolationType.SMOOTHSTEP
-    )
-    val suckFrequencyConverterB = FrequencyConverter(
-        points = listOf(
-            FrequencyConverterPoint(0.0, 0.9),
-            FrequencyConverterPoint(1.0, 0.3),
-        ),
-        interpolationType = FrequencyInterpolationType.SMOOTHSTEP
-    )
-    val lickFrequencyRange = 0.8..1.0
-    val BJSpeedChangeSecsRange = 1.0..20.0
-    val BJSpeedRange = 0.2..1.2
-    val BJSpeedChangeRateRange = 0.03..0.2
-    val fullLickSpeedRange = 0.3..1.0
-    val tipLickSpeedRange = 0.5..3.0
-
-    enum class BJStage {
-        FullLick,
-        TipLick,
-        Suck,
-        Deepthroat,
-    }
-    var currentStage = BJStage.entries.random()
-
-    override fun initialise() {
-        val positionWave = CyclicalWave(
-            WaveShape(
-                name = "position",
-                points = listOf(
-                    WavePoint(0.0, 0.0, 0.0),
-                    WavePoint(0.35, 1.0, 0.0),
-                ),
-                interpolationType = InterpolationType.HERMITE
-            )
-        )
-        waveManager.addWave(positionWave)
-        val bidirectional = CyclicalWave(
-            WaveShape(
-                name = "bidirectional",
-                points = listOf(
-                    WavePoint(0.0, 0.0, 0.0),
-                    WavePoint(0.5, 1.0, 0.0),
-                ),
-                interpolationType = InterpolationType.HERMITE
-            )
-        )
-        val unidirectional = CyclicalWave(
-            WaveShape(
-                name = "unidirectional",
-                points = listOf(
-                    WavePoint(0.0, 0.0, 0.0),
-                    WavePoint(1.0 - SMALL_AMOUNT, 1.0, 0.0),
-                ),
-                interpolationType = InterpolationType.HERMITE
-            )
-        )
-        waveManager.addWave(bidirectional)
-        waveManager.addWave(unidirectional)
-        nextStage()
-    }
-
-    fun speedChange() {
-        val newSpeed = randomInRange(BJSpeedRange)
-        val changeRate = randomInRange(BJSpeedChangeRateRange)
-        waveManager.setTargetSpeed(newSpeed, changeRate)
-        val nextSpeedChangeSecs = randomInRange(BJSpeedChangeSecsRange)
-        timerManager.addTimer("speedChange", nextSpeedChangeSecs) {
-            speedChange()
-        }
-    }
-
-    fun nextStage() {
-        var stageDuration = 1.0
-
-        val previousStage = currentStage
-        while(previousStage == currentStage)
-            currentStage = BJStage.entries.random()
-
-        stageDuration = when(currentStage) {
-            BJStage.FullLick -> randomInRange(secondaryDurationRange)
-            BJStage.TipLick -> randomInRange(secondaryDurationRange)
-            BJStage.Suck -> randomInRange(primaryDurationRange)
-            BJStage.Deepthroat -> randomInRange(primaryDurationRange)
-        }
-
-        waveManager.restart()
-        when(currentStage) {
-            BJStage.FullLick -> {
-                waveManager.setSpeedVariance(0.4)
-                waveManager.setAmplitudeVariance(0.3)
-                waveManager.setAmplitudeVarianceEaseIn(0.0)
-                waveManager.setSpeed(randomInRange(fullLickSpeedRange))
-                timerManager.cancelTimer("speedChange")
-            }
-            BJStage.TipLick -> {
-                waveManager.setSpeedVariance(0.4)
-                waveManager.setAmplitudeVariance(0.3)
-                waveManager.setAmplitudeVarianceEaseIn(0.0)
-                waveManager.setSpeed(randomInRange(tipLickSpeedRange))
-                timerManager.cancelTimer("speedChange")
-            }
-            BJStage.Suck -> {
-                waveManager.setSpeedVariance(0.2)
-                waveManager.setAmplitudeVariance(0.2)
-                waveManager.setAmplitudeVarianceEaseIn(0.0)
-                waveManager.setSpeed(randomInRange(BJSpeedRange))
-                speedChange()
-            }
-            BJStage.Deepthroat -> {
-                waveManager.setSpeedVariance(0.2)
-                waveManager.setAmplitudeVariance(0.2)
-                waveManager.setAmplitudeVarianceEaseIn(0.0)
-                waveManager.setSpeed(randomInRange(BJSpeedRange))
-                speedChange()
-            }
-        }
-
-        timerManager.addTimer("nextStage", stageDuration) {
-            waveManager.stopAtEndOfCycle { nextStage() }
-        }
-    }
-
-    override fun runSimulation(deltaSimulationTime: Double) {
-        super.runSimulation(deltaSimulationTime)
-        waveManager.update(deltaSimulationTime)
-    }
-
-    override fun getPulse(): Pulse {
-        var ampA = 0.0
-        var ampB = 0.0
-        var freqA = 0.0
-        var freqB = 0.0
-
-        when(currentStage) {
-            BJStage.FullLick -> {
-                val (position, velocity) = waveManager.getPositionAndVelocity("unidirectional")
-                val scaledVelocity = scaleVelocity(velocity, 0.1)
-                val amplitudes = calculatePositionalEffect(scaledVelocity, position, 1.0)
-                ampA = amplitudes.first
-                ampB = amplitudes.second
-
-                freqA = position.scaleBetween(lickFrequencyRange) - 0.1
-                freqB = position.scaleBetween(lickFrequencyRange)
-            }
-            BJStage.TipLick -> {
-                val (position, velocity) = waveManager.getPositionAndVelocity("bidirectional")
-                val lickPosition = position.scaleBetween(0.6..1.0)
-                val scaledVelocity = scaleVelocity(velocity, 0.1)
-                val amplitudes = calculatePositionalEffect(scaledVelocity, lickPosition, 1.0)
-                ampA = amplitudes.first
-                ampB = amplitudes.second
-
-                freqA = position.scaleBetween(lickFrequencyRange) - 0.1
-                freqB = position.scaleBetween(lickFrequencyRange)
-            }
-            BJStage.Suck -> {
-                val position = waveManager.getPosition("position", applyAmplitudeVariance = false)
-                val baseAmp = waveManager.currentAmplitude
-                val amplitudes = calculateEngulfEffect(baseAmp, position, 0.7, 0.4)
-                ampA = amplitudes.first
-                ampB = amplitudes.second
-
-                freqA = suckFrequencyConverterA.getFrequency(position)
-                freqB = suckFrequencyConverterB.getFrequency(position)
-            }
-            BJStage.Deepthroat -> {
-                val position = waveManager.getPosition("position", applyAmplitudeVariance = false)
-                val baseAmp = waveManager.currentAmplitude
-                val amplitudes = calculateEngulfEffect(baseAmp, position, 0.8, 0.3)
-                ampA = amplitudes.first
-                ampB = amplitudes.second
-
-                freqA = position
-                freqB = deepthroatFrequencyConverter.getFrequency(position)
-            }
-        }
-
-        return Pulse(
-            freqA = freqA.toFloat(),
-            freqB = freqB.toFloat(),
             ampA = ampA.toFloat(),
             ampB = ampB.toFloat()
         )
@@ -976,6 +1309,8 @@ class FastSlowActivity : Activity() {
             waveManager.addWave(it)
             waveManager2.addWave(it)
         }
+        manager.register(waveManager)
+        manager.register(waveManager2)
         nextIteration()
     }
 
@@ -997,12 +1332,6 @@ class FastSlowActivity : Activity() {
             switch = !switch
         if (Random.nextDouble() < switchProbability)
             freqSwitch = !freqSwitch
-    }
-
-    override fun runSimulation(deltaSimulationTime: Double) {
-        super.runSimulation(deltaSimulationTime)
-        waveManager.update(deltaSimulationTime)
-        waveManager2.update(deltaSimulationTime)
     }
 
     override fun getPulse(): Pulse {
@@ -1028,187 +1357,94 @@ class FastSlowActivity : Activity() {
     }
 }
 
-class AdditiveActivity : Activity() {
-    val waveManager1: WaveManager = WaveManager()
-    val waveManager2: WaveManager = WaveManager()
-    val waveManagers = listOf(waveManager1, waveManager2)
-
-    val speedChangeSecsRange = 10.0..30.0
-    val proportionChangeSecsRange = 10.0..30.0
-    val shapeChangeSecsRange = 10.0..60.0
-    val speedRange = 0.08..2.0
-    val speedBias = 2.5
-    val speedChangeRateRange = 0.03..0.2
-    val proportionRange = 0.0..1.0
-    val proportionChangeRate = 0.05
-    val wavePowerRange = 0.7..1.0
-    val waveShapeChangeProbability = 0.3
-    val proportionChangeProbability = 0.3
-    val speedChangeProbability = 0.3
-    val ampProportionA = SmoothedValue(randomInRange(proportionRange))
-    val ampProportionB = SmoothedValue(randomInRange(proportionRange))
-    val freqProportionA = SmoothedValue(randomInRange(proportionRange))
-    val freqProportionB = SmoothedValue(randomInRange(proportionRange))
-
-    override fun initialise() {
-        waveManagers.forEach { wm ->
-            wm.addWave(randomWave(), name="amp")
-            wm.addWave(randomWave(), name="freq")
-            wm.setSpeed(randomInRange(speedRange, speedBias))
-        }
-        shapeChange()
-        speedChange()
-        proportionChange()
-    }
-
-    fun randomWave(): CyclicalWave {
-        val point = randomInRange(0.01..0.99)
-        val power = randomInRange(wavePowerRange)
-        val wave = CyclicalWave(
-            WaveShape(
-                name = "random",
-                points = listOf(
-                    WavePoint(0.0, 0.0, 0.0),
-                    WavePoint(point, power, 0.0),
-                ),
-                interpolationType = InterpolationType.HERMITE
-            )
-        )
-        return wave
-    }
-
-    fun proportionChange() {
-        //Log.d("Activity", "Proportion change called")
-        if(Random.nextDouble() < proportionChangeProbability)
-            ampProportionA.setTarget(randomInRange(proportionRange), proportionChangeRate)
-        if(Random.nextDouble() < proportionChangeProbability)
-            ampProportionB.setTarget(randomInRange(proportionRange), proportionChangeRate)
-        if(Random.nextDouble() < proportionChangeProbability)
-            freqProportionA.setTarget(randomInRange(proportionRange), proportionChangeRate)
-        if(Random.nextDouble() < proportionChangeProbability)
-            freqProportionB.setTarget(randomInRange(proportionRange), proportionChangeRate)
-        val nextProportionChangeSecs = randomInRange(proportionChangeSecsRange)
-        timerManager.addTimer("proportionChange", nextProportionChangeSecs) {
-            proportionChange()
-        }
-    }
-
-    fun shapeChange() {
-        //Log.d("Activity", "Shape change called")
-        waveManagers.forEach { wm ->
-            if(Random.nextDouble() < waveShapeChangeProbability) {
-                wm.addWave(randomWave(), name="amp")
-            }
-            if(Random.nextDouble() < waveShapeChangeProbability) {
-                wm.addWave(randomWave(), name="freq")
-            }
-        }
-        val nextShapeChangeSecs = randomInRange(shapeChangeSecsRange)
-        timerManager.addTimer("shapeChange", nextShapeChangeSecs) {
-            shapeChange()
-        }
-    }
-
-    fun speedChange() {
-        //Log.d("Activity", "Speed change called")
-        waveManagers.forEach { wm ->
-            if(Random.nextDouble() < speedChangeProbability) {
-                val newSpeed = randomInRange(speedRange, speedBias)
-                val changeRate = randomInRange(speedChangeRateRange)
-                wm.setTargetSpeed(newSpeed, changeRate)
-            }
-        }
-        val nextSpeedChangeSecs = randomInRange(speedChangeSecsRange)
-        timerManager.addTimer("speedChange", nextSpeedChangeSecs) {
-            speedChange()
-        }
-    }
-
-    override fun runSimulation(deltaSimulationTime: Double) {
-        super.runSimulation(deltaSimulationTime)
-        waveManagers.forEach { wm ->
-            wm.update(deltaSimulationTime)
-        }
-        ampProportionA.update(deltaSimulationTime)
-        ampProportionB.update(deltaSimulationTime)
-        freqProportionA.update(deltaSimulationTime)
-        freqProportionB.update(deltaSimulationTime)
-    }
-
-    override fun getPulse(): Pulse {
-        val ampPos1 = waveManager1.getPosition("amp")
-        val ampPos2 = waveManager2.getPosition("amp")
-        val freqPos1 = waveManager1.getPosition("freq")
-        val freqPos2 = waveManager2.getPosition("freq")
-
-        val ampA = (ampPos1 * ampProportionA.current) + (ampPos2 * (1.0 - ampProportionA.current))
-        val ampB = (ampPos1 * ampProportionB.current) + (ampPos2 * (1.0 - ampProportionB.current))
-        val freqA = (freqPos1 * freqProportionA.current) + (freqPos2 * (1.0 - freqProportionA.current))
-        val freqB = (freqPos1 * freqProportionB.current) + (freqPos2 * (1.0 - freqProportionB.current))
-
-        return Pulse(
-            freqA = freqA.toFloat(),
-            freqB = freqB.toFloat(),
-            ampA = ampA.toFloat(),
-            ampB = ampB.toFloat()
-        )
-    }
+enum class SimplexPreset(val displayName: String) {
+    STANDARD("Standard"),
+    PRO("Pro"),
+    TURBO("Turbo")
 }
 
-abstract class BaseSimplexActivity : Activity() {
-    protected val noiseGenerator = NoiseGenerator()
-    protected var elapsedTime = 0.0
-    protected var phaseTime = 0.0
-    protected var phaseRotation = 0.0
+class SimplexActivity : Activity() {
+    val noiseGenerator = NoiseGenerator()
+    var elapsedTime = 0.0
+    var phaseTime = 0.0
+    var phaseRotation = 0.0
 
-    open val ampTimeSpeedRange: ClosedRange<Double> = 0.2..4.0
-    open val ampRotationSpeedRange: ClosedRange<Double> = 0.0..PI * 0.2
-    open val changeRateRange: ClosedRange<Double> = 0.1..0.5
-    open val ampTimeChangeSecsRange: ClosedRange<Double> = 10.0..50.0
-    open val ampRotationSpeedChangeSecsRange: ClosedRange<Double> = 10.0..50.0
+    var ampTimeSpeedRange: ClosedRange<Double> = 0.2..4.0
+    var ampRotationSpeedRange: ClosedRange<Double> = 0.0..PI * 0.2
+    var changeRateRange: ClosedRange<Double> = 0.1..0.5
 
-    open val ampRadius: Double = 0.3
-    open val freqRadius: Double = 0.2
-    open val freqTimeSpeed: Double = 0.2
-    open val freqRotationSpeed: Double = 0.1
+    var ampRadius: Double = 0.3
+    var freqRadius: Double = 0.2
+    val freqTimeSpeed: Double = 0.2
+    val freqRotationSpeed: Double = 0.1
 
-    protected lateinit var ampTimeSpeed: SmoothedValue
-    protected lateinit var ampRotationSpeed: SmoothedValue
+    var ampTimeSpeed = NiceSmoother(randomInRange(ampTimeSpeedRange), 0.0..PI * 10.0)
+    var ampRotationSpeed = NiceSmoother(randomInRange(ampRotationSpeedRange), 0.0..PI * 10.0)
+
+    val ampTimeSpeedChangeTimer = Timer(
+        durationProvider = { randomInRange(10.0..50.0) },
+        repeating = true,
+        onTrigger = { ampTimeSpeedChange() }
+    )
+
+    val ampRotationSpeedChangeTimer = Timer(
+        durationProvider = { randomInRange(10.0..50.0) },
+        repeating = true,
+        onTrigger = { ampRotationSpeedChange() }
+    )
 
     override fun initialise() {
         super.initialise()
-        ampTimeSpeed = SmoothedValue(randomInRange(ampTimeSpeedRange))
-        ampRotationSpeed = SmoothedValue(randomInRange(ampRotationSpeedRange))
-        ampTimeSpeedChange()
-        ampRotationSpeedChange()
+        presetChanged(Prefs.activitySimplexPreset.value)
+        manager.register(ampTimeSpeed)
+        manager.register(ampRotationSpeed)
+        manager.register(ampTimeSpeedChangeTimer)
+        manager.register(ampRotationSpeedChangeTimer)
+        ampTimeSpeedChangeTimer.start()
+        ampRotationSpeedChangeTimer.start()
     }
 
-    protected fun ampTimeSpeedChange() {
+    private fun presetChanged(preset: SimplexPreset) {
+        when (preset) {
+            SimplexPreset.STANDARD -> {
+                ampTimeSpeedRange = 0.2..4.0
+                ampRotationSpeedRange = 0.0..PI * 0.2
+                changeRateRange = 0.1..0.5
+                ampRadius = 0.3
+                freqRadius = 0.2
+            }
+            SimplexPreset.PRO -> {
+                ampTimeSpeedRange = 0.2..0.8
+                ampRotationSpeedRange = PI * 0.5..PI * 4.0
+                changeRateRange = 0.2..0.5
+                ampRadius = 0.4
+                freqRadius = 0.3
+            }
+            SimplexPreset.TURBO -> {
+                ampTimeSpeedRange = 0.1..0.5
+                ampRotationSpeedRange = PI * 3..PI * 6.0
+                changeRateRange = 0.2..0.5
+                ampRadius = 0.6
+                freqRadius = 0.3
+            }
+        }
+        ampTimeSpeed.setImmediately(randomInRange(ampTimeSpeedRange))
+        ampRotationSpeed.setImmediately(randomInRange(ampRotationSpeedRange))
+    }
+
+    private fun ampTimeSpeedChange() {
         ampTimeSpeed.setTarget(randomInRange(ampTimeSpeedRange), randomInRange(changeRateRange))
-        //Log.d("Activity", "ampTimeSpeedChange ${ampTimeSpeed.getTarget()}")
-        val nextAmpTimeSpeedChangeSecs = randomInRange(ampTimeChangeSecsRange)
-        timerManager.addTimer("ampTimeSpeedChange", nextAmpTimeSpeedChangeSecs) {
-            ampTimeSpeedChange()
-        }
     }
 
-    protected fun ampRotationSpeedChange() {
+    private fun ampRotationSpeedChange() {
         ampRotationSpeed.setTarget(randomInRange(ampRotationSpeedRange), randomInRange(changeRateRange))
-        //Log.d("Activity", "ampRotationSpeedChange ${ampRotationSpeed.getTarget()}")
-        val nextAmpRotationSpeedChangeSecs = randomInRange(ampRotationSpeedChangeSecsRange)
-        timerManager.addTimer("ampRotationSpeedChange", nextAmpRotationSpeedChangeSecs) {
-            ampRotationSpeedChange()
-        }
     }
 
     override fun runSimulation(deltaSimulationTime: Double) {
         super.runSimulation(deltaSimulationTime)
-        ampTimeSpeed.update(deltaSimulationTime)
-        ampRotationSpeed.update(deltaSimulationTime)
         elapsedTime += deltaSimulationTime
-
-        phaseTime += ampTimeSpeed.current * deltaSimulationTime
-        phaseRotation += ampRotationSpeed.current * deltaSimulationTime
+        phaseTime += ampTimeSpeed.value * deltaSimulationTime
+        phaseRotation += ampRotationSpeed.value * deltaSimulationTime
     }
 
     override fun getPulse(): Pulse {
@@ -1235,31 +1471,32 @@ abstract class BaseSimplexActivity : Activity() {
             ampB = ampB.toFloat()
         )
     }
-}
 
-class SimplexActivity : BaseSimplexActivity() {
-    // All parameters use default values from BaseSimplexActivity
-}
+    override val permanentSettings: @Composable () -> Unit = {
+        val preset by Prefs.activitySimplexPreset.collectAsStateWithLifecycle()
 
-class SimplexProActivity : BaseSimplexActivity() {
-    override val ampTimeSpeedRange = 0.2..0.8
-    override val ampRotationSpeedRange = PI * 0.5..PI * 4
-    override val changeRateRange = 0.2..0.5
-    override val ampRadius = 0.4
-    override val freqRadius = 0.3
-}
-
-class SimplexTurboActivity : BaseSimplexActivity() {
-    override val ampTimeSpeedRange = 0.1..0.5
-    override val ampRotationSpeedRange = PI * 3..PI * 6
-    override val changeRateRange = 0.2..0.5
-    override val ampRadius = 0.6
-    override val freqRadius = 0.3
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(text = "Preset", style = MaterialTheme.typography.labelLarge)
+            OptionPicker(
+                currentValue = preset,
+                onValueChange = {
+                    Prefs.activitySimplexPreset.value = it
+                    Prefs.activitySimplexPreset.save()
+                    presetChanged(it)
+                },
+                options = SimplexPreset.entries,
+                getText = { it.displayName }
+            )
+        }
+    }
 }
 
 class RelentlessActivity : Activity() {
     val waveManager: WaveManager = WaveManager()
-    val iterationSecsRange = 1.0..30.0
     val speedRange = 0.2..0.4
     val speedBias = 2.5
     val frequencyRange = 0.0..1.0
@@ -1270,7 +1507,16 @@ class RelentlessActivity : Activity() {
     var currentFrequencyB = randomInRange(frequencyRange)
     var swapChannels = Random.nextBoolean()
 
+    val iterationTimer = Timer(
+        durationProvider = { randomInRange(1.0..30.0) },
+        repeating = true,
+        onTrigger = { waveManager.stopAtEndOfCycle { nextIteration() } }
+    )
+
     override fun initialise() {
+        manager.register(waveManager)
+        manager.register(iterationTimer)
+        iterationTimer.start()
         nextIteration()
     }
 
@@ -1339,15 +1585,6 @@ class RelentlessActivity : Activity() {
 
         waveManager.setSpeed(currentSpeed)
         waveManager.restart()
-        val nextIterationSecs = randomInRange(iterationSecsRange)
-        timerManager.addTimer("nextIteration", nextIterationSecs) {
-            waveManager.stopAtEndOfCycle { nextIteration() }
-        }
-    }
-
-    override fun runSimulation(deltaSimulationTime: Double) {
-        super.runSimulation(deltaSimulationTime)
-        waveManager.update(deltaSimulationTime)
     }
 
     override fun getPulse(): Pulse {
@@ -1369,101 +1606,6 @@ class RelentlessActivity : Activity() {
     }
 }
 
-class RandomShapesActivity : Activity() {
-    val waveManager: WaveManager = WaveManager()
-    val iterationSecsRange = 10.0..40.0
-    val speedRange = 0.2..0.8
-    val speedBias = 1.8
-    val frequencyRange = 0.0..1.0
-    var currentSpeed = randomInRange(speedRange, speedBias)
-    var currentFrequencyA = randomInRange(frequencyRange)
-    var currentFrequencyB = randomInRange(frequencyRange)
-    var swapChannels = Random.nextBoolean()
-    val wavePointsRange = 2..5
-
-    override fun initialise() {
-        nextIteration()
-    }
-
-    fun createRandomWaveShape(numPoints: Int): WaveShape {
-        val points = mutableListOf<WavePoint>()
-        val times = mutableListOf<Double>()
-        val maxPower = 0.95
-        val powerLowerBound = 0.8
-        val minTimeSpacing = 0.05
-
-        times.add(0.0)
-        times.add(1.0)
-
-        repeat(numPoints) {
-            var t: Double
-            do {
-                t = randomInRange(0.0..TMAX)
-            } while (times.any { abs(it - t) < minTimeSpacing })
-
-            times.add(t)
-            val pos = randomInRange(0.0..maxPower)
-            points.add(WavePoint(t, pos))
-        }
-
-        val allBelowThreshold = points.all { it.position < powerLowerBound }
-        if (allBelowThreshold) {
-            // Select a random point and set it to a position in powerLowerBound..maxPower
-            val randomIndex = (0 until numPoints).random()
-            val newPosition = randomInRange(powerLowerBound..maxPower)
-            points[randomIndex] = WavePoint(points[randomIndex].time, newPosition)
-        }
-
-        points.add(WavePoint(0.0,0.0))
-
-        return WaveShape(
-            name = "randomWave",
-            points = points,
-            interpolationType = InterpolationType.HERMITE
-        )
-    }
-
-    fun nextIteration() {
-        currentSpeed = randomInRange(speedRange, speedBias)
-        currentFrequencyA = randomInRange(frequencyRange)
-        currentFrequencyB = randomInRange(frequencyRange)
-        swapChannels = Random.nextBoolean()
-
-        val waveAPoints = randomInRange(wavePointsRange)
-        val waveBPoints = randomInRange(wavePointsRange)
-
-        val waveA = CyclicalWave(createRandomWaveShape(waveAPoints))
-        val waveB = CyclicalWave(createRandomWaveShape(waveBPoints))
-
-        waveManager.addWave(waveA, name = "waveA")
-        waveManager.addWave(waveB, name = "waveB")
-
-        waveManager.setSpeed(currentSpeed)
-        waveManager.restart()
-        val nextIterationSecs = randomInRange(iterationSecsRange)
-        timerManager.addTimer("nextIteration", nextIterationSecs) {
-            waveManager.stopAtEndOfCycle { nextIteration() }
-        }
-    }
-
-    override fun runSimulation(deltaSimulationTime: Double) {
-        super.runSimulation(deltaSimulationTime)
-        waveManager.update(deltaSimulationTime)
-    }
-
-    override fun getPulse(): Pulse {
-        val ampA = waveManager.getPosition("waveA")
-        val ampB = waveManager.getPosition("waveB")
-
-        return Pulse(
-            freqA = currentFrequencyA.toFloat(),
-            freqB = currentFrequencyB.toFloat(),
-            ampA = ampA.toFloat(),
-            ampB = ampB.toFloat()
-        )
-    }
-}
-
 class OverflowingActivity : Activity() {
     val waveManager: WaveManager = WaveManager()
     val speedRange = 0.05..0.1
@@ -1472,12 +1614,15 @@ class OverflowingActivity : Activity() {
     val longWavePowerRange = 0.85..0.99
     val shortWavePowerRange = 0.8..0.99
     var currentSpeed = randomInRange(speedRange)
-    val freqA = SmoothedValue(randomInRange(frequencyRange))
-    val freqB = SmoothedValue(randomInRange(frequencyRange))
+    val freqA = NiceSmoother(randomInRange(frequencyRange))
+    val freqB = NiceSmoother(randomInRange(frequencyRange))
 
     override fun initialise() {
         updateFrequencyTarget(freqA)
         updateFrequencyTarget(freqB)
+        manager.register(waveManager)
+        manager.register(freqA)
+        manager.register(freqB)
         nextIteration()
     }
 
@@ -1508,7 +1653,7 @@ class OverflowingActivity : Activity() {
         )
     }
 
-    private fun updateFrequencyTarget(freq: SmoothedValue) {
+    private fun updateFrequencyTarget(freq: NiceSmoother) {
         val targetFreq = randomInRange(frequencyRange)
         val changeRate = randomInRange(frequencyChangeRateRange)
         freq.setTarget(
@@ -1546,13 +1691,6 @@ class OverflowingActivity : Activity() {
         waveManager.stopAtEndOfCycle { nextIteration() }
     }
 
-    override fun runSimulation(deltaSimulationTime: Double) {
-        super.runSimulation(deltaSimulationTime)
-        freqA.update(deltaSimulationTime)
-        freqB.update(deltaSimulationTime)
-        waveManager.update(deltaSimulationTime)
-    }
-
     override fun getPulse(): Pulse {
         val longAmp = waveManager.getPosition("longWave")
         var shortAmp = waveManager.getPosition("shortWave")
@@ -1560,10 +1698,155 @@ class OverflowingActivity : Activity() {
             shortAmp = longAmp
 
         return Pulse(
-            freqA = freqA.current.toFloat(),
-            freqB = freqB.current.toFloat(),
+            freqA = freqA.value.toFloat(),
+            freqB = freqB.value.toFloat(),
             ampA = shortAmp.toFloat(),
             ampB = longAmp.toFloat()
+        )
+    }
+}
+
+class SuccubusActivity : Activity() {
+    val waveManager1: WaveManager = WaveManager()
+    val waveManager2: WaveManager = WaveManager()
+    val waveManagers = listOf(waveManager1, waveManager2)
+
+    val speedRange = 0.06..2.0
+    val speedBias = 3.5
+    val speedChangeRateRange = 0.03..0.2
+    val proportionRange = 0.0..1.0
+    val proportionChangeRate = 0.05
+    val waveShapeChangeProbability = 0.3
+    val proportionChangeProbability = 0.3
+    val speedChangeProbability = 0.3
+    val ampProportionA = NiceSmoother(randomInRange(proportionRange))
+    val ampProportionB = NiceSmoother(randomInRange(proportionRange))
+    val freqProportionA = NiceSmoother(randomInRange(proportionRange))
+    val freqProportionB = NiceSmoother(randomInRange(proportionRange))
+    val wavePointsRange = 2..6
+
+    val shapeChange = Timer(
+        durationProvider = { randomInRange(10.0..40.0) },
+        repeating = true,
+        onTrigger = { shapeChange() }
+    )
+    val speedChange = Timer(
+        durationProvider = { randomInRange(10.0..30.0) },
+        repeating = true,
+        onTrigger = { speedChange() }
+    )
+    val proportionChange = Timer(
+        durationProvider = { randomInRange(10.0..30.0) },
+        repeating = true,
+        onTrigger = { proportionChange() }
+    )
+
+    override fun initialise() {
+        waveManagers.forEach { wm ->
+            wm.addWave(randomWave(randomInRange(wavePointsRange)), name="amp")
+            wm.addWave(randomWave(randomInRange(wavePointsRange)), name="freq")
+            wm.setSpeed(randomInRange(speedRange, speedBias))
+            manager.register(wm)
+        }
+        manager.register(shapeChange)
+        manager.register(speedChange)
+        manager.register(proportionChange)
+        manager.register(ampProportionA)
+        manager.register(ampProportionB)
+        manager.register(freqProportionA)
+        manager.register(freqProportionB)
+
+        shapeChange.start()
+        speedChange.start()
+        proportionChange.start()
+    }
+
+    fun randomWave(numPoints: Int): CyclicalWave {
+        val points = mutableListOf<WavePoint>()
+        val times = mutableListOf<Double>()
+        val maxPower = 0.95
+        val powerLowerBound = 0.8
+        val minTimeSpacing = 0.05
+
+        repeat(numPoints) {
+            var t: Double
+            do {
+                t = randomInRange(0.0..TMAX)
+            } while (times.any { abs(it - t) < minTimeSpacing })
+
+            times.add(t)
+            val pos = randomInRange(0.0..maxPower)
+            points.add(WavePoint(t, pos))
+        }
+
+        val allBelowThreshold = points.all { it.position < powerLowerBound }
+        if (allBelowThreshold) {
+            // Select a random point and set it to a position in powerLowerBound..maxPower
+            val randomIndex = (0 until numPoints).random()
+            val newPosition = randomInRange(powerLowerBound..maxPower)
+            points[randomIndex] = WavePoint(points[randomIndex].time, newPosition)
+        }
+
+        return CyclicalWave(
+            WaveShape(
+                name = "randomWave",
+                points = points,
+                interpolationType = InterpolationType.HERMITE
+            )
+        )
+    }
+
+    fun proportionChange() {
+        //Log.d("Activity", "Proportion change called")
+        if(Random.nextDouble() < proportionChangeProbability)
+            ampProportionA.setTarget(randomInRange(proportionRange), proportionChangeRate)
+        if(Random.nextDouble() < proportionChangeProbability)
+            ampProportionB.setTarget(randomInRange(proportionRange), proportionChangeRate)
+        if(Random.nextDouble() < proportionChangeProbability)
+            freqProportionA.setTarget(randomInRange(proportionRange), proportionChangeRate)
+        if(Random.nextDouble() < proportionChangeProbability)
+            freqProportionB.setTarget(randomInRange(proportionRange), proportionChangeRate)
+    }
+
+    fun shapeChange() {
+        //Log.d("Activity", "Shape change called")
+        waveManagers.forEach { wm ->
+            if(Random.nextDouble() < waveShapeChangeProbability) {
+                wm.addWave(randomWave(randomInRange(wavePointsRange)), name="amp")
+            }
+            if(Random.nextDouble() < waveShapeChangeProbability) {
+                wm.addWave(randomWave(randomInRange(wavePointsRange)), name="freq")
+            }
+        }
+    }
+
+    fun speedChange() {
+        //Log.d("Activity", "Speed change called")
+        waveManagers.forEach { wm ->
+            if(Random.nextDouble() < speedChangeProbability) {
+                val newSpeed = randomInRange(speedRange, speedBias)
+                val changeRate = randomInRange(speedChangeRateRange)
+                wm.setTargetSpeed(newSpeed, changeRate)
+            }
+        }
+    }
+
+    override fun getPulse(): Pulse {
+        val ampPos1 = waveManager1.getPosition("amp")
+        val ampPos2 = waveManager2.getPosition("amp")
+        val freqPos1 = waveManager1.getPosition("freq")
+        val freqPos2 = waveManager2.getPosition("freq")
+
+        val ampA = (ampPos1 * ampProportionA.value) + (ampPos2 * (1.0 - ampProportionA.value))
+        val ampB = (ampPos1 * ampProportionB.value) + (ampPos2 * (1.0 - ampProportionB.value))
+        val freqA = (freqPos1 * freqProportionA.value) + (freqPos2 * (1.0 - freqProportionA.value))
+        val freqB = (freqPos1 * freqProportionB.value) + (freqPos2 * (1.0 - freqProportionB.value))
+
+        return Pulse(
+            freqA = freqA.toFloat(),
+            freqB = freqB.toFloat(),
+            ampA = ampA.toFloat(),
+            ampB = ampB.toFloat()
         )
     }
 }

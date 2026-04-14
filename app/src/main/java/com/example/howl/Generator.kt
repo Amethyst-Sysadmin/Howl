@@ -44,20 +44,20 @@ import kotlin.random.Random
 
 class GeneratorChannel(
     val waveManager: WaveManager = WaveManager(),
-    val minFreq: SmoothedValue = SmoothedValue(0.0),
-    val maxFreq: SmoothedValue = SmoothedValue(1.0),
-    val minAmp: SmoothedValue = SmoothedValue(0.0),
-    val maxAmp: SmoothedValue = SmoothedValue(1.0),
+    val minFreq: NiceSmoother = NiceSmoother(0.0),
+    val maxFreq: NiceSmoother = NiceSmoother(1.0),
+    val minAmp: NiceSmoother = NiceSmoother(0.0),
+    val maxAmp: NiceSmoother = NiceSmoother(1.0),
     var doingWaveChange: Boolean = false
 ) {
     fun getInfo(): GeneratorChannelInfo {
         return GeneratorChannelInfo(
             ampWaveName = waveManager.getWave("amp").name,
             freqWaveName = waveManager.getWave("freq").name,
-            minFreq = minFreq.current,
-            maxFreq = maxFreq.current,
-            minAmp = minAmp.current,
-            maxAmp = maxAmp.current,
+            minFreq = minFreq.value,
+            maxFreq = maxFreq.value,
+            minAmp = minAmp.value,
+            maxAmp = maxAmp.value,
             speed = waveManager.currentSpeed
         )
     }
@@ -71,8 +71,8 @@ class GeneratorChannel(
     fun getAmpAndFreq(): Pair<Double, Double> {
         val baseAmp = waveManager.getPosition("amp")
         val baseFreq = waveManager.getPosition("freq")
-        val amp = baseAmp.scaleBetween(minAmp.current, maxAmp.current)
-        val freq = baseFreq.scaleBetween(minFreq.current, maxFreq.current)
+        val amp = baseAmp.scaleBetween(minAmp.value, maxAmp.value)
+        val freq = baseFreq.scaleBetween(minFreq.value, maxFreq.value)
         return Pair(amp, freq)
     }
     fun appropriateSpeedRange() : ClosedFloatingPointRange<Double> {
@@ -161,10 +161,10 @@ class GeneratorChannel(
         waveManager.restart()
         val range = appropriateSpeedRange()
         waveManager.setSpeed(randomInRange(range))
-        waveManager.setSpeedVariance(0.0)
-        waveManager.setAmplitudeVariance(0.0)
-        waveManager.setSpeedVarianceEaseIn(0.0)
-        waveManager.setAmplitudeVarianceEaseIn(0.0)
+        waveManager.setSpeedJitter(0.0)
+        waveManager.setAmplitudeJitter(0.0)
+        waveManager.setSpeedJitterEaseIn(0.0)
+        waveManager.setAmplitudeJitterEaseIn(0.0)
         doingWaveChange = false
     }
     fun setSpeed(speed: Double) {
@@ -221,7 +221,8 @@ object Generator : PulseSource {
     private val _generatorState = MutableStateFlow(GeneratorState())
     val generatorState: StateFlow<GeneratorState> = _generatorState.asStateFlow()
 
-    override var displayName: String = "Generator output"
+    private val _displayName = MutableStateFlow("Generator output")
+    override val displayName = _displayName.asStateFlow()
     override var duration: Double? = null
     override val isFinite: Boolean = false
     override val shouldLoop: Boolean = false
@@ -230,7 +231,6 @@ object Generator : PulseSource {
 
     private var lastSimulationTime = -1.0
     private var lastUpdateTime = -1.0
-    private val timerManager = TimerManager()
     private var initialised = false
 
     override fun updateState(currentTime: Double) {
@@ -286,7 +286,6 @@ object Generator : PulseSource {
 
         val simulationTimeDelta = time - lastSimulationTime
         lastSimulationTime = time
-        timerManager.update(simulationTimeDelta)
         channelA.update(simulationTimeDelta)
         channelB.update(simulationTimeDelta)
 

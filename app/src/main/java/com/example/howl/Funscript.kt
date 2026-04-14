@@ -5,6 +5,8 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
 import android.util.Log
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -43,10 +45,11 @@ fun Uri.getName(context: Context): String {
 data class PositionVelocity(val position: Double, val velocity: Double)
 
 class FunscriptPulseSource : PulseSource {
-    override var displayName: String = "Funscript"
+    private val _displayName = MutableStateFlow("Funscript")
+    override val displayName = _displayName.asStateFlow()
     override var duration: Double? = null
     override val isFinite: Boolean = true
-    override val shouldLoop: Boolean = false
+    override var shouldLoop: Boolean = false
     override var readyToPlay: Boolean = false
     override var isRemote: Boolean = false
 
@@ -250,13 +253,17 @@ class FunscriptPulseSource : PulseSource {
             }
         }
 
-        displayName = uri.getName(context)
+        _displayName.value = uri.getName(context)
         duration = timePositionData.lastKey()
         readyToPlay = true
         return duration
     }
 
-    fun loadFromString(funscript: String, title: String): Double? {
+    fun loadFromString(
+        funscript: String,
+        title: String,
+        loop: Boolean = false
+    ): Double? {
         readyToPlay = false
         timePositionData.clear()
 
@@ -266,10 +273,11 @@ class FunscriptPulseSource : PulseSource {
             throw BadFileException("Funscript decoding failed")
         }
 
-        displayName = title
+        _displayName.value = title
         duration = timePositionData.lastKey()
         isRemote = true
         readyToPlay = true
+        shouldLoop = loop
         return duration
     }
 }

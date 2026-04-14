@@ -7,6 +7,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -14,12 +15,15 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
@@ -28,6 +32,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,6 +46,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
@@ -104,32 +110,160 @@ fun SwitchWithLabel(
 }
 
 @Composable
+fun NiceSmootherControl(
+    smoother: NiceSmoother,
+    targetRange: ClosedFloatingPointRange<Float>,
+    rateRange: ClosedFloatingPointRange<Float>,
+    modifier: Modifier = Modifier,
+    targetLabel: String = "Target",
+    rateLabel: String = "Rate",
+    targetSteps: Int = 0,
+    rateSteps: Int = 0,
+    targetValueDisplay: (Double) -> String = { "%.2f".format(it) },
+    rateValueDisplay: (Double) -> String = { "%.2f".format(it) },
+    enabled: Boolean = true
+) {
+    val target by smoother.targetFlow.collectAsState()
+    val rate by smoother.rateFlow.collectAsState()
+
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = targetLabel,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = targetValueDisplay(target),
+                    modifier = Modifier.widthIn(min = 40.dp)
+                )
+                Slider(
+                    value = target.toFloat(),
+                    onValueChange = { newTarget ->
+                        smoother.setTarget(newTarget.toDouble())
+                    },
+                    valueRange = targetRange,
+                    steps = targetSteps,
+                    modifier = Modifier.weight(1f),
+                    enabled = enabled
+                )
+            }
+        }
+
+        Column {
+            Text(
+                text = rateLabel,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = rateValueDisplay(rate),
+                    modifier = Modifier.widthIn(min = 40.dp)
+                )
+                Slider(
+                    value = rate.toFloat(),
+                    onValueChange = { newRate ->
+                        smoother.rate = newRate.toDouble()
+                    },
+                    valueRange = rateRange,
+                    steps = rateSteps,
+                    modifier = Modifier.width(80.dp),
+                    enabled = enabled
+                )
+            }
+        }
+    }
+}
+
+enum class OptionPickerSize {
+    Standard,
+    Large
+}
+
+@Composable
 fun <T> OptionPicker(
     currentValue: T,
     onValueChange: (T) -> Unit,
     options: List<T>,
     getText: (T) -> String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    getIcon: (T) -> Int? = { null },
+    textColor: (T) -> Color = { Color.Unspecified },
+    size: OptionPickerSize = OptionPickerSize.Standard // New optional parameter
 ) {
     var expanded by remember { mutableStateOf(false) }
     val sortedOptions = remember(options, getText) {
         options.sortedBy { getText(it) }
     }
 
+    val textStyle = when (size) {
+        OptionPickerSize.Standard -> MaterialTheme.typography.labelLarge
+        OptionPickerSize.Large -> MaterialTheme.typography.titleMedium // Bigger text
+    }
+
+    val iconSize = when (size) {
+        OptionPickerSize.Standard -> ButtonDefaults.IconSize
+        OptionPickerSize.Large -> 24.dp // Bigger icon
+    }
+
+    val contentPadding = when (size) {
+        OptionPickerSize.Standard -> ButtonDefaults.ContentPadding
+        OptionPickerSize.Large -> PaddingValues(horizontal = 24.dp, vertical = 12.dp) // More padding for larger touch target
+    }
+
     Box(modifier = modifier.wrapContentSize(Alignment.TopStart)) {
-        OutlinedButton(onClick = { expanded = true }) {
-            Text(text = getText(currentValue))
+        OutlinedButton(
+            onClick = { expanded = true },
+            contentPadding = contentPadding
+        ) {
+            getIcon(currentValue)?.let { iconRes ->
+                Icon(
+                    painter = painterResource(id = iconRes),
+                    contentDescription = null,
+                    modifier = Modifier.size(iconSize)
+                )
+                Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+            }
+
+            Text(
+                text = getText(currentValue),
+                color = textColor(currentValue),
+                style = textStyle
+            )
         }
+
+        // DropdownMenu remains standard size
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false }
         ) {
             sortedOptions.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(getText(option)) },
+                    text = { Text(getText(option), color = textColor(option)) },
                     onClick = {
                         onValueChange(option)
                         expanded = false
+                    },
+                    leadingIcon = getIcon(option)?.let { res ->
+                        {
+                            Icon(
+                                painter = painterResource(id = res),
+                                contentDescription = null
+                            )
+                        }
                     }
                 )
             }
