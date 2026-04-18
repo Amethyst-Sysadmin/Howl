@@ -45,6 +45,7 @@ enum class ActivityType(val displayName: String, val iconResId: Int) {
         Calibration1Activity() },
     CALIBRATION2("Calibration 2", R.drawable.calibration) { override fun create() =
         Calibration2Activity() },
+    BJ("BJ Megamix", R.drawable.lips) { override fun create() = BJActivity() },
     FASTSLOW("Fast/slow", R.drawable.speed) { override fun create() =
         FastSlowActivity() },
     SIMPLEX("Simplex", R.drawable.wave_triangle) { override fun create() = SimplexActivity() },
@@ -119,7 +120,7 @@ object ActivityHost : PulseSource {
         _currentActivity.value = switchActivity(type)
     }
 
-    private fun randomActivityType(avoid: ActivityType? = null): ActivityType {
+    fun randomActivityType(avoid: ActivityType? = null): ActivityType {
         val excluded = Prefs.activityExcludedFromRandom.value
         val candidates = ActivityType.entries.filter {
             it !in excluded && it != avoid

@@ -202,7 +202,8 @@ fun <T> OptionPicker(
     modifier: Modifier = Modifier,
     getIcon: (T) -> Int? = { null },
     textColor: (T) -> Color = { Color.Unspecified },
-    size: OptionPickerSize = OptionPickerSize.Standard // New optional parameter
+    size: OptionPickerSize = OptionPickerSize.Standard,
+    enabled: Boolean = true
 ) {
     var expanded by remember { mutableStateOf(false) }
     val sortedOptions = remember(options, getText) {
@@ -227,7 +228,8 @@ fun <T> OptionPicker(
     Box(modifier = modifier.wrapContentSize(Alignment.TopStart)) {
         OutlinedButton(
             onClick = { expanded = true },
-            contentPadding = contentPadding
+            contentPadding = contentPadding,
+            enabled = enabled
         ) {
             getIcon(currentValue)?.let { iconRes ->
                 Icon(
@@ -240,7 +242,7 @@ fun <T> OptionPicker(
 
             Text(
                 text = getText(currentValue),
-                color = textColor(currentValue),
+                color = if (enabled) textColor(currentValue) else Color.Unspecified,
                 style = textStyle
             )
         }

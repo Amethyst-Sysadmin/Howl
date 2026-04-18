@@ -365,6 +365,26 @@ fun calculateFeelAdjustment(
     return value.pow(1.0f / feel).coerceIn(0.0f,1.0f)
 }
 
+fun calculateEngulfEffect(
+    amplitude: Double,
+    position: Double,
+    channelAEngulfPoint: Double,
+    channelBEngulfPoint: Double,
+): Pair<Double, Double> {
+    fun calculateChannelAmplitude(position: Double, engulfPoint: Double): Double {
+        val distance = abs(position - engulfPoint)
+        val falloffFactor = 0.8
+        return if (position <= engulfPoint) {
+            if (engulfPoint == 0.0) 1.0 else sqrt(position / engulfPoint)
+        } else {
+            sqrt(1.0 - distance * falloffFactor)
+        }
+    }
+    val ampA = calculateChannelAmplitude(position, channelAEngulfPoint) * amplitude
+    val ampB = calculateChannelAmplitude(position, channelBEngulfPoint) * amplitude
+    return Pair(ampA, ampB)
+}
+
 class CircularBuffer<T>(var capacity: Int): Iterable<T> {
     private var buffer: Array<T?> = arrayOfNulls(capacity)
 
