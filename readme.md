@@ -168,11 +168,9 @@ The probability of speed, power, frequency and shape changes can all be set inde
 
 ## Activity
 
-Howl offers a number of built-in "activities". These are patterns with random elements that Howl generates in real-time (they are individual small programs). They are intended as a more interesting alternative to having fixed preset patterns.
+Howl offers a number of built-in "activities". These are patterns with random elements that Howl generates in real-time. They provide a more interesting alternative to just having fixed preset patterns.
 
-The activities are generally designed with the default 10Hz-100Hz frequency range in mind (but you can certainly change that and experiment). They do not necessarily use the full configured range, as each activity is intended to feel unique and noticeably different from the others.
-
-The [list of activities wiki page](https://github.com/Amethyst-Sysadmin/Howl/wiki/List-of-activities) gives some information about each available activity, such as how it works, or what it is intended to represent.
+The [list of activities wiki page](https://github.com/Amethyst-Sysadmin/Howl/wiki/List-of-activities) gives information about all of the available activities. This includes what they represent, what their settings do (where applicable) and any extra details about how they work.
 
 ## Settings
 
