@@ -1,5 +1,6 @@
 package com.example.howl
 
+import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -19,7 +20,7 @@ enum class Coyote2SetupStage {
 }
 
 class Coyote2Output : BaseOutput() {
-    override val pulseBatchSize = 1
+    override val pulseBatchSize = 2
     override val sendSilenceWhenMuted = false
     override var allowedFrequencyRange = 1..200
     override var defaultFrequencyRange = 10..100
@@ -27,12 +28,14 @@ class Coyote2Output : BaseOutput() {
     var setupStage: Coyote2SetupStage = Coyote2SetupStage.Initial
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var batteryPollJob: Job? = null
+    private var sendPulsesJob: Job? = null
     private var previousChannelAPower = -1
     private var previousChannelBPower = -1
 
     companion object {
         const val TAG = "Coyote2Output"
         const val DELAY_BETWEEN_OPS = 10L // delay needed between Bluetooth operations in milliseconds
+        const val INTERLEAVE_DELAY = 50L // delay used for interleaving left and right channel updates
         val POWER_RANGE: IntRange = 0..200
         //battery polling can fail if it's too close to other Bluetooth activity like sending pulses
         //the unusual interval helps to avoid this happening multiple times in a row
@@ -48,6 +51,7 @@ class Coyote2Output : BaseOutput() {
     override fun initialise() {}
     override fun end() {
         batteryPollJob?.cancel()
+        sendPulsesJob?.cancel()
     }
 
     override fun handleBluetoothEvent(event: BluetoothEvent) {
@@ -63,6 +67,8 @@ class Coyote2Output : BaseOutput() {
                 setupStage = Coyote2SetupStage.Initial
                 batteryPollJob?.cancel()
                 batteryPollJob = null
+                sendPulsesJob?.cancel()
+                sendPulsesJob = null
             }
             BluetoothEventType.CharacteristicRead-> {
                 // Battery level message
@@ -117,27 +123,44 @@ class Coyote2Output : BaseOutput() {
             HLog.d(TAG, "!! Invalid power value passed to sendPulses !!")
             return
         }
+        if (sendPulsesJob?.isActive == true) {
+            HLog.d(TAG, "Skipping pulse update, previous send still active")
+            return
+        }
 
         val powerChanged = channelAPower != previousChannelAPower || channelBPower != previousChannelBPower
         val frequencyRange = maxFrequency - minFrequency
-        val pulse = pulses[0]
-        val (xA, yA) = frequencyHzToXY(minFrequency + frequencyRange * pulse.freqA)
-        val (xB, yB) = frequencyHzToXY(minFrequency + frequencyRange * pulse.freqB)
-        val zA = amplitudeToZ(pulse.ampA)
-        val zB = amplitudeToZ(pulse.ampB)
+
+        // To improve perceived responsiveness on the C2 we ask for 20 pulses per second even though
+        // it is only capable of 10. Then we interleave them at a 500ms interval, taking the channel
+        // A values from the first pulse in each set and the channel B values from the second.
+
+        // The theory is a bit like how interlacing can make a slow display seem smoother by updating
+        // half the lines at a time.
+
+        val pulseA = pulses[0]
+        val pulseB = pulses[1]
+        val (xA, yA) = frequencyHzToXY(minFrequency + frequencyRange * pulseA.freqA)
+        val (xB, yB) = frequencyHzToXY(minFrequency + frequencyRange * pulseB.freqB)
+        val zA = amplitudeToZ(pulseA.ampA)
+        val zB = amplitudeToZ(pulseB.ampB)
         val waveformA = packWaveformData(xA, yA, zA)
         val waveformB = packWaveformData(xB, yB, zB)
 
         //Log.d(TAG, "Waveform parameters A($xA,$yA,$zA) B($xB,$yB,$zB)")
 
-        scope.launch {
-            if (powerChanged) {
-                sendPowerLevels(channelAPower, channelBPower)
-                delay(DELAY_BETWEEN_OPS)
+        sendPulsesJob = scope.launch {
+            try {
+                if (powerChanged) {
+                    sendPowerLevels(channelAPower, channelBPower)
+                    delay(DELAY_BETWEEN_OPS)
+                }
+                sendWaveform(0, waveformA)
+                delay(INTERLEAVE_DELAY)
+                sendWaveform(1, waveformB)
+            } finally {
+                sendPulsesJob = null
             }
-            sendWaveform(0, waveformA)
-            delay(DELAY_BETWEEN_OPS)
-            sendWaveform(1, waveformB)
         }
     }
 

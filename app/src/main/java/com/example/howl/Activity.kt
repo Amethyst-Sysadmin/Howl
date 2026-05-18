@@ -25,6 +25,7 @@ import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlin.random.Random
 
 abstract class Activity {
@@ -2128,5 +2129,173 @@ class SuccubusActivity : Activity() {
             ampA = ampA.toFloat(),
             ampB = ampB.toFloat()
         )
+    }
+}
+
+class SineTimeActivity : Activity() {
+    private val _sineSpeed = MutableStateFlow(0.2)
+    val sineSpeed: StateFlow<Double> = _sineSpeed.asStateFlow()
+
+    private val _freqChange = MutableStateFlow(0.0)
+    val freqChange: StateFlow<Double> = _freqChange.asStateFlow()
+
+    private val _manual = MutableStateFlow(false)
+    val manual: StateFlow<Boolean> = _manual.asStateFlow()
+
+    val sineMag = NiceSmoother(0.2, 0.0..1.0)
+    val offset = NiceSmoother(0.0, -PI..PI)
+
+    var sinePhase = 0.0
+    val sineMagRange = 0.1..0.3
+    val sineSpeedRange = 0.4..0.88
+    val freqRange = 0.5..0.75
+    val freqShiftRange = -0.25..0.25
+    val ampRange = 0.8..1.0
+    val fadeTime = 0.5
+
+    var freqA = randomInRange(freqRange)
+    var freqB = randomInRange(freqRange)
+    var amp = randomInRange(ampRange)
+
+    val patternTimer = Timer(
+        durationProvider = { randomInRange(8.0..15.0) },
+        repeating = false,
+        onTrigger = { breakTimer.reset() }
+    )
+    val breakTimer = Timer(
+        durationProvider = { randomInRange(0.8..5.0, 2.5) },
+        repeating = false,
+        onTrigger = { nextIteration() }
+    )
+
+    override fun initialise() {
+        manager.register(patternTimer)
+        manager.register(breakTimer)
+        manager.register(offset)
+        manager.register(sineMag)
+        nextIteration()
+    }
+
+    fun nextIteration() {
+        if (!manual.value) {
+            sineMag.setImmediately(randomInRange(sineMagRange))
+            _sineSpeed.value = randomInRange(sineSpeedRange)
+            _freqChange.value = randomInRange(freqShiftRange)
+            offset.setImmediately(randomInRange(-PI..PI))
+        }
+        freqA = randomInRange(freqRange)
+        freqB = randomInRange(freqRange)
+        amp = randomInRange(ampRange)
+        patternTimer.reset()
+    }
+
+    private fun setManual(manual: Boolean) {
+        _manual.value = manual
+    }
+
+    override fun runSimulation(deltaSimulationTime: Double) {
+        super.runSimulation(deltaSimulationTime)
+
+        sinePhase += 2.0 * Math.PI * _sineSpeed.value * deltaSimulationTime
+        sinePhase %= 2.0 * Math.PI
+    }
+
+    override fun getPulse(): Pulse {
+        if (breakTimer.isRunning) {
+            return Pulse()
+        }
+        val fadeIn = (patternTimer.elapsedTime / fadeTime).coerceIn(0.0, 1.0)
+        val fadeOut = (patternTimer.remainingTime / fadeTime).coerceIn(0.0, 1.0)
+        val fadeMultiplier = minOf(fadeIn, fadeOut)
+        val baseAmp = 1.0 - sineMag.value
+        val amp = sqrt(1.0 - (sineMagRange.endInclusive - sineMag.value).coerceAtLeast(0.0))
+        val phaseA = sin(sinePhase)
+        val phaseB = sin(sinePhase + offset.value)
+        val ampModA = sineMag.value * phaseA
+        val ampModB = sineMag.value * phaseB
+        val ampA = ((baseAmp + ampModA) * fadeMultiplier * amp).coerceIn(0.0..1.0)
+        val ampB = ((baseAmp + ampModB) * fadeMultiplier * amp).coerceIn(0.0..1.0)
+        val frequencyA = (freqA + _freqChange.value * phaseA).coerceIn(0.0..1.0)
+        val frequencyB = (freqB + _freqChange.value * phaseB).coerceIn(0.0..1.0)
+
+        return Pulse(
+            freqA = frequencyA.toFloat(),
+            freqB = frequencyB.toFloat(),
+            ampA = ampA.toFloat(),
+            ampB = ampB.toFloat()
+        )
+    }
+
+    override val temporarySettings: @Composable () -> Unit = {
+        val manual by manual.collectAsStateWithLifecycle()
+        val sineSpeed by sineSpeed.collectAsStateWithLifecycle()
+        val freqChange by freqChange.collectAsStateWithLifecycle()
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 2.dp,
+            border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                )
+                {
+                    Text(
+                        text = "Manual control",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    Switch(
+                        checked = manual,
+                        onCheckedChange = { enable ->
+                            setManual(enable)
+                        }
+                    )
+                }
+                NiceSmootherControl(
+                    smoother = sineMag,
+                    targetLabel = "Sine magnitude",
+                    targetRange = 0.0f..0.4f,
+                    targetSteps = 39,
+                    adjustableRate = false,
+                    enabled = manual
+                )
+                SliderWithLabel(
+                    label = "Sine speed",
+                    value = sineSpeed.toFloat(),
+                    onValueChange = { _sineSpeed.value = it.toDouble() },
+                    onValueChangeFinished = { },
+                    valueRange = 0.2f..1.0f,
+                    steps = 79,
+                    enabled = manual,
+                    valueDisplay = { String.format(Locale.US, "%03.2f", it) }
+                )
+                NiceSmootherControl(
+                    smoother = offset,
+                    targetLabel = "Sine offset",
+                    targetRange = (-PI..PI).toFloatRange,
+                    targetSteps = 39,
+                    adjustableRate = false,
+                    enabled = manual
+                )
+                SliderWithLabel(
+                    label = "Frequency change",
+                    value = freqChange.toFloat(),
+                    onValueChange = { _freqChange.value = it.toDouble() },
+                    onValueChangeFinished = { },
+                    valueRange = freqShiftRange.toFloatRange,
+                    steps = 49,
+                    enabled = manual,
+                    valueDisplay = { String.format(Locale.US, "%03.2f", it) }
+                )
+            }
+        }
     }
 }

@@ -110,6 +110,7 @@ object BluetoothHandler {
         }
         val scanSettings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
             .build()
 
         val timeoutHandler = Handler(Looper.getMainLooper())

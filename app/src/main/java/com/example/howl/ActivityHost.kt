@@ -52,7 +52,8 @@ enum class ActivityType(val displayName: String, val iconResId: Int) {
     RELENTLESS("Relentless", R.drawable.hammer) { override fun create() = RelentlessActivity() },
     OVERFLOWING("Overflowing", R.drawable.water_drop) { override fun create() =
         OverflowingActivity() },
-    SUCCUBUS("Succubus", R.drawable.succubus) { override fun create() = SuccubusActivity() };
+    SUCCUBUS("Succubus", R.drawable.succubus) { override fun create() = SuccubusActivity() },
+    SINETIME("Sine time", R.drawable.wave) { override fun create() = SineTimeActivity() };
 
     abstract fun create(): Activity
 }
