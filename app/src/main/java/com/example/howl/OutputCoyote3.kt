@@ -37,8 +37,11 @@ class Coyote3Output : BaseOutput() {
     var setupStage: CoyoteSetupStage = CoyoteSetupStage.Initial
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var batteryPollJob: Job? = null
+    private var setupTimeoutJob: Job? = null
     private var previousChannelAPower = -1
     private var previousChannelBPower = -1
+    private var reconnectCount = 0
+    private val maxReconnects = 4
 
     companion object {
         const val TAG = "Coyote3Output"
@@ -62,17 +65,39 @@ class Coyote3Output : BaseOutput() {
         batteryPollJob?.cancel()
     }
 
+    private fun autoReconnect() {
+        reconnectCount++
+        if (reconnectCount <= maxReconnects) {
+            HLog.d(TAG, "Auto-reconnecting (attempt $reconnectCount/$maxReconnects)...")
+            BluetoothHandler.disconnect()
+            BluetoothHandler.attemptConnection()
+        } else {
+            HLog.d(TAG, "Max auto-reconnects reached, giving up")
+            BluetoothHandler.disconnect()
+        }
+    }
+
     override fun handleBluetoothEvent(event: BluetoothEvent) {
+        Log.v(TAG, "Event: ${event.type} stage=$setupStage success=${event.success}")
         when (event.type) {
             BluetoothEventType.Connected -> {
                 setupStage = CoyoteSetupStage.RegisterForStatusUpdates
-                BluetoothHandler.subscribeToCharacteristic(mainServiceUUID, notifyCharacteristicUUID)
+                startSetupTimeout()
+                val subscribed = BluetoothHandler.subscribeToCharacteristic(mainServiceUUID, notifyCharacteristicUUID)
+                if (!subscribed) {
+                    HLog.d(TAG, "Failed to subscribe to notify characteristic, reconnecting...")
+                    autoReconnect()
+                }
             }
             BluetoothEventType.Disconnected -> {
                 ready = false
                 setupStage = CoyoteSetupStage.Initial
                 batteryPollJob?.cancel()
                 batteryPollJob = null
+                setupTimeoutJob?.cancel()
+                setupTimeoutJob = null
+                // Don't reset reconnectCount here — auto-reconnect calls disconnect+attemptConnection
+                // in sequence; resetting would break the retry limit. It's reset on successful setup.
             }
             BluetoothEventType.CharacteristicRead-> {
                 // Battery level message
@@ -106,12 +131,15 @@ class Coyote3Output : BaseOutput() {
             BluetoothEventType.CharacteristicWrite -> {
                 if (event.serviceUuid == mainServiceUUID && event.characteristicUuid == writeCharacteristicUUID) {
                     if (setupStage == CoyoteSetupStage.SyncParameters) {
-                        // assume the response is for our sync
                         if (event.success != true) {
-                            BluetoothHandler.disconnect()
+                            HLog.d(TAG, "Parameter sync write failed, reconnecting...")
+                            autoReconnect()
                             return
                         }
+                        reconnectCount = 0  // Reset reconnect counter on successful setup
                         setupStage = CoyoteSetupStage.Ready
+                        setupTimeoutJob?.cancel()
+                        setupTimeoutJob = null
                         startBatteryPolling()
                         ready = true
                     }
@@ -121,11 +149,18 @@ class Coyote3Output : BaseOutput() {
                 // Response to our subscription request
                 if (event.serviceUuid == mainServiceUUID && event.characteristicUuid == notifyCharacteristicUUID) {
                     if (event.success != true) {
-                        BluetoothHandler.disconnect()
+                        HLog.d(TAG, "Descriptor write failed, reconnecting...")
+                        // Tear down and re-establish connection - this is more reliable than
+                        // retrying the write within the same connection
+                        autoReconnect()
                         return
                     }
                     setupStage = CoyoteSetupStage.SyncParameters
-                    syncParameters()
+                    val synced = syncParameters()
+                    if (!synced) {
+                        HLog.d(TAG, "Failed to sync parameters, reconnecting...")
+                        autoReconnect()
+                    }
                 }
             }
             BluetoothEventType.Error -> {
@@ -167,7 +202,7 @@ class Coyote3Output : BaseOutput() {
         BluetoothHandler.sendToDevice(mainServiceUUID, writeCharacteristicUUID, command)
     }
 
-    fun sendParameters(parameters: Coyote3Parameters) {
+    fun sendParameters(parameters: Coyote3Parameters): Boolean {
         val command = byteArrayOf(
             0xBF.toByte(),
             parameters.channelALimit.toByte(),
@@ -178,10 +213,10 @@ class Coyote3Output : BaseOutput() {
             parameters.channelBIntensityBalance.toByte()
         )
         Log.v(TAG, "Sending BF command, data: ${command.toHexString()}")
-        BluetoothHandler.sendToDevice(mainServiceUUID, writeCharacteristicUUID, command)
+        return BluetoothHandler.sendToDevice(mainServiceUUID, writeCharacteristicUUID, command)
     }
 
-    fun syncParameters() {
+    fun syncParameters(): Boolean {
         // Send the Coyote 3 parameters according to the current app preferences
         val params = Coyote3Parameters(
             channelALimit = Prefs.powerLimitA.value,
@@ -191,7 +226,18 @@ class Coyote3Output : BaseOutput() {
             channelAIntensityBalance = Prefs.outputC3IntensityBalanceA.value,
             channelBIntensityBalance = Prefs.outputC3IntensityBalanceB.value
         )
-        sendParameters(params)
+        return sendParameters(params)
+    }
+
+    private fun startSetupTimeout() {
+        setupTimeoutJob?.cancel()
+        setupTimeoutJob = scope.launch {
+            delay(8000) // 8 seconds to complete setup
+            if (setupStage != CoyoteSetupStage.Ready) {
+                HLog.d(TAG, "Setup timed out at stage $setupStage, disconnecting")
+                BluetoothHandler.disconnect()
+            }
+        }
     }
 
     private fun pollBatteryLevel() {
