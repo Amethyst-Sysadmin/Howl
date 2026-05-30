@@ -58,6 +58,7 @@ fun TabLayout(
     settingsViewModel: SettingsViewModel,
     generatorViewModel: GeneratorViewModel,
     activityHostViewModel: ActivityHostViewModel,
+    onAllowRemoteAccess: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val tabIndex by tabLayoutViewModel.tabIndex.collectAsState()
@@ -108,7 +109,7 @@ fun TabLayout(
                 "Player" -> CombinedPanel(viewModel = playerViewModel)
                 "Generator" -> GeneratorPanel(viewModel = generatorViewModel)
                 "Activity" -> ActivityHostPanel(viewModel = activityHostViewModel)
-                "Settings" -> SettingsPanel(viewModel = settingsViewModel)
+                "Settings" -> SettingsPanel(viewModel = settingsViewModel, onAllowRemoteAccess = onAllowRemoteAccess)
                 "Debug" -> LogViewer()
             }
         }
