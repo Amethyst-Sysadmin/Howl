@@ -81,6 +81,30 @@ fun HowlAppScreen(
         }
     }
 
+    val LOCAL_NETWORK_PERMISSION = android.Manifest.permission.ACCESS_LOCAL_NETWORK
+    val localNetworkPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            HLog.d("Howl", "Local network permission granted.")
+            settingsViewModel.setRemoteAccess(true)
+        } else {
+            HLog.d("Howl", "Local network permission denied.")
+        }
+    }
+
+    fun onAllowRemoteAccess(enabled: Boolean) {
+        if (!enabled) {
+            settingsViewModel.setRemoteAccess(false)
+            return
+        }
+        if (ContextCompat.checkSelfPermission(context, LOCAL_NETWORK_PERMISSION) == PackageManager.PERMISSION_GRANTED) {
+            settingsViewModel.setRemoteAccess(true)
+        } else {
+            localNetworkPermissionLauncher.launch(LOCAL_NETWORK_PERMISSION)
+        }
+    }
+
     // Keep the screen on whenever the player is playing
     val view = LocalView.current
     LaunchedEffect(playerState.isPlaying) {
@@ -111,6 +135,7 @@ fun HowlAppScreen(
                 settingsViewModel = settingsViewModel,
                 generatorViewModel = generatorViewModel,
                 activityHostViewModel = activityHostViewModel,
+                onAllowRemoteAccess = { onAllowRemoteAccess(it) },
             )
         }
     }

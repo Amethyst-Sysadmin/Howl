@@ -406,6 +406,7 @@ fun PowerSettingsPanel(
 @Composable
 fun SettingsPanel(
     viewModel: SettingsViewModel,
+    onAllowRemoteAccess: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val miscShowPowerMeter by Prefs.miscShowPowerMeter.collectAsStateWithLifecycle()
@@ -432,7 +433,7 @@ fun SettingsPanel(
             label = "Allow remote access",
             checked = remoteAccess,
             onCheckedChange = {
-                viewModel.setRemoteAccess(it)
+                onAllowRemoteAccess?.invoke(it) ?: viewModel.setRemoteAccess(it)
             }
         )
         val bearerRegex = Regex("[^A-Za-z0-9._~+/=-]")
