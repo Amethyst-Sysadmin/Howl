@@ -115,6 +115,16 @@ data class Quadruple<T1, T2, T3, T4>(
     val fourth: T4
 )
 
+data class PolarPosition(
+    val radius: Float, // Normalized from 0.0 (center) to 1.0 (edge)
+    val angleRadians: Float // Direction from 0.0 to 2*PI radians
+)
+
+data class CartesianPosition(
+    val x: Float, // Normalized from -1.0 (left edge) to 1.0 (right edge)
+    val y: Float  // Normalized from -1.0 (top edge) to 1.0 (bottom edge)
+)
+
 fun lerp(start: Double, end: Double, fraction: Double): Double {
     return start + (end - start) * fraction
 }

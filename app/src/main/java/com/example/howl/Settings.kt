@@ -1,5 +1,7 @@
 package com.example.howl
 
+import android.Manifest
+import android.os.Build
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -406,12 +408,19 @@ fun PowerSettingsPanel(
 @Composable
 fun SettingsPanel(
     viewModel: SettingsViewModel,
+    onRequestPermissions: (Array<String>, (Boolean) -> Unit) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val miscShowPowerMeter by Prefs.miscShowPowerMeter.collectAsStateWithLifecycle()
     val miscShowDebugLog by Prefs.miscShowDebugLog.collectAsStateWithLifecycle()
     val remoteAccess by Prefs.remoteAccess.collectAsStateWithLifecycle()
     val remoteAPIKey by Prefs.remoteAPIKey.collectAsStateWithLifecycle()
+
+    val localNetworkPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN) {
+        arrayOf(Manifest.permission.ACCESS_LOCAL_NETWORK)
+    } else {
+        emptyArray()
+    }
 
     Column(
         modifier = modifier
@@ -431,8 +440,19 @@ fun SettingsPanel(
         SwitchWithLabel(
             label = "Allow remote access",
             checked = remoteAccess,
-            onCheckedChange = {
-                viewModel.setRemoteAccess(it)
+            onCheckedChange = { isEnabling ->
+                if (isEnabling) {
+                    onRequestPermissions(localNetworkPermissions) { granted ->
+                        if (granted) {
+                            HLog.d("Settings", "Local network permissions granted.")
+                            viewModel.setRemoteAccess(true)
+                        } else {
+                            HLog.d("Settings", "Local network permissions denied.")
+                        }
+                    }
+                } else {
+                    viewModel.setRemoteAccess(false)
+                }
             }
         )
         val bearerRegex = Regex("[^A-Za-z0-9._~+/=-]")
@@ -483,6 +503,7 @@ fun SettingsPanelPreview() {
         val viewModel: SettingsViewModel = viewModel()
         SettingsPanel(
             viewModel = viewModel,
+            onRequestPermissions = { _, _ -> },
             modifier = Modifier.fillMaxHeight()
         )
     }

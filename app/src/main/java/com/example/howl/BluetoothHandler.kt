@@ -23,6 +23,8 @@ import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.le.ScanResult
 import android.os.Build
 import androidx.annotation.RequiresPermission
+import android.location.LocationManager
+import androidx.core.location.LocationManagerCompat
 
 enum class ConnectionStatus {
     Disconnected,
@@ -104,22 +106,32 @@ object BluetoothHandler {
             return
         }
 
-        val scanner = adapter.bluetoothLeScanner
-        val scanFilters = supportedDevices.map {
-            ScanFilter.Builder().setDeviceName(it.deviceName).build()
+        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+        if (locationManager != null && !LocationManagerCompat.isLocationEnabled(locationManager)) {
+            HLog.d(TAG, "Warning: Location services are disabled. This will cause scans to fail on old Android (< 12) and with certain device brands.")
         }
+
+        val scanner = adapter.bluetoothLeScanner
         val scanSettings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-            .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
             .build()
 
+        val seenAddresses = mutableSetOf<String>()
         val timeoutHandler = Handler(Looper.getMainLooper())
 
         val scanCallback = object : ScanCallback() {
             override fun onScanResult(type: Int, result: ScanResult?) {
                 result?.let {
                     bluetoothDevice = it.device
-                    val foundDevice = supportedDevices.find { sd -> sd.deviceName == bluetoothDevice?.name }
+
+                    val address = it.device.address
+                    val advertisedName = it.scanRecord?.deviceName ?: it.device.name ?: "<unknown>"
+                    val foundDevice = supportedDevices.find { sd -> sd.deviceName == advertisedName }
+
+                    if (seenAddresses.add(address)) {
+                        HLog.d(TAG, "Scan saw BLE device $address ($advertisedName)")
+                    }
+
                     if (foundDevice != null) {
                         HLog.d(TAG, "Found ${foundDevice.deviceName}, connecting...")
                         timeoutHandler.removeCallbacksAndMessages(null)
@@ -135,7 +147,7 @@ object BluetoothHandler {
         }
 
         HLog.d(TAG, "Starting BLE scan...")
-        scanner?.startScan(scanFilters, scanSettings, scanCallback)
+        scanner?.startScan(null, scanSettings, scanCallback)
 
         timeoutHandler.postDelayed({
             HLog.d(TAG, "Scan timeout, disconnecting.")

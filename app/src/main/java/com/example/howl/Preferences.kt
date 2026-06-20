@@ -219,6 +219,11 @@ object Prefs {
     val activityLuxuryHJTimingJitter = register("activity_luxury_hj_timing_jitter", 0.15f, FloatAdapter)
     val activitySimplexPreset = register("activity_simplex_preset", SimplexPreset.PRO, EnumAdapter(SimplexPreset.entries.toTypedArray()))
 
+    // Manual control
+    val manualSmoothdampTime = register("manual_smoothdamp_time", 0.1f, FloatAdapter)
+    val manualTouchpadCenterRate = register("manual_touchpad_center_rate", 0.6f, FloatAdapter)
+
+
     // Misc options
     val miscShowPowerMeter = register("misc_show_power_meter", true, BooleanAdapter)
     val miscShowDebugLog = register("misc_show_debug_log", false, BooleanAdapter)

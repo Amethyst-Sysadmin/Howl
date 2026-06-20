@@ -23,11 +23,26 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.activity.OnBackPressedCallback
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.example.howl.ui.theme.HowlTheme
+
+private data class PermissionRequest(
+    val permissions: Array<String>,
+    val onResult: (allGranted: Boolean) -> Unit
+)
 
 class HowlActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                // Leave empty to globally disable the back button/gesture
+            }
+        })
         enableEdgeToEdge()
         setContent {
             HowlTheme {
@@ -44,6 +59,7 @@ fun HowlAppScreen(
     playerViewModel: PlayerViewModel = viewModel(),
     generatorViewModel: GeneratorViewModel = viewModel(),
     activityHostViewModel: ActivityHostViewModel = viewModel(),
+    manualViewModel: ManualViewModel = viewModel(),
     settingsViewModel: SettingsViewModel = viewModel(),
 ) {
     val connectionStatus by ConnectionManager.connectionStatus.collectAsStateWithLifecycle()
@@ -52,32 +68,41 @@ fun HowlAppScreen(
 
     // Permission launcher
     val context = LocalContext.current
-    val bluetoothPermissionLauncher = rememberLauncherForActivityResult(
+
+    var pendingPermissionRequest by remember { mutableStateOf<PermissionRequest?>(null) }
+
+    // Single, all-purpose permission launcher
+    val genericPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val allGranted = permissions.entries.all { it.value }
-        if (allGranted) {
-            HLog.d("Howl", "Bluetooth permissions granted.")
-            BluetoothHandler.attemptConnection()
+    ) { permissionsMap ->
+        val allGranted = permissionsMap.values.all { it }
+        // Route the result back to the specific caller that triggered it
+        pendingPermissionRequest?.onResult?.invoke(allGranted)
+        pendingPermissionRequest = null
+    }
+
+    // Generic helper function to request permissions
+    fun checkAndRequestPermissions(permissions: Array<String>, onResult: (Boolean) -> Unit) {
+        val missingPermissions = permissions.filter {
+            ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (missingPermissions.isEmpty()) {
+            onResult(true)
         } else {
-            HLog.d("Howl", "Bluetooth permissions denied.")
+            HLog.d("Howl", "Requesting permissions: ${permissions.contentToString()}")
+            pendingPermissionRequest = PermissionRequest(permissions, onResult)
+            genericPermissionLauncher.launch(missingPermissions.toTypedArray())
         }
     }
 
-    // Wrapper function to check permissions before connecting
     fun onConnectClick() {
-        val missingPermissions = BluetoothHandler.ALL_BLE_PERMISSIONS.filter {
-            ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
-        }
-
-        if (missingPermissions.isEmpty()) {
-            // Permissions already granted, proceed immediately
-            HLog.d("Howl", "Required Bluetooth permissions are already granted.")
-            BluetoothHandler.attemptConnection()
-        } else {
-            // Permissions missing, request them
-            HLog.d("Howl", "Requested Bluetooth permissions.")
-            bluetoothPermissionLauncher.launch(missingPermissions.toTypedArray())
+        checkAndRequestPermissions(BluetoothHandler.ALL_BLE_PERMISSIONS) { isGranted ->
+            if (isGranted) {
+                HLog.d("Howl", "Bluetooth permissions granted.")
+                BluetoothHandler.attemptConnection()
+            } else {
+                HLog.d("Howl", "Bluetooth permissions denied.")
+            }
         }
     }
 
@@ -111,6 +136,10 @@ fun HowlAppScreen(
                 settingsViewModel = settingsViewModel,
                 generatorViewModel = generatorViewModel,
                 activityHostViewModel = activityHostViewModel,
+                manualViewModel = manualViewModel,
+                onRequestPermissions = { permissions, onResult ->
+                    checkAndRequestPermissions(permissions, onResult)
+                }
             )
         }
     }

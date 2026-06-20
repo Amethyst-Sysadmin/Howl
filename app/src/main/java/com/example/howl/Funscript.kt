@@ -53,9 +53,8 @@ class FunscriptPulseSource : PulseSource {
     override var readyToPlay: Boolean = false
     override var isRemote: Boolean = false
 
-    private data class ScaledAction(val time: Double, val pos: Double)
-
     private val timePositionData = TreeMap<Double, PositionVelocity>()
+    val jsonConfig = Json { ignoreUnknownKeys = true }
 
     private val noiseGenerator = NoiseGenerator()
 
@@ -192,43 +191,55 @@ class FunscriptPulseSource : PulseSource {
     }
 
     private fun processFunscript(content: String) {
-        val jsonConfig = Json { ignoreUnknownKeys = true }
         val funscript = jsonConfig.decodeFromString<Funscript>(content)
-        val positions = funscript.actions.map { it.pos }
-        val minPos = positions.minOrNull() ?: 0.0
-        val maxPos = positions.maxOrNull() ?: 100.0
-        val (scaleFactor, offset) = if (minPos != maxPos) {
-            val range = (maxPos - minPos)
-            Pair(1.0 / range, -minPos)
-        } else {
-            Pair(1.0 / 100.0, 0.0)
+
+        // Filter duplicate timestamps, sort chronologically, clamp all positions to valid range
+        val uniqueActions = funscript.actions
+            .distinctBy { it.at }
+            .sortedBy { it.at }
+            .map { it.copy(pos = it.pos.coerceIn(0.0, 100.0)) }
+
+        if (uniqueActions.size < 2) {
+            throw BadFileException("Funscript must have at least 2 actions")
         }
 
-        val scaledActions = funscript.actions.map { action ->
-            val time = action.at / 1000.0
-            val scaledPos = ((action.pos + offset) * scaleFactor).coerceIn(0.0, 1.0)
-            ScaledAction(time, scaledPos)
+        // Calculate bounds for normalisation
+        val minPos = uniqueActions.minOf { it.pos }
+        val maxPos = uniqueActions.maxOf { it.pos }
+        val range = maxPos - minPos
+
+        if (range <= 0.0) {
+            throw BadFileException("Funscript must contain at least 2 different positions")
         }
 
-        val positionVelocities = scaledActions.mapIndexed { i, current ->
-            val prev = if (i > 0) scaledActions[i - 1] else null
-            val next = if (i < scaledActions.size - 1) scaledActions[i + 1] else null
+        // Converts times to seconds
+        fun timeAt(index: Int): Double = uniqueActions[index].at / 1000.0
+        // Normalises funscript positions from 0.0 to 1.0 (expanding limited range funscripts)
+        fun posAt(index: Int): Double = (uniqueActions[index].pos - minPos) / range
 
-            val velocity =  when {
-                prev == null && next == null -> 0.0
-                prev == null -> (next!!.pos - current.pos) / (next.time - current.time)
-                next == null -> (current.pos - prev.pos) / (current.time - prev.time)
+        val lastIndex = uniqueActions.lastIndex
+
+        // Populate our TreeMap
+        for (i in uniqueActions.indices) {
+            val currentTime = timeAt(i)
+            val currentPos = posAt(i)
+
+            val velocity = when (i) {
+                0 -> {
+                    // Forward difference
+                    (posAt(1) - currentPos) / (timeAt(1) - currentTime)
+                }
+                lastIndex -> {
+                    // Backward difference
+                    (currentPos - posAt(i - 1)) / (currentTime - timeAt(i - 1))
+                }
                 else -> {
-                    val slopePrev = (current.pos - prev.pos) / (current.time - prev.time)
-                    val slopeNext = (next.pos - current.pos) / (next.time - current.time)
-                    ((slopePrev + slopeNext) * 0.5)
+                    // Central difference (Catmull-Rom)
+                    (posAt(i + 1) - posAt(i - 1)) / (timeAt(i + 1) - timeAt(i - 1))
                 }
             }
-            PositionVelocity(current.pos, velocity)
-        }
 
-        scaledActions.forEachIndexed { index, action ->
-            timePositionData[action.time] = positionVelocities[index]
+            timePositionData[currentTime] = PositionVelocity(currentPos, velocity)
         }
     }
 

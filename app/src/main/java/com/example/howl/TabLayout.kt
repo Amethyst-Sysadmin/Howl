@@ -30,7 +30,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 
 class TabLayoutViewModel : ViewModel() {
-    private val fixedTabs = listOf("Player", "Generator", "Activity", "Settings")
+    private val fixedTabs = listOf("Player", "Generator", "Activity", "Manual", "Settings")
     private val debugTab = "Debug"
 
     private val _tabIndex = MutableStateFlow(0)
@@ -58,6 +58,8 @@ fun TabLayout(
     settingsViewModel: SettingsViewModel,
     generatorViewModel: GeneratorViewModel,
     activityHostViewModel: ActivityHostViewModel,
+    manualViewModel: ManualViewModel,
+    onRequestPermissions: (Array<String>, (Boolean) -> Unit) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val tabIndex by tabLayoutViewModel.tabIndex.collectAsState()
@@ -94,6 +96,7 @@ fun TabLayout(
                             "Player" -> Icon(painterResource(R.drawable.player), contentDescription = null)
                             "Generator" -> Icon(painterResource(R.drawable.wave), contentDescription = null)
                             "Activity" -> Icon(painterResource(R.drawable.rocket), contentDescription = null)
+                            "Manual" -> Icon(painterResource(R.drawable.joystick), contentDescription = null)
                             "Settings" -> Icon(painterResource(R.drawable.settings), contentDescription = null)
                             "Debug" -> Icon(painterResource(R.drawable.debug), contentDescription = null)
                         }
@@ -108,7 +111,11 @@ fun TabLayout(
                 "Player" -> CombinedPanel(viewModel = playerViewModel)
                 "Generator" -> GeneratorPanel(viewModel = generatorViewModel)
                 "Activity" -> ActivityHostPanel(viewModel = activityHostViewModel)
-                "Settings" -> SettingsPanel(viewModel = settingsViewModel)
+                "Manual" -> ManualPanel(viewModel = manualViewModel)
+                "Settings" -> SettingsPanel(
+                    viewModel = settingsViewModel,
+                    onRequestPermissions = onRequestPermissions
+                )
                 "Debug" -> LogViewer()
             }
         }
@@ -124,12 +131,15 @@ fun TabLayoutPreview() {
         val settingsViewModel: SettingsViewModel = viewModel()
         val generatorViewModel: GeneratorViewModel = viewModel()
         val activityHostViewModel: ActivityHostViewModel = viewModel()
+        val manualViewModel: ManualViewModel = viewModel()
         TabLayout (
             tabLayoutViewModel = viewModel,
             playerViewModel = playerViewModel,
             settingsViewModel = settingsViewModel,
             generatorViewModel = generatorViewModel,
             activityHostViewModel = activityHostViewModel,
+            manualViewModel = manualViewModel,
+            onRequestPermissions = { _, _ -> },
             modifier = Modifier.fillMaxHeight()
         )
     }

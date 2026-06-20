@@ -1229,6 +1229,7 @@ class Calibration2Activity : Activity() {
         calibrationWaveManager.setSpeed(waveSpeed)
         manager.register(phaseTimer)
         manager.register(calibrationWaveManager)
+        phaseTimer.start()
     }
 
     fun nextPhase() {
