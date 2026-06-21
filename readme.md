@@ -172,6 +172,24 @@ Howl offers a number of built-in "activities". These are patterns with random el
 
 The [list of activities wiki page](https://github.com/Amethyst-Sysadmin/Howl/wiki/List-of-activities) gives information about all of the available activities. This includes what they represent, what their settings do (where applicable) and any extra details about how they work.
 
+## Manual
+
+The manual feature allows you to control your estim device directly. It uses a dual touchpad system, which is reminiscent of video game controls.
+
+* The left pad controls channel A, the right pad controls channel B.
+* The center of the circle represents zero power, rising to maximum power at the edges.
+* The direction of movement from the center determines the frequency. The highest frequency is at the top of the circle, the lowest frequency is at the bottom.
+
+The circle is mirrored vertically around the center. For example moving directly left or directly right does the same thing. This gives multiple positional choices to improve ergonomics, and makes swiping through the center easier.
+
+### Manual settings
+
+**Touchpad center rate**
+Controls how quickly the touchpads return to the center when you stop touching them. Higher values return to the center more quickly. You can set this to zero to disable automatic centering and keep the pads in the last touched position.
+
+**Smoothing**
+Controls how much smoothing is applied to your touch input. Lower values are more responsive, higher values will move towards the touched position more gradually over time. Higher smoothing values can work well with the center rate set to zero, since then you can just tap a position in the circle and the output will smoothly shift towards it (allowing for easier one handed operation).
+
 ## Settings
 
 ### Output type
