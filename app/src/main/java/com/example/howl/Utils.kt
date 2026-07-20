@@ -1,5 +1,8 @@
 package com.example.howl
 
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
 import android.util.Log
 import kotlin.math.abs
 import kotlin.math.hypot
@@ -345,24 +348,20 @@ fun calculatePositionalEffect(
     position: Double,
     positionalEffectStrength: Double
 ): Pair<Double, Double> {
+    // Curve to tune the positional effect to provide equal sensations at the center and extremes.
+    // 1.0 = linear panning. 0.5 = constant power panning (default).
+    val curve = Prefs.calibrationPositionalEffectCurve.value.toDouble().coerceAtLeast(0.01)
+
     //calculate the "effective position" by interpolating between the original position and the neutral position based on the effect strength
     val effectivePosition = 0.5 * (1 - positionalEffectStrength) + position * positionalEffectStrength
 
-    val amplitudeA = amplitude * sqrt(1 - effectivePosition)
-    val amplitudeB = amplitude * sqrt(effectivePosition)
-    return Pair(amplitudeA, amplitudeB)
-}
+    val baseA = (1.0 - effectivePosition).coerceIn(0.0, 1.0)
+    val baseB = effectivePosition.coerceIn(0.0, 1.0)
 
-fun calculatePositionalEffectLinear(
-    amplitude: Double,
-    position: Double,
-    positionalEffectStrength: Double
-): Pair<Double, Double> {
-    //calculate the "effective position" by interpolating between the original position and the neutral position based on the effect strength
-    val effectivePosition = 0.5 * (1 - positionalEffectStrength) + position * positionalEffectStrength
+    // Apply the perceptual power curve
+    val amplitudeA = amplitude * baseA.pow(curve)
+    val amplitudeB = amplitude * baseB.pow(curve)
 
-    val amplitudeA = amplitude * (1 - effectivePosition)
-    val amplitudeB = amplitude * (effectivePosition)
     return Pair(amplitudeA, amplitudeB)
 }
 
@@ -393,6 +392,23 @@ fun calculateEngulfEffect(
     val ampA = calculateChannelAmplitude(position, channelAEngulfPoint) * amplitude
     val ampB = calculateChannelAmplitude(position, channelBEngulfPoint) * amplitude
     return Pair(ampA, ampB)
+}
+
+fun Uri.getName(context: Context): String {
+    // Does the ridiculous process required just to get a local filename on Android.
+    return try {
+        context.contentResolver.query(this, null, null, null, null)?.use { cursor ->
+            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (nameIndex != -1 && cursor.moveToFirst()) {
+                cursor.getString(nameIndex) ?: ""
+            } else {
+                ""
+            }
+        } ?: ""
+    } catch (e: Exception) {
+        HLog.w("URI", "Could not resolve file name for $this: ${e.message}")
+        ""
+    }
 }
 
 class CircularBuffer<T>(var capacity: Int): Iterable<T> {

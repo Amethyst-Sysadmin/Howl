@@ -75,6 +75,8 @@ fun readHWLFile(input: InputStream): List<Pulse> {
 class HWLPulseSource : PulseSource {
     private val _displayName = MutableStateFlow("HWL")
     override val displayName = _displayName.asStateFlow()
+    private val _displayInfo = MutableStateFlow("")
+    override val displayInfo = _displayInfo.asStateFlow()
     override var duration: Double? = null
     override val isFinite: Boolean = true
     override var shouldLoop: Boolean = true

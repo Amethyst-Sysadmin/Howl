@@ -41,10 +41,12 @@ enum class ActivityType(val displayName: String, val iconResId: Int) {
     CHAOS("Chaos", R.drawable.chaos) { override fun create() = ChaosActivity() },
     HJ("Luxury HJ", R.drawable.hand) { override fun create() = LuxuryHJActivity() },
     OPPOSITES("Opposites", R.drawable.yin_yang) { override fun create() = OppositesActivity() },
-    CALIBRATION1("Calibration 1", R.drawable.swapvert) { override fun create() =
-        Calibration1Activity() },
-    CALIBRATION2("Calibration 2", R.drawable.calibration) { override fun create() =
-        Calibration2Activity() },
+    CALIBRATE_POWER("Calibrate power", R.drawable.plug) { override fun create() =
+        PowerCalibrationActivity() },
+    CALIBRATE_FREQ("Calibrate frequency", R.drawable.calibration) { override fun create() =
+        FrequencyCalibrationActivity() },
+    CALIBRATE_POSITION("Calibrate position", R.drawable.swapvert) { override fun create() =
+        PositionalCalibrationActivity() },
     BJ("BJ Megamix", R.drawable.lips) { override fun create() = BJActivity() },
     FASTSLOW("Fast/slow", R.drawable.speed) { override fun create() =
         FastSlowActivity() },
@@ -68,6 +70,8 @@ object ActivityHost : PulseSource {
 
     private val _displayName = MutableStateFlow("Activity output")
     override val displayName = _displayName.asStateFlow()
+    private val _displayInfo = MutableStateFlow("")
+    override val displayInfo = _displayInfo.asStateFlow()
     override var duration: Double? = null
     override val isFinite: Boolean = false
     override val shouldLoop: Boolean = false
@@ -176,6 +180,7 @@ fun ActivityHostPanel(
     val playerState by Player.playerState.collectAsStateWithLifecycle()
     val isPlaying = playerState.isPlaying && playerState.activePulseSource == ActivityHost
     val excludedColor = MaterialTheme.colorScheme.error
+    val isCalibration = currentType.displayName.contains("Calibrate")
 
     Column(
         modifier = modifier.padding(16.dp),
@@ -274,24 +279,26 @@ fun ActivityHostPanel(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 //horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Title
-                Text(
-                    text = "${currentType.displayName} settings",
-                    style = MaterialTheme.typography.titleLarge
-                )
-
-                // Random select availability slider
-                val isExcluded = currentType in excludedActivities
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("Available for random select")
-                    Switch(
-                        checked = !isExcluded,
-                        onCheckedChange = { viewModel.toggleExclusion(currentType) }
+                if(!isCalibration) {
+                    // Title
+                    Text(
+                        text = "${currentType.displayName} settings",
+                        style = MaterialTheme.typography.titleLarge
                     )
+
+                    // Random select availability slider
+                    val isExcluded = currentType in excludedActivities
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Available for random select")
+                        Switch(
+                            checked = !isExcluded,
+                            onCheckedChange = { viewModel.toggleExclusion(currentType) }
+                        )
+                    }
                 }
                 currentInstance.permanentSettings?.let { it() }
             }

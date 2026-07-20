@@ -1,21 +1,9 @@
 package com.example.howl
 
 import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.util.Log
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.SupervisorJob
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import android.content.ClipboardManager
 import android.widget.Toast
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -40,30 +28,89 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+// ─── Log Level ────────────────────────────────────────────────────────────────
+
+enum class LogLevel(val label: String, val priority: Int) {
+    VERBOSE("V", Log.VERBOSE),
+    DEBUG("D", Log.DEBUG),
+    INFO("I", Log.INFO),
+    WARN("W", Log.WARN),
+    ERROR("E", Log.ERROR);
+
+    /** Subtle tint applied in the UI – readable on both light and dark surfaces. */
+    val color: Color
+        get() = when (this) {
+            VERBOSE -> Color(0xFF9E9E9E) // neutral grey
+            DEBUG   -> Color(0xFF7CB342) // muted green
+            INFO    -> Color(0xFF42A5F5) // soft blue
+            WARN    -> Color(0xFFFFA726) // amber
+            ERROR   -> Color(0xFFEF5350) // soft red
+        }
+}
+
+// ─── Log Entry ────────────────────────────────────────────────────────────────
 
 data class LogEntry(
     val timestamp: Long,
+    val level: LogLevel,
     val tag: String,
     val message: String,
     val exception: Throwable? = null
 )
 
+// ─── HLog ─────────────────────────────────────────────────────────────────────
+
 object HLog {
     const val MAX_LOG_ENTRIES = 100
-    private val logQueue = ArrayDeque<LogEntry>(MAX_LOG_ENTRIES)
+
+    private val logBuffer = CircularBuffer<LogEntry>(MAX_LOG_ENTRIES)
     private val _logStateFlow = MutableStateFlow<List<LogEntry>>(emptyList())
     val logStateFlow: StateFlow<List<LogEntry>> = _logStateFlow.asStateFlow()
 
     private val mutex = Mutex()
     private val loggerScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    fun d(tag: String, message: String, exception: Throwable? = null) {
-        val newEntry = LogEntry(
+    // ── Public per-level convenience methods ──────────────────────────────
+
+    fun v(tag: String, message: String, exception: Throwable? = null) =
+        log(LogLevel.VERBOSE, tag, message, exception)
+
+    fun d(tag: String, message: String, exception: Throwable? = null) =
+        log(LogLevel.DEBUG, tag, message, exception)
+
+    fun i(tag: String, message: String, exception: Throwable? = null) =
+        log(LogLevel.INFO, tag, message, exception)
+
+    fun w(tag: String, message: String, exception: Throwable? = null) =
+        log(LogLevel.WARN, tag, message, exception)
+
+    fun e(tag: String, message: String, exception: Throwable? = null) =
+        log(LogLevel.ERROR, tag, message, exception)
+
+    // ── Common internal implementation ────────────────────────────────────
+
+    private fun log(level: LogLevel, tag: String, message: String, exception: Throwable?) {
+        val entry = LogEntry(
             timestamp = System.currentTimeMillis(),
+            level = level,
             tag = tag,
             message = message,
             exception = exception
@@ -71,24 +118,27 @@ object HLog {
 
         loggerScope.launch {
             mutex.withLock {
-                while (logQueue.size >= MAX_LOG_ENTRIES) {
-                    logQueue.removeFirst()
-                }
-                logQueue.add(newEntry)
-                _logStateFlow.value = logQueue.toList()
+                logBuffer.add(entry, overwrite = true)
+                _logStateFlow.value = logBuffer.toList()
             }
         }
-        if (exception != null) {
-            Log.d(tag, message, exception)
-        } else {
-            Log.d(tag, message)
+
+        // Forward to Android's system log at the matching priority
+        when (level) {
+            LogLevel.VERBOSE -> if (exception != null) Log.v(tag, message, exception) else Log.v(tag, message)
+            LogLevel.DEBUG   -> if (exception != null) Log.d(tag, message, exception) else Log.d(tag, message)
+            LogLevel.INFO    -> if (exception != null) Log.i(tag, message, exception) else Log.i(tag, message)
+            LogLevel.WARN    -> if (exception != null) Log.w(tag, message, exception) else Log.w(tag, message)
+            LogLevel.ERROR   -> if (exception != null) Log.e(tag, message, exception) else Log.e(tag, message)
         }
     }
+
+    // ── Utilities ─────────────────────────────────────────────────────────
 
     fun clear() {
         loggerScope.launch {
             mutex.withLock {
-                logQueue.clear()
+                logBuffer.clear()
                 _logStateFlow.value = emptyList()
             }
         }
@@ -107,7 +157,7 @@ object HLog {
 
     suspend fun getFormattedLogs(): String {
         return mutex.withLock {
-            logQueue.joinToString(separator = "\n") { formatLogEntry(it) }
+            logBuffer.toList().joinToString(separator = "\n") { formatLogEntry(it) }
         }
     }
 
@@ -119,6 +169,8 @@ object HLog {
     }
 }
 
+// ─── Log Viewer UI ────────────────────────────────────────────────────────────
+
 @Composable
 fun LogViewer() {
     val logEntries by HLog.logStateFlow.collectAsState()
@@ -126,7 +178,7 @@ fun LogViewer() {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    // Auto-scroll to bottom when new entries are added
+    // Auto-scroll to bottom when new entries arrive
     LaunchedEffect(logEntries.size) {
         if (logEntries.isNotEmpty()) {
             listState.animateScrollToItem(logEntries.size - 1)
@@ -137,7 +189,7 @@ fun LogViewer() {
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Copy and Clear buttons
+        // Action buttons
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -158,7 +210,7 @@ fun LogViewer() {
             }
         }
 
-        // Log entries display
+        // Scrollable log list
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -174,9 +226,10 @@ fun LogViewer() {
                         shape = MaterialTheme.shapes.large
                     )
             ) {
-                items(logEntries) { entry ->
-                    // Display each line of the formatted entry separately
+                items(logEntries, key = { it.timestamp.hashCode() * 31 + it.message.hashCode() }) { entry ->
                     val formattedText = HLog.formatLogEntry(entry)
+                    val entryColor = entry.level.color
+
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -187,7 +240,7 @@ fun LogViewer() {
                                 text = line,
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 8.sp,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = entryColor
                             )
                         }
                     }

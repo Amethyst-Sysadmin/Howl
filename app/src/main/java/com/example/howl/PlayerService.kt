@@ -44,7 +44,7 @@ class PlayerService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         serviceScope.cancel()
-        HLog.d("PlayerService", "Player service ended")
+        HLog.v("PlayerService", "Player service ended")
     }
 
     private fun startForegroundService() {
@@ -64,7 +64,7 @@ class PlayerService : Service() {
             // was running in the background and we got a network request to start playback.
             val isFgNotAllowed = e.javaClass.name == "android.app.ForegroundServiceStartNotAllowedException"
             if (isFgNotAllowed) {
-                HLog.d("PlayerService", "Not allowed to elevate playback service while Howl is running in the background. Turning off battery optimization for the app might help.")
+                HLog.w("PlayerService", "Not allowed to elevate playback service while Howl is running in the background. Turning off battery optimization for the app might help.")
             }
             Log.e("PlayerService", "Failed to start foreground service: ${e.message}")
         }
@@ -93,7 +93,7 @@ class PlayerService : Service() {
 
     private fun startPlayerLoop() {
         if (playerJob?.isActive == true) return
-        HLog.d("PlayerService", "Starting main player loop")
+        HLog.v("PlayerService", "Starting main player loop")
         playerJob = serviceScope.launch {
             try {
                 while (isActive) {
@@ -180,7 +180,7 @@ class PlayerService : Service() {
                 }
             } catch (_: CancellationException) {
                 // Normal cancellation
-                HLog.d("PlayerService", "Foreground service cancelled")
+                HLog.v("PlayerService", "Foreground service cancelled")
             } finally {
                 stopSelf()
             }

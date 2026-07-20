@@ -223,6 +223,8 @@ object Generator : PulseSource {
 
     private val _displayName = MutableStateFlow("Generator output")
     override val displayName = _displayName.asStateFlow()
+    private val _displayInfo = MutableStateFlow("")
+    override val displayInfo = _displayInfo.asStateFlow()
     override var duration: Double? = null
     override val isFinite: Boolean = false
     override val shouldLoop: Boolean = false

@@ -18,7 +18,7 @@ class HowlApp : Application() {
 
         val androidVersion = Build.VERSION.RELEASE
         val androidSDK = Build.VERSION.SDK_INT
-        HLog.d("Howl", "Howl $howlVersion running on Android $androidVersion (SDK $androidSDK)")
+        HLog.i("Howl", "Howl $howlVersion running on Android $androidVersion (SDK $androidSDK)")
 
         // Load preferences asynchronously and initialise dependent components in a callback
         Prefs.loadAll {

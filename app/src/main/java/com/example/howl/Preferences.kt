@@ -172,15 +172,20 @@ object Prefs {
     val powerAutoIncrementDelayA = register("power_auto_inc_delay_a", 120, IntAdapter)
     val powerAutoIncrementDelayB = register("power_auto_inc_delay_b", 120, IntAdapter)
 
+    // Calibrations
+    val calibrationPowerBalance = register("calibration_power_balance", 0.5f, FloatAdapter)
+    val calibrationFrequencyBalanceA = register("calibration_frequency_balance_a", 0.5f, FloatAdapter)
+    val calibrationFrequencyBalanceB = register("calibration_frequency_balance_b", 0.5f, FloatAdapter)
+    val calibrationPositionalEffectCurve = register("calibration_positional_effect_curve", 0.5f, FloatAdapter)
+
     // Funscript related
     val funscriptVolume = register("funscript_volume", 0.8f, FloatAdapter)
     val funscriptPositionalEffectStrength = register("funscript_positional_effect_strength", 1.0f, FloatAdapter)
-    val funscriptFrequencyTimeOffset = register("funscript_freq_time_offset", -0.08f, FloatAdapter)
-    val funscriptFrequencyVarySpeed = register("funscript_freq_vary_speed", 0.5f, FloatAdapter)
-    val funscriptFrequencyBlendRatio = register("funscript_freq_blend_ratio", 0.5f, FloatAdapter)
-    val funscriptFrequencyAlgorithm = register("funscript_freq_algorithm", FrequencyAlgorithmType.POSITION, EnumAdapter(FrequencyAlgorithmType.entries.toTypedArray()))
-    val funscriptFrequencyFixedA = register("funscript_freq_fixed_a", 0.8f, FloatAdapter)
-    val funscriptFrequencyFixedB = register("funscript_freq_fixed_b", 0.8f, FloatAdapter)
+    val funscriptDirectionalFreqShift = register("funscript_directional_freq_shift", 0.15f, FloatAdapter)
+    val funscriptFreqEnergyProportion = register("funscript_freq_energy_proportion", 0.2f, FloatAdapter)
+    val funscriptFlipDirectionalFreqShift = register("funscript_flip_directional_freq_shift", false, BooleanAdapter)
+    val funscriptNormaliseAxes = register("funscript_normalise_axes", true, BooleanAdapter)
+    val funscriptSmoothingSigma = register("funscript_smoothing_sigma", 0.2f, FloatAdapter)
 
     // Player special effects
     val sfxEnabled = register("sfx_enabled", false, BooleanAdapter)
@@ -208,7 +213,9 @@ object Prefs {
 
     // Activity related (global)
     val activityChangeProbability = register("activity_change_prob", 0.0f, FloatAdapter)
-    val activityExcludedFromRandom = register("activity_excluded_from_random", listOf(ActivityType.CALIBRATION1, ActivityType.CALIBRATION2), EnumListAdapter(ActivityType.entries.toTypedArray()))
+    val activityExcludedFromRandom = register("activity_excluded_from_random", listOf(ActivityType.CALIBRATE_POWER, ActivityType.CALIBRATE_FREQ,
+        ActivityType.CALIBRATE_POSITION), EnumListAdapter(ActivityType.entries.toTypedArray()))
+
     // Activity related (individual activity options)
     val activityVibePulseDutyCycle = register("activity_vibe_pulse_duty_cycle", 1.0f, FloatAdapter)
     val activityVibePulseTime = register("activity_vibe_pulse_time", 0.3f, FloatAdapter)
@@ -242,8 +249,8 @@ object Prefs {
     // Audio output parameters
     val outputAudioWaveShape = register("output_audio_wave_shape", AudioWaveShape.SINE, EnumAdapter(AudioWaveShape.entries.toTypedArray()))
     val outputAudioCarrierShape = register("output_audio_carrier_shape", AudioWaveShape.SINE, EnumAdapter(AudioWaveShape.entries.toTypedArray()))
-    val outputAudioMaxFrequency = register("output_audio_max_freq", 200, IntAdapter)
-    val outputAudioMinFrequency = register("output_audio_min_freq", 50, IntAdapter)
+    val outputAudioMaxFrequency = register("output_audio_max_freq", 1000, IntAdapter)
+    val outputAudioMinFrequency = register("output_audio_min_freq", 500, IntAdapter)
     val outputAudioCarrierPhaseType = register("output_audio_carrier_phase", AudioPhaseType.OFFSET, EnumAdapter(AudioPhaseType.entries.toTypedArray()))
     val outputAudioCarrierFrequency = register("output_audio_carrier_freq", 1000, IntAdapter)
     val outputAudioWaveletWidth = register("output_audio_wavelet_width", 5, IntAdapter)

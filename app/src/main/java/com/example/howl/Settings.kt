@@ -219,6 +219,13 @@ fun OutputSettingsPanel(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
+            Text(text = "WARNING: Continuous output is intended for devices with their own audio processing. Do not use it with directly driven devices such as DIY stereostim or the Tingler, as many frequency range choices are unsafe.", style = MaterialTheme.typography.bodyMedium)
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
             Text(text = "Wave shape", style = MaterialTheme.typography.labelLarge)
             OptionPicker(
                 currentValue = outputAudioWaveShape,
@@ -230,14 +237,14 @@ fun OutputSettingsPanel(
                 getText = { it.displayName }
             )
         }
-        val frequencySliderRange = 10..1000
+        val frequencySliderRange = 50..4000
         SliderWithLabel(
             label = "Minimum allowed frequency (Hz)",
             value = outputAudioMinFrequency.toFloat(),
             onValueChange = { viewModel.setAudioOutputMinFrequency(it.roundToInt()) },
             onValueChangeFinished = { Prefs.outputAudioMinFrequency.save() },
             valueRange = frequencySliderRange.toClosedFloatingPointRange(),
-            steps = ((frequencySliderRange.last - frequencySliderRange.first) * 0.1).roundToInt() - 1,
+            steps = calculateSliderSteps(frequencySliderRange.toClosedFloatingPointRange(), 50.0f),
             valueDisplay = { it.roundToInt().toString() }
         )
         SliderWithLabel(
@@ -246,7 +253,7 @@ fun OutputSettingsPanel(
             onValueChange = { viewModel.setAudioOutputMaxFrequency(it.roundToInt()) },
             onValueChangeFinished = { Prefs.outputAudioMaxFrequency.save() },
             valueRange = frequencySliderRange.toClosedFloatingPointRange(),
-            steps = ((frequencySliderRange.last - frequencySliderRange.first) * 0.1).roundToInt() - 1,
+            steps = calculateSliderSteps(frequencySliderRange.toClosedFloatingPointRange(), 50.0f),
             valueDisplay = { it.roundToInt().toString() }
         )
     }
@@ -406,6 +413,61 @@ fun PowerSettingsPanel(
 }
 
 @Composable
+fun CalibrationSettingsPanel(
+    viewModel: SettingsViewModel,
+    modifier: Modifier = Modifier
+) {
+    val positionalEffectCurve by Prefs.calibrationPositionalEffectCurve.collectAsStateWithLifecycle()
+    val powerBalance by Prefs.calibrationPowerBalance.collectAsStateWithLifecycle()
+    val frequencyBalanceA by Prefs.calibrationFrequencyBalanceA.collectAsStateWithLifecycle()
+    val frequencyBalanceB by Prefs.calibrationFrequencyBalanceB.collectAsStateWithLifecycle()
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Text(text = "Calibration options", style = MaterialTheme.typography.headlineSmall)
+    }
+    SliderWithLabel(
+        label = "Power balance",
+        value = powerBalance,
+        onValueChange = { Prefs.calibrationPowerBalance.value = it },
+        onValueChangeFinished = { Prefs.calibrationPowerBalance.save() },
+        valueRange = 0.0f..1.0f,
+        steps = 99,
+        valueDisplay = { String.format(Locale.US, "%03.2f", it) }
+    )
+    SliderWithLabel(
+        label = "Frequency balance A",
+        value = frequencyBalanceA,
+        onValueChange = { Prefs.calibrationFrequencyBalanceA.value = it },
+        onValueChangeFinished = { Prefs.calibrationFrequencyBalanceA.save() },
+        valueRange = 0.0f..1.0f,
+        steps = 99,
+        valueDisplay = { String.format(Locale.US, "%03.2f", it) }
+    )
+    SliderWithLabel(
+        label = "Frequency balance B",
+        value = frequencyBalanceB,
+        onValueChange = { Prefs.calibrationFrequencyBalanceB.value = it },
+        onValueChangeFinished = { Prefs.calibrationFrequencyBalanceB.save() },
+        valueRange = 0.0f..1.0f,
+        steps = 99,
+        valueDisplay = { String.format(Locale.US, "%03.2f", it) }
+    )
+    SliderWithLabel(
+        label = "Positional effect curve",
+        value = positionalEffectCurve,
+        onValueChange = { Prefs.calibrationPositionalEffectCurve.value = it },
+        onValueChangeFinished = { Prefs.calibrationPositionalEffectCurve.save() },
+        valueRange = 0.1f..1.0f,
+        steps = 89,
+        valueDisplay = { String.format(Locale.US, "%03.2f", it) }
+    )
+}
+
+@Composable
 fun SettingsPanel(
     viewModel: SettingsViewModel,
     onRequestPermissions: (Array<String>, (Boolean) -> Unit) -> Unit,
@@ -429,6 +491,7 @@ fun SettingsPanel(
     ) {
         OutputSettingsPanel(viewModel, modifier)
         PowerSettingsPanel(viewModel, modifier)
+        CalibrationSettingsPanel(viewModel, modifier)
 
         Row(
             modifier = Modifier.fillMaxWidth().padding(4.dp),

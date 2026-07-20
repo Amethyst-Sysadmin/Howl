@@ -50,12 +50,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import java.io.IOException
 import kotlin.time.DurationUnit
 import kotlin.time.TimeSource.Monotonic.markNow
 import java.util.Locale
 import java.lang.ref.WeakReference
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.time.TimeMark
 
@@ -65,12 +69,23 @@ fun formatTime(position: Double): String {
     return String.format(Locale.US, "%02d:%04.1f", minutes, seconds)
 }
 
+@Serializable
 data class Pulse (
     val ampA: Float = 0.0f,
     val ampB: Float = 0.0f,
     val freqA: Float = 0.0f,
     val freqB: Float = 0.0f
 )
+
+fun Pulse.blend(other: Pulse, proportion: Float): Pulse {
+    val t = proportion.coerceIn(0.0f, 1.0f)
+    return Pulse(
+        ampA = ampA + t * (other.ampA - ampA),
+        ampB = ampB + t * (other.ampB - ampB),
+        freqA = freqA + t * (other.freqA - freqA),
+        freqB = freqB + t * (other.freqB - freqB)
+    )
+}
 
 data class PlayerState(
     val activePulseSource: PulseSource? = null,
@@ -88,6 +103,7 @@ data class RecordState(
 
 interface PulseSource {
     val displayName: StateFlow<String>
+    val displayInfo: StateFlow<String>
     val duration: Double?
     val isFinite: Boolean
     val shouldLoop: Boolean
@@ -222,6 +238,32 @@ object Player {
 
         return modifiedPulse
     }
+
+    fun applyCalibration(pulse: Pulse): Pulse {
+        val powerBalance = Prefs.calibrationPowerBalance.value
+        val freqBalanceA = Prefs.calibrationFrequencyBalanceA.value
+        val freqBalanceB = Prefs.calibrationFrequencyBalanceB.value
+
+        // Power balance: scales down the channel opposite to the balance direction
+        val ampAScale = 1.0f - max(0f, powerBalance - 0.5f) * 2.0f
+        val ampBScale = 1.0f - max(0f, 0.5f - powerBalance) * 2.0f
+
+        // Frequency balance: attenuates specific frequency ranges based on balance deviation
+        val freqScaleA = calculateFrequencyScale(freqBalanceA, pulse.freqA)
+        val freqScaleB = calculateFrequencyScale(freqBalanceB, pulse.freqB)
+
+        return pulse.copy(
+            ampA = (pulse.ampA * ampAScale * freqScaleA).coerceIn(0f, 1f),
+            ampB = (pulse.ampB * ampBScale * freqScaleB).coerceIn(0f, 1f)
+        )
+    }
+
+    private fun calculateFrequencyScale(freqBalance: Float, freq: Float): Float {
+        val reduction = 2.0f * abs(freqBalance - 0.5f)
+        val target = if (freqBalance < 0.5f) freq else 1.0f - freq
+        return 1.0f - reduction * target
+    }
+
     fun applyPostProcessing(time: Double, pulse: Pulse): Pulse {
         val mainOptionsState = MainOptions.state.value
         val swapChannels = mainOptionsState.swapChannels
@@ -237,11 +279,13 @@ object Player {
             pulse
         }
 
-        return if (Prefs.sfxEnabled.value) {
+        val processedPulse = if (Prefs.sfxEnabled.value) {
             applySpecialEffects(time, inputPulse)
         } else {
             inputPulse
         }
+
+        return applyCalibration(processedPulse)
     }
     fun getPulseAtTime(time: Double): Pulse {
         val activePulseSource = playerState.value.activePulseSource
@@ -270,22 +314,40 @@ object Player {
         context.startService(serviceIntent)
     }
     fun loadFile(uri: Uri, context: Context) {
-        setPlayerPosition(0.0)
-        try {
-            val pulseSource = HWLPulseSource()
-            pulseSource.open(uri, context)
-            switchPulseSource(pulseSource)
-            return
+        val fileName = uri.getName(context)
+        val extension = fileName.substringAfterLast('.', "").lowercase()
+
+        val source: PulseSource? = try {
+            when (extension) {
+                "hwl"       -> HWLPulseSource().also { it.open(uri, context) }
+                "funscript" -> FunscriptPulseSource().also { it.open(uri, context) }
+                else -> {
+                    HLog.e("Player", "Unsupported file type: \"$fileName\" (expected .hwl or .funscript)")
+                    null
+                }
+            }
+        } catch (e: SecurityException) {
+            HLog.e("Player", "Permission denied opening \"$fileName\"", e)
+            null
+        } catch (e: BadFileException) {
+            HLog.e("Player", "Invalid file \"$fileName\": ${e.message}")
+            null
+        } catch (e: IOException) {
+            HLog.e("Player", "I/O error reading \"$fileName\": ${e.message}", e)
+            null
+        } catch (e: OutOfMemoryError) {
+            HLog.e("Player", "Out of memory loading \"$fileName\" — file may be too large")
+            null
+        } catch (e: Exception) {
+            HLog.e("Player", "Unexpected error loading \"$fileName\": ${e.message}", e)
+            null
         }
-        catch (_: BadFileException) { }
-        try {
-            val pulseSource = FunscriptPulseSource()
-            pulseSource.open(uri, context)
-            switchPulseSource(pulseSource)
-            return
+
+        if (source != null) {
+            HLog.i("Player", "Loaded local file \"$fileName\" (${extension.uppercase()}, ${source.duration?.let { "%.1fs".format(it) } ?: "∞"})")
         }
-        catch (_: BadFileException) { }
-        switchPulseSource(null)
+
+        switchPulseSource(source)
     }
     fun switchPulseSource(source: PulseSource?) {
         val playerState = playerState.value
@@ -415,12 +477,11 @@ fun AdvancedControlsPanel(
 
     val funscriptVolume by Prefs.funscriptVolume.collectAsStateWithLifecycle()
     val funscriptPositionalEffectStrength by Prefs.funscriptPositionalEffectStrength.collectAsStateWithLifecycle()
-    val funscriptFrequencyTimeOffset by Prefs.funscriptFrequencyTimeOffset.collectAsStateWithLifecycle()
-    val funscriptFrequencyVarySpeed by Prefs.funscriptFrequencyVarySpeed.collectAsStateWithLifecycle()
-    val funscriptFrequencyBlendRatio by Prefs.funscriptFrequencyBlendRatio.collectAsStateWithLifecycle()
-    val funscriptFrequencyAlgorithm by Prefs.funscriptFrequencyAlgorithm.collectAsStateWithLifecycle()
-    val funscriptFrequencyFixedA by Prefs.funscriptFrequencyFixedA.collectAsStateWithLifecycle()
-    val funscriptFrequencyFixedB by Prefs.funscriptFrequencyFixedB.collectAsStateWithLifecycle()
+    val funscriptFreqEnergyProportion by Prefs.funscriptFreqEnergyProportion.collectAsStateWithLifecycle()
+    val funscriptDirectionalFreqShift by Prefs.funscriptDirectionalFreqShift.collectAsStateWithLifecycle()
+    val funscriptFlipDirectionalFreqShift by Prefs.funscriptFlipDirectionalFreqShift.collectAsStateWithLifecycle()
+    val funscriptNormaliseAxes by Prefs.funscriptNormaliseAxes.collectAsStateWithLifecycle()
+    val funscriptSmoothingSigma by Prefs.funscriptSmoothingSigma.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier
@@ -488,75 +549,49 @@ fun AdvancedControlsPanel(
             steps = 99,
             valueDisplay = { String.format(Locale.US, "%03.2f", it) }
         )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(text = "Frequency algorithm", style = MaterialTheme.typography.labelLarge)
-            OptionPicker(
-                currentValue = funscriptFrequencyAlgorithm,
-                onValueChange = {
-                    Prefs.funscriptFrequencyAlgorithm.value = it
-                    Prefs.funscriptFrequencyAlgorithm.save()
-                },
-                options = FrequencyAlgorithmType.entries,
-                getText = { it.displayName }
-            )
-        }
-        if (funscriptFrequencyAlgorithm == FrequencyAlgorithmType.FIXED) {
-            SliderWithLabel(
-                label = "Channel A fixed frequency",
-                value = funscriptFrequencyFixedA,
-                onValueChange = { Prefs.funscriptFrequencyFixedA.value = it },
-                onValueChangeFinished = { Prefs.funscriptFrequencyFixedA.save() },
-                valueRange = 0f..1.0f,
-                steps = 99,
-                valueDisplay = { String.format(Locale.US, "%03.2f", it) }
-            )
-            SliderWithLabel(
-                label = "Channel B fixed frequency",
-                value = funscriptFrequencyFixedB,
-                onValueChange = { Prefs.funscriptFrequencyFixedB.value = it },
-                onValueChangeFinished = { Prefs.funscriptFrequencyFixedB.save() },
-                valueRange = 0f..1.0f,
-                steps = 99,
-                valueDisplay = { String.format(Locale.US, "%03.2f", it) }
-            )
-        }
-        if (funscriptFrequencyAlgorithm == FrequencyAlgorithmType.POSITION) {
-            SliderWithLabel(
-                label = "A/B frequency time offset",
-                value = funscriptFrequencyTimeOffset,
-                onValueChange = { Prefs.funscriptFrequencyTimeOffset.value = it },
-                onValueChangeFinished = { Prefs.funscriptFrequencyTimeOffset.save() },
-                valueRange = -0.3f..0.3f,
-                steps = 59,
-                valueDisplay = { String.format(Locale.US, "%03.2f", it) }
-            )
-        }
-        if (funscriptFrequencyAlgorithm == FrequencyAlgorithmType.BLEND || funscriptFrequencyAlgorithm == FrequencyAlgorithmType.VARIED) {
-            SliderWithLabel(
-                label = "Frequency vary speed",
-                value = funscriptFrequencyVarySpeed,
-                onValueChange = { Prefs.funscriptFrequencyVarySpeed.value = it },
-                onValueChangeFinished = { Prefs.funscriptFrequencyVarySpeed.save() },
-                valueRange = 0.1f..5.0f,
-                steps = 48,
-                valueDisplay = { String.format(Locale.US, "%03.2f", it) }
-            )
-        }
-        if (funscriptFrequencyAlgorithm == FrequencyAlgorithmType.BLEND) {
-            SliderWithLabel(
-                label = "Blend ratio (Position -> Varied)",
-                value = funscriptFrequencyBlendRatio,
-                onValueChange = { Prefs.funscriptFrequencyBlendRatio.value = it },
-                onValueChangeFinished = { Prefs.funscriptFrequencyBlendRatio.save() },
-                valueRange = 0f..1.0f,
-                steps = 99,
-                valueDisplay = { String.format(Locale.US, "%03.2f", it) }
-            )
-        }
+        SliderWithLabel(
+            label = "Amplitude calculation window",
+            value = funscriptSmoothingSigma,
+            onValueChange = { Prefs.funscriptSmoothingSigma.value = it },
+            onValueChangeFinished = { Prefs.funscriptSmoothingSigma.save() },
+            valueRange = 0f..0.5f,
+            steps = 49,
+            valueDisplay = { String.format(Locale.US, "%03.2f", it) }
+        )
+        SliderWithLabel(
+            label = "Frequency energy proportion",
+            value = funscriptFreqEnergyProportion,
+            onValueChange = { Prefs.funscriptFreqEnergyProportion.value = it },
+            onValueChangeFinished = { Prefs.funscriptFreqEnergyProportion.save() },
+            valueRange = 0f..1.0f,
+            steps = 99,
+            valueDisplay = { String.format(Locale.US, "%03.2f", it) }
+        )
+        SliderWithLabel(
+            label = "Frequency directional shift",
+            value = funscriptDirectionalFreqShift,
+            onValueChange = { Prefs.funscriptDirectionalFreqShift.value = it },
+            onValueChangeFinished = { Prefs.funscriptDirectionalFreqShift.save() },
+            valueRange = 0f..0.5f,
+            steps = 49,
+            valueDisplay = { String.format(Locale.US, "%03.2f", it) }
+        )
+        SwitchWithLabel(
+            label = "Flip frequency directional shift",
+            checked = funscriptFlipDirectionalFreqShift,
+            onCheckedChange = {
+                Prefs.funscriptFlipDirectionalFreqShift.value = it
+                Prefs.funscriptFlipDirectionalFreqShift.save()
+            }
+        )
+        SwitchWithLabel(
+            label = "Normalise axes (when loading)",
+            checked = funscriptNormaliseAxes,
+            onCheckedChange = {
+                Prefs.funscriptNormaliseAxes.value = it
+                Prefs.funscriptNormaliseAxes.save()
+            }
+        )
     }
 }
 
@@ -951,6 +986,8 @@ fun PlayerPanel(
 
     val displayName by (activeSource?.displayName ?: remember { MutableStateFlow("Player") })
         .collectAsStateWithLifecycle()
+    val displayInfo by (activeSource?.displayInfo ?: remember { MutableStateFlow("") })
+        .collectAsStateWithLifecycle()
 
     val activeButtonColour = MaterialTheme.colorScheme.tertiary
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -980,6 +1017,16 @@ fun PlayerPanel(
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(top = 10.dp)
             )
+
+            if (displayInfo.isNotEmpty()) {
+                Text(
+                    text = displayInfo,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.titleSmall,
+                    //modifier = Modifier.padding(bottom = 4.dp)
+                )
+            }
 
             // Position display and seek bar
             PlayerPositionDisplay(
