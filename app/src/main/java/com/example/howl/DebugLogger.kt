@@ -226,7 +226,7 @@ fun LogViewer() {
                         shape = MaterialTheme.shapes.large
                     )
             ) {
-                items(logEntries, key = { it.timestamp.hashCode() * 31 + it.message.hashCode() }) { entry ->
+                items(logEntries) { entry ->
                     val formattedText = HLog.formatLogEntry(entry)
                     val entryColor = entry.level.color
 

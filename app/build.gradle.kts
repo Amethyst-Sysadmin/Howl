@@ -13,8 +13,8 @@ android {
         applicationId = "com.example.howl"
         minSdk = 26
         targetSdk = 37
-        versionCode = 110
-        versionName = "1.1"
+        versionCode = 111
+        versionName = "1.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
