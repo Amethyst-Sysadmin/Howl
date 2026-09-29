@@ -286,9 +286,17 @@ fun hermiteInterpolate(
     m0: Double,
     t1: Double,
     p1: Double,
-    m1: Double
+    m1: Double,
+    shape: Double = 1.0
 ): Double {
-    return getHermitePositionAndFactors(t, t0, p0, m0, t1, p1, m1).first
+    val (hermitePos, h, _, _) = getHermitePositionAndFactors(t, t0, p0, m0, t1, p1, m1)
+    if (shape == 1.0) return hermitePos
+
+    // Linear interpolation component
+    val linearPos = p0 + (p1 - p0) * h
+
+    // Blend: linear + shape * (hermite - linear)
+    return linearPos + shape * (hermitePos - linearPos)
 }
 
 fun hermiteInterpolateWithVelocity(
@@ -298,17 +306,29 @@ fun hermiteInterpolateWithVelocity(
     m0: Double,
     t1: Double,
     p1: Double,
-    m1: Double
+    m1: Double,
+    shape: Double = 1.0
 ): Pair<Double, Double> {
-    val (position, h, hSq, hCu) = getHermitePositionAndFactors(t, t0, p0, m0, t1, p1, m1)
+    val (hermitePos, h, hSq, hCu) = getHermitePositionAndFactors(t, t0, p0, m0, t1, p1, m1)
+    val dt = t1 - t0
 
     val dpdh = (6 * hSq - 6 * h) * p0 +
-            (3 * hSq - 4 * h + 1) * m0 * (t1 - t0) +
+            (3 * hSq - 4 * h + 1) * m0 * dt +
             (-6 * hSq + 6 * h) * p1 +
-            (3 * hSq - 2 * h) * m1 * (t1 - t0)
-    val velocity = if (t1 != t0) dpdh / (t1 - t0) else 0.0
+            (3 * hSq - 2 * h) * m1 * dt
+    val hermiteVel = if (dt != 0.0) dpdh / dt else 0.0
 
-    return Pair(position, velocity)
+    if (shape == 1.0) {
+        return Pair(hermitePos, hermiteVel)
+    }
+
+    val linearPos = p0 + (p1 - p0) * h
+    val linearVel = if (dt != 0.0) (p1 - p0) / dt else 0.0
+
+    val finalPos = linearPos + shape * (hermitePos - linearPos)
+    val finalVel = linearVel + shape * (hermiteVel - linearVel)
+
+    return Pair(finalPos, finalVel)
 }
 
 fun hermiteInterpolateWithVelocityAndAcceleration(
@@ -318,33 +338,46 @@ fun hermiteInterpolateWithVelocityAndAcceleration(
     m0: Double,
     t1: Double,
     p1: Double,
-    m1: Double
+    m1: Double,
+    shape: Double = 1.0
 ): Triple<Double, Double, Double> {
 
-    val (position, h, hSq, _) = getHermitePositionAndFactors(t, t0, p0, m0, t1, p1, m1)
+    val (hermitePos, h, hSq, _) = getHermitePositionAndFactors(t, t0, p0, m0, t1, p1, m1)
 
     val dt = (t1 - t0)
-    if (dt == 0.0) return Triple(position, 0.0, 0.0)
+    if (dt == 0.0) return Triple(hermitePos, 0.0, 0.0)
 
-    // -------- Velocity --------
+    // -------- Hermite Velocity --------
     val dpdh =
         (6 * hSq - 6 * h) * p0 +
                 (3 * hSq - 4 * h + 1) * m0 * dt +
                 (-6 * hSq + 6 * h) * p1 +
                 (3 * hSq - 2 * h) * m1 * dt
 
-    val velocity = dpdh / dt
+    val hermiteVel = dpdh / dt
 
-    // -------- Acceleration --------
+    // -------- Hermite Acceleration --------
     val d2pdh2 =
         (12 * h - 6) * p0 +
                 (6 * h - 4) * m0 * dt +
                 (-12 * h + 6) * p1 +
                 (6 * h - 2) * m1 * dt
 
-    val acceleration = d2pdh2 / (dt * dt)
+    val hermiteAcc = d2pdh2 / (dt * dt)
 
-    return Triple(position, velocity, acceleration)
+    if (shape == 1.0) {
+        return Triple(hermitePos, hermiteVel, hermiteAcc)
+    }
+
+    val linearPos = p0 + (p1 - p0) * h
+    val linearVel = (p1 - p0) / dt
+    val linearAcc = 0.0
+
+    val finalPos = linearPos + shape * (hermitePos - linearPos)
+    val finalVel = linearVel + shape * (hermiteVel - linearVel)
+    val finalAcc = linearAcc + shape * (hermiteAcc - linearAcc)
+
+    return Triple(finalPos, finalVel, finalAcc)
 }
 
 fun calculatePositionalEffect(

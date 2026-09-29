@@ -229,6 +229,8 @@ object Prefs {
     val funscriptFlipDirectionalFreqShift = register("funscript_flip_directional_freq_shift", false, BooleanAdapter)
     val funscriptNormaliseAxes = register("funscript_normalise_axes", true, BooleanAdapter)
     val funscriptSmoothingSigma = register("funscript_smoothing_sigma", 0.2f, FloatAdapter)
+    // 0.0 = Linear, 1.0 = Fritsch-Carlson, >1.0 = Exaggerated Curves
+    val funscriptMotionProfile = register("funscript_motion_profile", 0.6f, FloatAdapter)
 
     // Generator related
     val generatorAutoChange = register("generator_auto_change", false, BooleanAdapter)

@@ -49,7 +49,8 @@ class BluetoothHandler(
     private val bluetoothManager: BluetoothManager,
     private val deviceName: String,
     private val friendlyName: String,
-    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    private val onAddressChanged: () -> Unit = {}
 ) {
     companion object {
         private const val TAG = "BLE"
@@ -64,6 +65,7 @@ class BluetoothHandler(
 
     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager.adapter
     private var bluetoothGatt: BluetoothGatt? = null
+    var rememberedAddress: String? = null
 
     // 1. Reactive Connection State
     private val _connectionState = MutableStateFlow(ConnectionStatus.Disconnected)
@@ -90,37 +92,78 @@ class BluetoothHandler(
     }
 
     suspend fun scanAndConnect(): Result<Unit> = operationMutex.withLock {
-        updateState(ConnectionStatus.Scanning)
+        var device: BluetoothDevice? = null
 
-        return try {
-            val device = withTimeoutOrNull(SCAN_TIMEOUT) {
-                scanForDevice()
-            } ?: run {
-                val message = "Scan timed out, no $friendlyName found."
-                HLog.w(TAG, message)
-                throw BleException(message)
-            }
-
-            updateState(ConnectionStatus.Connecting)
-
-            executeWithRetry(important = true, maxAttempts = 3) {
+        try {
+            // Attempt direct connection if we have a remembered address
+            if (!rememberedAddress.isNullOrBlank()) {
+                updateState(ConnectionStatus.Connecting)
+                HLog.d(TAG, "Attempting direct connection to remembered address: $rememberedAddress")
                 try {
-                    connectGattSuspend(device)
-                    discoverServicesSuspend()
-                } catch (e: Exception) {
-                    closeGatt()
+                    val remoteDevice = bluetoothAdapter?.getRemoteDevice(rememberedAddress!!)
+                    if (remoteDevice != null) {
+                        executeWithRetry(important = true, maxAttempts = 2) {
+                            try {
+                                connectGattSuspend(remoteDevice)
+                                discoverServicesSuspend()
+                            } catch (e: Exception) {
+                                closeGatt()
+                                throw e
+                            }
+                        }
+                        device = remoteDevice
+                    }
+                } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
+                } catch (e: Exception) {
+                    HLog.w(TAG, "Direct connection failed, falling back to scan.", e)
+                    device = null
                 }
             }
 
+            // Fall back to scanning if direct connection failed or wasn't attempted
+            if (device == null) {
+                updateState(ConnectionStatus.Scanning)
+
+                val scannedDevice = withTimeoutOrNull(SCAN_TIMEOUT) {
+                    scanForDevice()
+                } ?: run {
+                    val message = "Scan timed out, no $friendlyName found."
+                    HLog.w(TAG, message)
+                    throw BleException(message)
+                }
+
+                updateState(ConnectionStatus.Connecting)
+
+                executeWithRetry(important = true, maxAttempts = 3) {
+                    try {
+                        connectGattSuspend(scannedDevice)
+                        discoverServicesSuspend()
+                    } catch (e: Exception) {
+                        closeGatt()
+                        throw e
+                    }
+                }
+                device = scannedDevice
+            }
+
+            // Only replace the remembered address upon successful connection
+            val connectedDevice = device ?: throw BleException("Device is null after connection attempts")
+            if (rememberedAddress != connectedDevice.address) {
+                rememberedAddress = connectedDevice.address
+                onAddressChanged() // <-- Trigger save
+            }
+
+            rememberedAddress = connectedDevice.address
+
             updateState(ConnectionStatus.Connected)
-            Result.success(Unit)
+            return@withLock Result.success(Unit)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "Connection failed", e)
             disconnect()
-            Result.failure(e)
+            return@withLock Result.failure(e)
         }
     }
 

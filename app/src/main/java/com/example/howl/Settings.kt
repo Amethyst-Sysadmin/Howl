@@ -173,6 +173,7 @@ fun FunscriptSettingsPanel(
     val funscriptFlipDirectionalFreqShift by Prefs.funscriptFlipDirectionalFreqShift.collectAsStateWithLifecycle()
     val funscriptNormaliseAxes by Prefs.funscriptNormaliseAxes.collectAsStateWithLifecycle()
     val funscriptSmoothingSigma by Prefs.funscriptSmoothingSigma.collectAsStateWithLifecycle()
+    val funscriptMotionProfile by Prefs.funscriptMotionProfile.collectAsStateWithLifecycle()
 
     Column(modifier = modifier) {
         Row(
@@ -191,6 +192,15 @@ fun FunscriptSettingsPanel(
             onValueChangeFinished = { Prefs.funscriptVolume.save() },
             valueRange = 0.5f..1.0f,
             steps = 49,
+            valueDisplay = { String.format(Locale.US, "%03.2f", it) }
+        )
+        SliderWithLabel(
+            label = "Motion profile",
+            value = funscriptMotionProfile,
+            onValueChange = { Prefs.funscriptMotionProfile.value = it },
+            onValueChangeFinished = { Prefs.funscriptMotionProfile.save() },
+            valueRange = 0.0f..1.0f,
+            steps = 99,
             valueDisplay = { String.format(Locale.US, "%03.2f", it) }
         )
         SliderWithLabel(

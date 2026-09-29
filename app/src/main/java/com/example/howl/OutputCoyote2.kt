@@ -182,7 +182,7 @@ class Coyote2Output : BluetoothOutput("D-LAB ESTIM01") {
             serviceUuid = mainServiceUUID,
             characteristicUuid = powerCharacteristicUUID,
             payload = command,
-            writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT,
+            writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE,
             important = false
         )
     }

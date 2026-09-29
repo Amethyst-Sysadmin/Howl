@@ -83,7 +83,8 @@ data class OutputState(
     val tweaks: Tweaks = Tweaks(),
     val freqSubsetStart: Float = 0.0f,
     val freqSubsetEnd: Float = 1.0f,
-    val typeSpecificSettings: String = "{}"
+    val typeSpecificSettings: String = "{}",
+    val rememberedAddress: String? = null
 )
 
 enum class OutputType(
@@ -127,6 +128,12 @@ enum class OutputType(
         description = "An experimental audio output technique for stereostim devices. It's inspired by how pulse based units work, but uses bursts of multiple pulses rather than individual ones.",
         warning = "WARNING: Multipulse output is at an early testing stage, so it's only for experienced stereostim users. Please test what settings on the 'Device' tab feel best, and submit feedback to the developer.",
         factory = ::MultiPulseOutput
+    ),
+    FOC(
+        displayName = "FOC Stim",
+        description = "Output over WiFi for FOC Stim (v4) devices. Configure its IP address in the device settings after adding.\n\nA four electrode configuration must be used. Electrode order is lowest (leftmost socket) to highest (rightmost socket).",
+        warning = null,
+        factory = ::FOCOutput
     );
 
     fun create(): Output = factory()
@@ -182,6 +189,12 @@ interface Output {
 
     val settingsUI: (@Composable () -> Unit)?
         get() = null
+}
+
+interface ConnectableOutput {
+    val connectionStatus: StateFlow<ConnectionStatus>
+    suspend fun connect()
+    fun disconnect()
 }
 
 abstract class BaseOutput : Output {
@@ -305,7 +318,8 @@ abstract class BaseOutput : Output {
             tweaks = tweaks.value,
             freqSubsetStart = subset.start,
             freqSubsetEnd = subset.endInclusive,
-            typeSpecificSettings = getSettingsJson()
+            typeSpecificSettings = getSettingsJson(),
+            rememberedAddress = getRememberedAddress()
         )
     }
 
@@ -314,37 +328,47 @@ abstract class BaseOutput : Output {
         updateTweaks(state.tweaks)
         setSelectedFrequencySubset(state.freqSubsetStart..state.freqSubsetEnd)
         applySettings(state.typeSpecificSettings)
+        setRememberedAddress(state.rememberedAddress)
     }
+
+    protected open fun getRememberedAddress(): String? = null
+    protected open fun setRememberedAddress(address: String?) {}
 
     protected open fun getSettingsJson(): String = "{}"
     protected open fun applySettings(json: String) {}
-    open fun resetSettings() {
-        check(settingsUI == null) {
-            "${this::class.simpleName} exposes settingsUI and must override resetSettings()."
-        }
-
-        // Fallback for outputs without a custom settings UI.
-        applySettings("{}")
-    }
 }
 
 abstract class AudioOutput : BaseOutput()
 
 abstract class BluetoothOutput(
     val deviceName: String
-) : BaseOutput() {
+) : BaseOutput(), ConnectableOutput {
     val handler: BluetoothHandler by lazy {
         val context = HowlApp.context.applicationContext
         BluetoothHandler(
             context = context,
             bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager,
             deviceName = deviceName,
-            friendlyName = type.displayName
+            friendlyName = type.displayName,
+            onAddressChanged = { OutputManager.saveState() }
         )
     }
 
-    val connectionStatus: StateFlow<ConnectionStatus>
+    override fun getRememberedAddress(): String? = handler.rememberedAddress
+    override fun setRememberedAddress(address: String?) {
+        handler.rememberedAddress = address
+    }
+
+    override val connectionStatus: StateFlow<ConnectionStatus>
         get() = handler.connectionState
+
+    override suspend fun connect() {
+        handler.scanAndConnect()
+    }
+
+    override fun disconnect() {
+        handler.disconnect()
+    }
 
     val batteryLevel: StateFlow<Int>
         get() = handler.batteryLevel

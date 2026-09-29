@@ -4,8 +4,11 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.util.Log
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -52,7 +55,8 @@ data class Coyote3Parameters (
 fun Coyote3SettingsContent(
     settings: Coyote3Settings,
     onSettingsChange: (Coyote3Settings) -> Unit,
-    onSaveAndSync: () -> Unit
+    onSaveAndSync: () -> Unit,
+    onResetSettings: () -> Unit
 ) {
     Column {
         Row(
@@ -60,7 +64,7 @@ fun Coyote3SettingsContent(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "These are parameters offered by the Coyote 3 hardware itself. Its frequently balance control works differently to Howl's built-in calibration (you can adjust either or both).",
+                text = "These are parameters offered by the Coyote 3 hardware itself. Its frequency balance control works differently to Howl's built-in calibration (you can adjust either or both).",
                 style = MaterialTheme.typography.bodyMedium
             )
         }
@@ -100,6 +104,14 @@ fun Coyote3SettingsContent(
             steps = Coyote3Output.INTENSITY_BALANCE_RANGE.last - 1,
             valueDisplay = { it.roundToInt().toString() }
         )
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+            onClick = onResetSettings,
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        ) {
+            Text("Reset settings")
+        }
     }
 }
 
@@ -162,11 +174,6 @@ class Coyote3Output : BluetoothOutput("47L121000") {
         }
     }
 
-    override fun resetSettings() {
-        updateSettings(Coyote3Settings())
-        syncParameters()
-    }
-
     override val settingsUI: (@Composable () -> Unit) = {
         val currentSettings by settings.collectAsStateWithLifecycle()
         Coyote3SettingsContent(
@@ -175,6 +182,11 @@ class Coyote3Output : BluetoothOutput("47L121000") {
                 updateSettings(newSettings)
             },
             onSaveAndSync = {
+                OutputManager.saveState()
+                syncParameters()
+            },
+            onResetSettings = {
+                updateSettings(Coyote3Settings())
                 OutputManager.saveState()
                 syncParameters()
             }

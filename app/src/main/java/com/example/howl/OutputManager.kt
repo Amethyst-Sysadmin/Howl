@@ -123,17 +123,16 @@ object OutputManager {
 
     fun removeOutput(output: BaseOutput) {
         output.stop()
-        output.destroy()
 
-        // Disconnect the specific handler tied to this Bluetooth output
-        if (output is BluetoothOutput) {
-            output.handler.disconnect()
+        if (output is ConnectableOutput) {
+            output.disconnect()
         }
 
         if (output is AudioBlockProvider) {
             audioEngine.setProvider(null)
         }
 
+        output.destroy()
         _outputs.value -= output
         saveState()
     }
@@ -352,8 +351,7 @@ fun OutputRow(
     var showSettings by remember { mutableStateOf(false) }
     var showRemoveDialog by remember { mutableStateOf(false) }
 
-    // Collect connection status and battery level specifically if this is a BluetoothOutput
-    val status = if (output is BluetoothOutput) {
+    val status = if (output is ConnectableOutput) {
         val s by output.connectionStatus.collectAsStateWithLifecycle()
         s
     } else null
@@ -375,31 +373,31 @@ fun OutputRow(
             modifier = Modifier.weight(1f)
         )
 
-        if (output is BluetoothOutput && status != null) {
+        if (output is ConnectableOutput && status != null) {
             val (iconRes, tint, contentDescription) = when (status) {
                 ConnectionStatus.Disconnected -> Triple(
-                    R.drawable.bluetooth,
-                    MaterialTheme.colorScheme.error,
+                    if (output is BluetoothOutput) R.drawable.bluetooth else R.drawable.wifi,
+                    MaterialTheme.colorScheme.error, // Red
                     "Disconnected. Tap to connect."
                 )
                 ConnectionStatus.Scanning -> Triple(
-                    R.drawable.bluetooth_searching,
-                    MaterialTheme.colorScheme.onSurfaceVariant,
+                    if (output is BluetoothOutput) R.drawable.bluetooth_searching else R.drawable.wifi,
+                    Color(0xFFFFC107), // Yellow
                     "Scanning..."
                 )
                 ConnectionStatus.Connecting -> Triple(
-                    R.drawable.bluetooth_connected,
-                    MaterialTheme.colorScheme.onSurfaceVariant,
+                    if (output is BluetoothOutput) R.drawable.bluetooth_connected else R.drawable.wifi,
+                    Color(0xFFFFC107), // Yellow
                     "Connecting..."
                 )
                 ConnectionStatus.Connected -> Triple(
-                    R.drawable.bluetooth_connected,
-                    Color(0xFF4CAF50), // Good shade of green for both light and dark themes
+                    if (output is BluetoothOutput) R.drawable.bluetooth_connected else R.drawable.wifi,
+                    Color(0xFF4CAF50), // Green
                     "Connected. Tap to disconnect."
                 )
             }
 
-            if (status == ConnectionStatus.Connected) {
+            if (status == ConnectionStatus.Connected && output is BluetoothOutput) {
                 Icon(
                     painter = painterResource(R.drawable.battery),
                     contentDescription = "Battery level",
@@ -417,16 +415,22 @@ fun OutputRow(
                 onClick = {
                     when (status) {
                         ConnectionStatus.Disconnected -> {
-                            onRequestPermissions(BluetoothHandler.ALL_BLE_PERMISSIONS) { granted ->
-                                if (granted) {
-                                    scope.launch {
-                                        output.handler.scanAndConnect()
+                            if (output is BluetoothOutput) {
+                                onRequestPermissions(BluetoothHandler.ALL_BLE_PERMISSIONS) { granted ->
+                                    if (granted) {
+                                        scope.launch {
+                                            output.connect()
+                                        }
                                     }
+                                }
+                            } else if (output is ConnectableOutput) {
+                                scope.launch {
+                                    output.connect()
                                 }
                             }
                         }
                         ConnectionStatus.Connected -> {
-                            output.handler.disconnect()
+                            output.disconnect()
                         }
                         else -> { /* Do nothing for Scanning/Connecting */ }
                     }
@@ -776,21 +780,11 @@ fun OutputSettingsPopup(
                                 Text("Reset tweaks")
                             }
                         }
+                        // Device specific settings UI
                         OutputSettingsTab.OUTPUT_SETTINGS -> {
                             val settingsUI = output.settingsUI
                             if (settingsUI != null) {
                                 settingsUI()
-
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                Button(
-                                    onClick = {
-                                        output.resetSettings()
-                                        OutputManager.saveState()
-                                    }
-                                ) {
-                                    Text("Reset settings")
-                                }
                             }
                         }
                     }

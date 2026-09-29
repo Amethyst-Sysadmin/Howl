@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -78,7 +79,8 @@ private fun estimateBurst(
 fun MultiPulseSettingsContent(
     settings: MultiPulseSettings,
     onSettingsChange: (MultiPulseSettings) -> Unit,
-    onSave: () -> Unit
+    onSave: () -> Unit,
+    onResetSettings: () -> Unit
 ) {
     Column {
         SwitchWithLabel(
@@ -171,6 +173,13 @@ fun MultiPulseSettingsContent(
                     },
                 )
             }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+            onClick = onResetSettings,
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        ) {
+            Text("Reset settings")
         }
     }
 }
@@ -296,12 +305,12 @@ class MultiPulseOutput : AudioOutput(), AudioBlockProvider {
             onSettingsChange = { newSettings ->
                 updateSettings(newSettings)
             },
-            onSave = { OutputManager.saveState() }
+            onSave = { OutputManager.saveState() },
+            onResetSettings = {
+                updateSettings(MultiPulseSettings())
+                OutputManager.saveState()
+            }
         )
-    }
-
-    override fun resetSettings() {
-        updateSettings(MultiPulseSettings())
     }
 
     // ─── Lifecycle → delegate to engine ──────────────────────────────────────

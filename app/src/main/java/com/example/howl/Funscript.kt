@@ -3,6 +3,7 @@ package com.example.howl
 import android.content.Context
 import android.net.Uri
 import android.os.ParcelFileDescriptor
+import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
@@ -34,12 +35,16 @@ data class FunscriptAxisData(
 )
 
 @Serializable
-data class Funscript(
-    val actions: List<Action>,
-    val axes: List<FunscriptAxisData>? = null
+data class Channel(
+    val actions: List<Action>
 )
 
-
+@Serializable
+data class Funscript(
+    val actions: List<Action>,
+    val axes: List<FunscriptAxisData>? = null,
+    val channels: Map<String, Channel>? = null
+)
 
 data class PositionVelocity(val position: Double, val velocity: Double)
 
@@ -183,10 +188,12 @@ class FunscriptAxis(val id: String, private val timePositionData: TreeMap<Double
                 if (t0 == t1 || pv0.position == pv1.position) {
                     pv0.position
                 } else {
+                    val shape = Prefs.funscriptMotionProfile.value.toDouble()
                     hermiteInterpolate(
                         time,
                         t0, pv0.position, pv0.velocity,
-                        t1, pv1.position, pv1.velocity
+                        t1, pv1.position, pv1.velocity,
+                        shape
                     ).coerceIn(0.0, 1.0)
                 }
             }
@@ -205,8 +212,9 @@ class FunscriptAxis(val id: String, private val timePositionData: TreeMap<Double
                 if (t0 == t1 || pv0.position == pv1.position) {
                     Triple(pv0.position, 0.0, 0.0)
                 } else {
+                    val shape = Prefs.funscriptMotionProfile.value.toDouble()
                     val (rawPos, rawVel, rawAcc) = hermiteInterpolateWithVelocityAndAcceleration(
-                        time, t0, pv0.position, pv0.velocity, t1, pv1.position, pv1.velocity
+                        time, t0, pv0.position, pv0.velocity, t1, pv1.position, pv1.velocity, shape
                     )
                     Triple(rawPos.coerceIn(0.0, 1.0), rawVel, rawAcc)
                 }
@@ -244,14 +252,22 @@ class FunscriptPulseSource : PulseSource {
         private const val MAX_SPEED = 5.0
         // Arbitrarily chosen maximum acceleration magnitude (used for normalisation)
         private const val MAX_MAGNITUDE = 80.0
-        // Funscript axes that our app is able to utilise
-        private val SUPPORTED_AXES = setOf("L0", "L1", "L2", "R0", "R1", "R2")
+        // Funscript axes found in multi-axis scripts that our app can utilise
+        private val SUPPORTED_ADDITIONAL_AXES = setOf("L1", "L2", "R0", "R1", "R2")
         // Axes that should be balanced around the central position when normalising
         private val BALANCED_AXES = setOf("L1", "L2", "R0", "R1", "R2")
         // Axis groupings for the energy calculation
         // currently all handled the same anyway, but in theory that could change in future
         private val LINEAR_AXES = listOf("L0", "L1", "L2")
         private val ROTATION_AXES = listOf("R0", "R1", "R2")
+        // Maps axis names from version 2.0 funscripts into our 1.1 style identifiers
+        private val AXIS_NAME_MAP = mapOf(
+            "surge" to "L1",
+            "sway" to "L2",
+            "twist" to "R0",
+            "roll" to "R1",
+            "pitch" to "R2"
+        )
         // Backward-looking smoothing window shape: the window extends this many
         // sigmas into the past, and energy is sampled this many times per sigma
         private const val WINDOW_WIDTH_SIGMAS = 3.0
@@ -445,43 +461,47 @@ class FunscriptPulseSource : PulseSource {
         val funscript = jsonConfig.decodeFromString<Funscript>(content)
         val normalise = Prefs.funscriptNormaliseAxes.value
 
-        // Main axis L0 must be valid, so we let it throw if it's invalid.
+        // The main stroke axis (L0) comes from the "actions" array and must be valid
         val l0NormType = if (normalise) NormalisationType.FULL_RANGE else NormalisationType.OFF
-        val mainAxis = try {
+        axes["L0"] = try {
             FunscriptAxis.create("L0", funscript.actions, l0NormType)
         } catch (e: BadFileException) {
             throw e
         }
 
-        axes["L0"] = mainAxis
-
-        // Process additional axes if they exist
-        funscript.axes?.forEach { axisData ->
-            // Avoid overwriting the main axis if "L0" somehow appears in the axes array
-            if (axisData.id == "L0") {
-                HLog.d("Funscript", "Warning: Funscript incorrectly contains an L0 axis in the 'axes' array (not loaded).")
-                return@forEach
+        // Extract and validate (axisId, actions) pairs from multi-axis scripts
+        // handling both 1.1 and 2.0 funscript formats
+        val additionalAxes = buildList {
+            funscript.axes?.forEach { axisData ->
+                when (axisData.id) {
+                    !in SUPPORTED_ADDITIONAL_AXES -> HLog.d("Funscript", "Skipped loading unsupported axis: ${axisData.id}")
+                    else -> add(axisData.id to axisData.actions)
+                }
             }
 
-            if (!SUPPORTED_AXES.contains(axisData.id)) {
-                HLog.d("Funscript", "Skipped loading unsupported axis: ${axisData.id}")
-                return@forEach
+            funscript.channels?.forEach { (channelName, channelData) ->
+                when (val axisId = AXIS_NAME_MAP[channelName]) {
+                    null -> HLog.d("Funscript", "Skipped loading unknown channel: $channelName")
+                    !in SUPPORTED_ADDITIONAL_AXES -> HLog.d("Funscript", "Skipped loading unsupported axis: $axisId (from channel $channelName)")
+                    else -> add(axisId to channelData.actions)
+                }
             }
+        }
 
-            val normType = if (normalise && axisData.id in BALANCED_AXES) {
+        // Process all our additional axes
+        for ((axisId, actions) in additionalAxes) {
+            val normType = if (normalise && axisId in BALANCED_AXES) {
                 NormalisationType.BALANCED
             } else {
                 NormalisationType.OFF
             }
 
-            val axis = FunscriptAxis.createOrNull(axisData.id, axisData.actions, normType)
-            if (axis != null) {
-                axes[axisData.id] = axis
+            FunscriptAxis.createOrNull(axisId, actions, normType)?.let {
+                axes[axisId] = it
             }
         }
 
         // Update display info with axis count and IDs
-        val axisIds = axes.keys.sorted()
         _displayInfo.value = "${axes.size} axis funscript"
         //_displayInfo.value = "${axes.size} ${if (axes.size == 1) "axis" else "axes"} funscript"
 

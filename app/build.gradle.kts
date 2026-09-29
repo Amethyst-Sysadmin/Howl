@@ -13,8 +13,8 @@ android {
         applicationId = "com.example.howl"
         minSdk = 26
         targetSdk = 37
-        versionCode = 201
-        versionName = "2.0.1"
+        versionCode = 210
+        versionName = "2.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -68,4 +68,6 @@ dependencies {
     implementation(libs.ktor.server.auth)
     implementation(libs.ktor.server.cors)
     implementation(libs.ktor.server.websockets)
+    implementation(libs.protobuf.java)
+    implementation(libs.protobuf.kotlin)
 }

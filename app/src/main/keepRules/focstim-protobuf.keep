@@ -1,0 +1,9 @@
+# Keep rules for the FOC Stim RPC protobuf gencode (AGP 9.3+ keepRules source set).
+#
+# The protobuf-java runtime locates generated accessors (e.g.
+# getNotificationBoot) reflectively via FieldAccessorTable. If R8 renames the
+# generated classes/methods, every hasX()/getX()/getAllFields() call throws
+# IllegalStateException ("missing method") in release builds only. Keep the
+# whole generated package unrenamed, plus the runtime's reflective surface.
+-keep class focstim_rpc.** { *; }
+-keep class com.google.protobuf.** { *; }

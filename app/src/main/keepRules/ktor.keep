@@ -1,0 +1,4 @@
+# Ktor server is designed for JVM environments and references JMX classes
+# (used to detect IntelliJ IDEA) that do not exist in the Android SDK.
+-dontwarn java.lang.management.**
+-dontwarn io.ktor.util.debug.**
