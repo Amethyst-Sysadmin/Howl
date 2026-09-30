@@ -116,7 +116,7 @@ class BluetoothHandler(
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    HLog.w(TAG, "Direct connection failed, falling back to scan.", e)
+                    HLog.w(TAG, "Direct connection failed, falling back to scan.")
                     device = null
                 }
             }
@@ -381,9 +381,19 @@ class BluetoothHandler(
                 throw BleException("GATT channel closed unexpectedly.")
             }
         } ?: run {
-            HLog.e(TAG, "GATT event timed out. Stack may be unresponsive. Forcing disconnect.")
-            // If the stack is unresponsive, we must force a disconnect to reset the hardware state
-            disconnect()
+            val isConnected = _connectionState.value == ConnectionStatus.Connected
+            if (isConnected) {
+                HLog.e(TAG, "GATT event timed out. Forcing disconnect.")
+                disconnect()
+            } else {
+                HLog.w(TAG, "Connection attempt timed out.")
+                try {
+                    bluetoothGatt?.disconnect()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error disconnecting GATT after timeout", e)
+                }
+                closeGatt()
+            }
             throw BleException("GATT operation timed out.")
         }
 
