@@ -1,5 +1,7 @@
 package com.example.howl
 
+import android.Manifest
+import android.os.Build
 import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -415,17 +417,38 @@ fun OutputRow(
                 onClick = {
                     when (status) {
                         ConnectionStatus.Disconnected -> {
-                            if (output is BluetoothOutput) {
-                                onRequestPermissions(BluetoothHandler.ALL_BLE_PERMISSIONS) { granted ->
-                                    if (granted) {
-                                        scope.launch {
-                                            output.connect()
+                            when (output) {
+                                is BluetoothOutput -> {
+                                    // Check and request Bluetooth permissions
+                                    onRequestPermissions(BluetoothHandler.ALL_BLE_PERMISSIONS) { granted ->
+                                        if (granted) {
+                                            scope.launch {
+                                                output.connect()
+                                            }
                                         }
                                     }
                                 }
-                            } else if (output is ConnectableOutput) {
-                                scope.launch {
-                                    output.connect()
+                                is FOCOutput -> {
+                                    // Check and request local network permissions if needed
+                                    val localNetworkPermissions =
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN) {
+                                            arrayOf(Manifest.permission.ACCESS_LOCAL_NETWORK)
+                                        } else {
+                                            emptyArray()
+                                        }
+
+                                    onRequestPermissions(localNetworkPermissions) { granted ->
+                                        if (granted) {
+                                            scope.launch {
+                                                output.connect()
+                                            }
+                                        }
+                                    }
+                                }
+                                else -> {
+                                    scope.launch {
+                                        output.connect()
+                                    }
                                 }
                             }
                         }
