@@ -99,7 +99,7 @@ class WaveShape(
                 val a = slopes[i] / d[i]
                 val b = slopes[nextIndex] / d[i]
                 val h = hypot(a, b)
-                if (h > 9.0) {
+                if (h > 3.0) {
                     val t = 3.0 / h
                     slopes[i] = t * a * d[i]
                     slopes[nextIndex] = t * b * d[i]
@@ -185,7 +185,7 @@ fun Float.scaleBetween(range: ClosedRange<Double>): Double {
 val ClosedRange<Double>.toFloatRange: ClosedFloatingPointRange<Float>
     get() = this.start.toFloat()..this.endInclusive.toFloat()
 
-fun randomInRange(range: ClosedRange<Double>, bias: Double = 1.0): Double {
+fun randomInRange(range: ClosedRange<Double>, bias: Double = 1.0, random: Random = Random.Default): Double {
     /*
         Generates a random number in the specified range, optionally with biased probability
         where certain values are more likely.
@@ -198,7 +198,7 @@ fun randomInRange(range: ClosedRange<Double>, bias: Double = 1.0): Double {
     val max = maxOf(range.start, range.endInclusive)
     if (min == max) return min
 
-    val u = Random.nextDouble(0.0, 1.0) // Uniform in [0, 1)
+    val u = random.nextDouble(0.0, 1.0) // Uniform in [0, 1)
     val skewed = u.pow(bias) // Apply bias transformation
     return min + skewed * (max - min)
 }

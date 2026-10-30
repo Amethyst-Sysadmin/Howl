@@ -2,20 +2,33 @@ package com.example.howl
 
 import android.util.Log
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +37,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.random.Random
@@ -2153,16 +2167,16 @@ class SuccubusActivity : Activity() {
     val speedRange = 0.06..2.0
     val speedBias = 3.5
     val speedChangeRateRange = 0.03..0.2
-    val proportionRange = 0.0..1.0
-    val proportionChangeRate = 0.05
+    val proportionRange = -1.0..1.0
+    val proportionChangeRate = 0.07
     val waveShapeChangeProbability = 0.3
     val proportionChangeProbability = 0.3
     val speedChangeProbability = 0.3
-    val ampProportionA = NiceSmoother(randomInRange(proportionRange))
-    val ampProportionB = NiceSmoother(randomInRange(proportionRange))
-    val freqProportionA = NiceSmoother(randomInRange(proportionRange))
-    val freqProportionB = NiceSmoother(randomInRange(proportionRange))
-    val wavePointsRange = 2..6
+    val ampProportionA = NiceSmoother(randomInRange(proportionRange), range = proportionRange)
+    val ampProportionB = NiceSmoother(randomInRange(proportionRange), range = proportionRange)
+    val freqProportionA = NiceSmoother(randomInRange(proportionRange), range = proportionRange)
+    val freqProportionB = NiceSmoother(randomInRange(proportionRange), range = proportionRange)
+    val wavePointsRange = 2..8
 
     val shapeChange = Timer(
         durationProvider = { randomInRange(10.0..40.0) },
@@ -2205,7 +2219,7 @@ class SuccubusActivity : Activity() {
         val times = mutableListOf<Double>()
         val maxPower = 0.95
         val powerLowerBound = 0.8
-        val minTimeSpacing = 0.05
+        val minTimeSpacing = 0.04
 
         repeat(numPoints) {
             var t: Double
@@ -2270,16 +2284,29 @@ class SuccubusActivity : Activity() {
         }
     }
 
+    // Helper to mix wave positions and handle inversion
+    private fun mixWaves(pos1: Double, pos2: Double, proportion: Double): Double {
+        val mix = if (proportion >= 0.0) {
+            // Positive proportion: standard additive mix
+            pos1 * proportion + pos2 * (1.0 - proportion)
+        } else {
+            // Negative proportion: invert the first wave to create negative correlation
+            val absProp = -proportion
+            (1.0 - pos1) * absProp + pos2 * (1.0 - absProp)
+        }
+        return mix.coerceIn(0.0, 1.0)
+    }
+
     override fun getPulse(): Pulse {
         val ampPos1 = waveManager1.getPosition("amp")
         val ampPos2 = waveManager2.getPosition("amp")
         val freqPos1 = waveManager1.getPosition("freq")
         val freqPos2 = waveManager2.getPosition("freq")
 
-        val ampA = (ampPos1 * ampProportionA.value) + (ampPos2 * (1.0 - ampProportionA.value))
-        val ampB = (ampPos1 * ampProportionB.value) + (ampPos2 * (1.0 - ampProportionB.value))
-        val freqA = (freqPos1 * freqProportionA.value) + (freqPos2 * (1.0 - freqProportionA.value))
-        val freqB = (freqPos1 * freqProportionB.value) + (freqPos2 * (1.0 - freqProportionB.value))
+        val ampA = mixWaves(ampPos1, ampPos2, ampProportionA.value)
+        val ampB = mixWaves(ampPos1, ampPos2, ampProportionB.value)
+        val freqA = mixWaves(freqPos1, freqPos2, freqProportionA.value)
+        val freqB = mixWaves(freqPos1, freqPos2, freqProportionB.value)
 
         return Pulse(
             freqA = freqA.toFloat(),
@@ -2287,6 +2314,318 @@ class SuccubusActivity : Activity() {
             ampA = ampA.toFloat(),
             ampB = ampB.toFloat()
         )
+    }
+}
+
+class MillionActivity : Activity() {
+    val waveManager: WaveManager = WaveManager()
+
+    val patternNumberRange = 1..1000000
+    val durationSecondsRange = 1.0..12.0
+    val pointsPerSecondRange = 0.5..4.0
+
+    private val _patternNumber = MutableStateFlow(randomInRange(patternNumberRange))
+    val patternNumber: StateFlow<Int> = _patternNumber.asStateFlow()
+
+    val autoIncrementTimer = Timer(
+        durationProvider = { Prefs.activityMillionAutoIncrementDelay.value.toDouble() },
+        repeating = true,
+        onTrigger = {
+            if (Prefs.activityMillionAutoIncrement.value) {
+                incrementPattern(1, manual = false)
+            }
+        }
+    )
+
+    override fun initialise() {
+        manager.register(waveManager)
+        manager.register(autoIncrementTimer)
+
+        loadPattern(_patternNumber.value)
+        autoIncrementTimer.start()
+    }
+
+    fun setPatternNumber(newPattern: Int, manual: Boolean = true) {
+        val clampedPattern = newPattern.coerceIn(patternNumberRange)
+        if (_patternNumber.value != clampedPattern) {
+            _patternNumber.value = clampedPattern
+            loadPattern(clampedPattern)
+        }
+        if (manual)
+            autoIncrementTimer.reset()
+    }
+
+    fun incrementPattern(inc: Int, manual: Boolean = true) {
+        setPatternNumber(_patternNumber.value + inc, manual)
+    }
+
+    fun toggleFavourite() {
+        val currentFavs = Prefs.activityMillionFavourites.value.toMutableList()
+        val current = _patternNumber.value
+        if (current in currentFavs) {
+            currentFavs.remove(current)
+        } else {
+            currentFavs.add(current)
+        }
+        // Sort to ensure predictable next/prev navigation behaviour
+        Prefs.activityMillionFavourites.value = currentFavs.sorted()
+        Prefs.activityMillionFavourites.save()
+    }
+
+    fun skipToNextFavourite(forwards: Boolean = true) {
+        val favs = Prefs.activityMillionFavourites.value
+        if (favs.isEmpty()) return
+
+        val current = _patternNumber.value
+        // Find the next favourite pattern to skip to, wrapping around if necessary
+        val next = if (forwards) {
+            favs.firstOrNull { it > current } ?: favs.first()
+        } else {
+            favs.lastOrNull { it < current } ?: favs.last()
+        }
+        setPatternNumber(next)
+    }
+
+    fun loadPattern(pattern: Int) {
+        val random = Random(pattern.toLong())
+        val minPoints = 3
+
+        val duration = random.nextDouble(durationSecondsRange.start, durationSecondsRange.endInclusive)
+        val speed = 1.0/duration
+        val pointsPerSecondA = randomInRange(pointsPerSecondRange, bias = 2.0, random = random)
+        val pointsPerSecondB = randomInRange(pointsPerSecondRange, bias = 2.0, random = random)
+        val numPointsA = (duration * pointsPerSecondA).toInt().coerceAtLeast(minPoints)
+        val numPointsB = (duration * pointsPerSecondB).toInt().coerceAtLeast(minPoints)
+
+        val timesA = generateTimes(numPointsA, random)
+        val timesB = generateTimes(numPointsB, random)
+
+        // addWave automatically overwrites existing waves with the same name in the WaveManager map
+        waveManager.addWave(createWave(timesA, random, "ampA", isAmplitude = true))
+        waveManager.addWave(createWave(timesA, random, "freqA", isAmplitude = false))
+        waveManager.addWave(createWave(timesB, random, "ampB", isAmplitude = true))
+        waveManager.addWave(createWave(timesB, random, "freqB", isAmplitude = false))
+
+        waveManager.setSpeed(speed)
+        waveManager.restart()
+    }
+
+    private fun generateTimes(numPoints: Int, random: Random): List<Double> {
+        val times = mutableListOf<Double>()
+        val minTimeSpacing = 0.01
+        repeat(numPoints) {
+            var t: Double
+            do {
+                t = random.nextDouble(0.0, 1.0)
+            } while (times.any { abs(it - t) < minTimeSpacing })
+            times.add(t)
+        }
+        return times
+    }
+
+    private fun createWave(times: List<Double>, random: Random, name: String, isAmplitude: Boolean): CyclicalWave {
+        val points = mutableListOf<WavePoint>()
+
+        for (t in times) {
+            val pos = random.nextDouble(0.0, 1.0)
+            points.add(WavePoint(t, pos))
+        }
+
+        if (isAmplitude && points.isNotEmpty()) {
+            // If all amplitude points are below 0.9, scale the shape up such that the highest
+            // point lands at exactly 0.9
+            val maxAmp = points.maxOf { it.position }
+            if (maxAmp < 0.9) {
+                val scaleFactor = if (maxAmp == 0.0) 1.0 else 0.9 / maxAmp
+                for (i in points.indices) {
+                    points[i] = WavePoint(points[i].time, points[i].position * scaleFactor)
+                }
+            }
+        }
+
+        //Log.d("MillionActivity", "$name : $points")
+
+        return CyclicalWave(
+            WaveShape(
+                name = name,
+                points = points,
+                interpolationType = InterpolationType.HERMITE
+            )
+        )
+    }
+
+    override fun getPulse(): Pulse {
+        val ampA = waveManager.getPosition("ampA")
+        //Log.d("MillionActivity", "ampA: $ampA")
+        val ampB = waveManager.getPosition("ampB")
+        val freqA = waveManager.getPosition("freqA")
+        val freqB = waveManager.getPosition("freqB")
+
+        return Pulse(
+            freqA = freqA.toFloat(),
+            freqB = freqB.toFloat(),
+            ampA = ampA.toFloat(),
+            ampB = ampB.toFloat()
+        )
+    }
+
+    override val permanentSettings: @Composable () -> Unit = {
+        val autoIncrement by Prefs.activityMillionAutoIncrement.collectAsStateWithLifecycle()
+        val autoIncrementDelay by Prefs.activityMillionAutoIncrementDelay.collectAsStateWithLifecycle()
+        val autoIncrementDelayRange: IntRange = 10..120
+
+        SwitchWithLabel(
+            label = "Auto advance pattern",
+            checked = autoIncrement,
+            onCheckedChange = {
+                Prefs.activityMillionAutoIncrement.value = it
+                Prefs.activityMillionAutoIncrement.save()
+                autoIncrementTimer.reset()
+            }
+        )
+
+        if (autoIncrement) {
+            SliderWithLabel(
+                label = "Auto advance delay (seconds)",
+                value = autoIncrementDelay.toFloat(),
+                onValueChange = { Prefs.activityMillionAutoIncrementDelay.value = it.roundToInt() },
+                onValueChangeFinished = {
+                    Prefs.activityMillionAutoIncrementDelay.save()
+                    autoIncrementTimer.reset()
+                },
+                valueRange = autoIncrementDelayRange.toClosedFloatingPointRange(),
+                steps = ((autoIncrementDelayRange.last - autoIncrementDelayRange.first) * 0.2 - 1).roundToInt(),
+                valueDisplay = { it.roundToInt().toString() }
+            )
+        }
+
+    }
+
+    override val temporarySettings: @Composable () -> Unit = {
+        val currentPattern by patternNumber.collectAsStateWithLifecycle()
+        val favourites by Prefs.activityMillionFavourites.collectAsStateWithLifecycle()
+        val isFavourite = currentPattern in favourites
+
+        var showInputDialog by remember { mutableStateOf(false) }
+        var inputText by remember { mutableStateOf("") }
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 2.dp,
+            border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)
+                ) {
+                    IconButton(
+                        onClick = { incrementPattern(-1) },
+                        enabled = currentPattern > patternNumberRange.first,
+
+                    ) {
+                        Icon(painterResource(R.drawable.arrow_back), contentDescription = "Decrease pattern", modifier = Modifier.size(40.dp))
+                    }
+
+                    Text(
+                        text = currentPattern.toString(),
+                        style = MaterialTheme.typography.displayLarge,
+                        color = if (isFavourite) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.clickable {
+                            inputText = currentPattern.toString()
+                            showInputDialog = true
+                        }
+                    )
+
+                    IconButton(
+                        onClick = { incrementPattern(1) },
+                        enabled = currentPattern < patternNumberRange.last
+                    ) {
+                        Icon(painterResource(R.drawable.arrow_forward), contentDescription = "Increase pattern", modifier = Modifier.size(40.dp))
+                    }
+                }
+
+                // Favourites Controls
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)
+                ) {
+                    IconButton(
+                        onClick = { skipToNextFavourite(false) },
+                        enabled = favourites.isNotEmpty()
+                    ) {
+                        Icon(painterResource(R.drawable.skip_previous), contentDescription = "Previous favourite", modifier = Modifier.size(30.dp))
+                    }
+
+                    IconButton(
+                        onClick = { toggleFavourite() }
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.favorite),
+                            contentDescription = if (isFavourite) "Unmark favourite" else "Mark favourite",
+                            tint = if (isFavourite) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { skipToNextFavourite(true) },
+                        enabled = favourites.isNotEmpty()
+                    ) {
+                        Icon(painterResource(R.drawable.skip_next), contentDescription = "Next favourite", modifier = Modifier.size(30.dp))
+                    }
+                }
+            }
+        }
+
+        if (showInputDialog) {
+            AlertDialog(
+                onDismissRequest = { showInputDialog = false },
+                title = { Text("Jump to Pattern") },
+                text = {
+                    OutlinedTextField(
+                        value = inputText,
+                        onValueChange = {
+                            // Limit to 7 characters and only allow digits to prevent crashes/overflows
+                            if (it.length <= 7 && it.all { char -> char.isDigit() }) {
+                                inputText = it
+                            }
+                        },
+                        label = { Text("Pattern Number (1-1000000)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val entered = inputText.toIntOrNull()
+                            if (entered != null && entered in 1..1000000) {
+                                setPatternNumber(entered)
+                                showInputDialog = false
+                            }
+                        },
+                        // Only enable the confirm button if the input is a valid pattern number
+                        enabled = inputText.toIntOrNull()?.let { it in 1..1000000 } == true
+                    ) {
+                        Text("Go")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showInputDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
     }
 }
 

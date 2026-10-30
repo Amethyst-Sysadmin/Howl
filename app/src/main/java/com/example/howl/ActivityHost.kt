@@ -12,7 +12,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -55,7 +54,8 @@ enum class ActivityType(val displayName: String, val iconResId: Int) {
     OVERFLOWING("Overflowing", R.drawable.water_drop) { override fun create() =
         OverflowingActivity() },
     SUCCUBUS("Succubus", R.drawable.succubus) { override fun create() = SuccubusActivity() },
-    SINETIME("Sine time", R.drawable.wave) { override fun create() = SineTimeActivity() };
+    SINETIME("Sine time", R.drawable.wave) { override fun create() = SineTimeActivity() },
+    MILLION("Million", R.drawable.money) { override fun create() = MillionActivity() };
 
     abstract fun create(): Activity
 }
@@ -266,17 +266,11 @@ fun ActivityHostPanel(
 
                     // Random select availability slider
                     val isExcluded = currentType in excludedActivities
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Available for random select")
-                        Switch(
-                            checked = !isExcluded,
-                            onCheckedChange = { viewModel.toggleExclusion(currentType) }
-                        )
-                    }
+                    SwitchWithLabel(
+                        label = "Available for random select",
+                        checked = !isExcluded,
+                        onCheckedChange = { viewModel.toggleExclusion(currentType) }
+                    )
                 }
                 currentInstance.permanentSettings?.let { it() }
             }

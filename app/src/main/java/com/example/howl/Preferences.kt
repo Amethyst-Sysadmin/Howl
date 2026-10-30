@@ -54,6 +54,16 @@ object StringListAdapter : PreferenceAdapter<List<String>> {
     }
 }
 
+object IntListAdapter : PreferenceAdapter<List<Int>> {
+    override fun serialise(value: List<Int>): String {
+        return Json.encodeToString(value)
+    }
+
+    override fun deserialise(value: String): List<Int> {
+        return Json.decodeFromString(value)
+    }
+}
+
 class EnumAdapter<T : Enum<T>>(private val values: Array<T>) : PreferenceAdapter<T> {
     override fun serialise(value: T) = value.name
     override fun deserialise(value: String) =
@@ -228,7 +238,7 @@ object Prefs {
     val funscriptFreqEnergyProportion = register("funscript_freq_energy_proportion", 0.2f, FloatAdapter)
     val funscriptFlipDirectionalFreqShift = register("funscript_flip_directional_freq_shift", false, BooleanAdapter)
     val funscriptNormaliseAxes = register("funscript_normalise_axes", true, BooleanAdapter)
-    val funscriptSmoothingSigma = register("funscript_smoothing_sigma", 0.2f, FloatAdapter)
+    val funscriptAmplitudeWindow = register("funscript_amplitude_window", 0.15f, FloatAdapter)
     // 0.0 = Linear, 1.0 = Fritsch-Carlson, >1.0 = Exaggerated Curves
     val funscriptMotionProfile = register("funscript_motion_profile", 0.6f, FloatAdapter)
 
@@ -253,6 +263,9 @@ object Prefs {
     val activityLuxuryHJAmplitudeJitter = register("activity_luxury_hj_amplitude_jitter", 0.15f, FloatAdapter)
     val activityLuxuryHJTimingJitter = register("activity_luxury_hj_timing_jitter", 0.15f, FloatAdapter)
     val activitySimplexPreset = register("activity_simplex_preset", SimplexPreset.PRO, EnumAdapter(SimplexPreset.entries.toTypedArray()))
+    val activityMillionFavourites = register("activity_million_favourites", emptyList(), IntListAdapter)
+    val activityMillionAutoIncrement = register("activity_million_auto_inc", true, BooleanAdapter)
+    val activityMillionAutoIncrementDelay = register("activity_million_auto_inc_delay", 30, IntAdapter)
 
     // Manual control
     val manualSmoothdampTime = register("manual_smoothdamp_time", 0.1f, FloatAdapter)

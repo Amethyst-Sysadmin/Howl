@@ -11,6 +11,7 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import java.util.TreeMap
 import kotlin.math.abs
+import kotlin.math.exp
 import kotlin.math.pow
 import kotlin.math.sqrt
 
@@ -268,9 +269,9 @@ class FunscriptPulseSource : PulseSource {
             "roll" to "R1",
             "pitch" to "R2"
         )
-        // Backward-looking smoothing window shape: the window extends this many
-        // sigmas into the past, and energy is sampled this many times per sigma
-        private const val WINDOW_WIDTH_SIGMAS = 3.0
+        // Amplitude smoothing window shape. Centred around the current time, with energy
+        // sampled this many times per sigma.
+        private const val WINDOW_WIDTH_SIGMAS = 2.0
         private const val SAMPLES_PER_SIGMA = 4
     }
 
@@ -399,26 +400,24 @@ class FunscriptPulseSource : PulseSource {
     }
 
     private fun calculateTotalAmplitude(time: Double): Double {
-        val threshold = 0.005
-
         /*
-        Backward-looking (causal) smoothing window.
-        Prefs.funscriptSmoothingSigma represents the Gaussian sigma in seconds (default 0.2).
-        Smaller = tracks the script tightly but may flutter on slow strokes.
-        Larger = smoother and more consistent but more smeared in time.
-
-        The window extends roughly WINDOW_WIDTH_SIGMAS * sigma into the past.
+        Stateless amplitude smoothing window calculation. Prefs.funscriptAmplitudeWindow represents
+        the total width of our centred calculation window in seconds.
+        Higher values give smoother and more consistent amplitude, but track the script less
+        closely and are more smeared in time.
         */
-        val sigma = Prefs.funscriptSmoothingSigma.value.toDouble().coerceAtLeast(0.01)
-        val step = sigma / SAMPLES_PER_SIGMA
+        val windowWidth = Prefs.funscriptAmplitudeWindow.value.toDouble().coerceAtLeast(0.01)
+        val sigma = windowWidth / WINDOW_WIDTH_SIGMAS
         val totalSteps = (WINDOW_WIDTH_SIGMAS * SAMPLES_PER_SIGMA).toInt()
+        val halfSteps = totalSteps / 2
+        val step = windowWidth / totalSteps
 
-        // Gaussian-weighted mean of the energy over the backward-looking window
+        // Gaussian-weighted mean of the energy over the centered window
         var weightedSum = 0.0
         var weightSum = 0.0
-        for (i in -totalSteps..0) {
+        for (i in -halfSteps..halfSteps) {
             val offset = i * step
-            val weight = kotlin.math.exp(-(offset * offset) / (2.0 * sigma * sigma))
+            val weight = exp(-(offset * offset) / (2.0 * sigma * sigma))
             weightedSum += weight * instantaneousEnergy(time + offset)
             weightSum += weight
         }
@@ -426,8 +425,6 @@ class FunscriptPulseSource : PulseSource {
 
         // Square root gives the RMS (Root Mean Square) velocity magnitude
         val rawAmp = sqrt(smoothedEnergy).coerceIn(0.0, 1.0)
-
-        if (rawAmp < threshold) return 0.0
         return rawAmp
     }
 

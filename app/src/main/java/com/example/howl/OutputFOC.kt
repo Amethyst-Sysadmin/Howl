@@ -24,7 +24,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -52,9 +51,7 @@ import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.pow
-import kotlin.math.roundToInt
 import kotlin.math.sin
-import kotlin.math.sqrt
 import kotlin.time.Duration.Companion.milliseconds
 
 data class FOC4ElectrodePowers(
@@ -68,7 +65,14 @@ data class FOC4ElectrodePowers(
 enum class ElectrodePowerMode(val displayName: String) {
     SIMPLE("Stereo emulation"),
     DYNAMIC("Dynamic"),
-    POSITIONAL("Positional")
+    POSITIONAL("Positional"),
+}
+
+@Serializable
+enum class ElectrodeGrouping(val displayName: String) {
+    AB_CD("Low pairs with Mid-low"),
+    AC_BD("Low pairs with Mid-high"),
+    AD_BC("Low pairs with High"),
 }
 
 // ── Settings ────────────────────────────────────────────────────────────────
@@ -76,15 +80,14 @@ enum class ElectrodePowerMode(val displayName: String) {
 @Serializable
 data class FocSettings(
     val ipAddress: String = "192.168.0.70",
-    val carrierFrequencyHz: Int = 1300,
-    val riseTimeCycles: Float = 5.0f,
-    val basePulseWidthCycles: Int = 5, // Pulse width used at 50Hz+
-    val pulseWidthBoost: Float = 0.5f, // How aggressively to boost pulse width at low frequencies
-    val intervalRandomness: Float = 0.0f,
+    val targetDutyCycle: Float = 0.25f,
     val maxAmplitudeAmps: Float = 0.10f,
     val powerMode: ElectrodePowerMode = ElectrodePowerMode.DYNAMIC,
-    val dynamicPanStrength: Float = 0.8f,
-    val positionalWidth: Float = 0.35f,
+    val dynamicPanStrength: Float = 0.5f,
+    val positionalWidth: Float = 0.25f,
+    val electrodeGrouping: ElectrodeGrouping = ElectrodeGrouping.AB_CD,
+    val maxPulseWidth: Float = 15.0f,
+
     // Per-electrode calibration adjustments in dB
     val lowPowerDb: Float = 0.0f,
     val midLowPowerDb: Float = 0.0f,
@@ -150,7 +153,9 @@ fun FocSettingsContent(
         )
 
         Row(
-            modifier = Modifier.fillMaxWidth().padding(4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
@@ -206,12 +211,32 @@ fun FocSettingsContent(
         }
         Spacer(modifier = Modifier.height(16.dp))
         Row(
-            modifier = Modifier.fillMaxWidth().padding(4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
             Text(text = "FOC parameters", style = MaterialTheme.typography.titleMedium)
         }
+        Text(
+            text = "Electrode channel pairing",
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+        OptionPicker(
+            currentValue = settings.electrodeGrouping,
+            onValueChange = {
+                onSettingsChange(settings.copy(electrodeGrouping = it))
+                onSave()
+            },
+            options = ElectrodeGrouping.entries.toList(),
+            getText = { it.displayName },
+            size = OptionPickerSize.Standard,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+        )
         Text(
             text = "Pattern conversion algorithm",
             style = MaterialTheme.typography.labelLarge,
@@ -226,7 +251,9 @@ fun FocSettingsContent(
             options = ElectrodePowerMode.entries.toList(),
             getText = { it.displayName },
             size = OptionPickerSize.Standard,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
         )
         if (settings.powerMode == ElectrodePowerMode.DYNAMIC) {
             SliderWithLabel(
@@ -260,53 +287,23 @@ fun FocSettingsContent(
             valueDisplay = { String.format(Locale.US, "%.3f", it) }
         )
         SliderWithLabel(
-            label = "Carrier frequency (Hz)",
-            value = settings.carrierFrequencyHz.toFloat(),
-            onValueChange = { onSettingsChange(settings.copy(carrierFrequencyHz = it.roundToInt())) },
+            label = "Target duty cycle",
+            value = settings.targetDutyCycle,
+            onValueChange = { onSettingsChange(settings.copy(targetDutyCycle = it)) },
             onValueChangeFinished = onSave,
-            valueRange = FOCOutput.CARRIER_RANGE.toClosedFloatingPointRange(),
-            steps = calculateSliderSteps(
-                FOCOutput.CARRIER_RANGE.toClosedFloatingPointRange(),
-                10.0f
-            ),
-            valueDisplay = { "${it.roundToInt()}" }
-        )
-        SliderWithLabel(
-            label = "Base pulse width (carrier cycles)",
-            value = settings.basePulseWidthCycles.toFloat(),
-            onValueChange = { onSettingsChange(settings.copy(basePulseWidthCycles = it.roundToInt())) },
-            onValueChangeFinished = onSave,
-            valueRange = 3.0f..15.0f, // Leaves headroom for the boost up to 20
-            steps = 11,
-            valueDisplay = { String.format(Locale.US, "%.0f", it) }
-        )
-        SliderWithLabel(
-            label = "Low frequency thump",
-            value = settings.pulseWidthBoost,
-            onValueChange = { onSettingsChange(settings.copy(pulseWidthBoost = it)) },
-            onValueChangeFinished = onSave,
-            valueRange = 0.0f..1.0f,
-            steps = 19,
+            valueRange = 0.10f..0.50f,
+            steps = calculateSliderSteps(0.10f..0.50f, 0.01f),
             valueDisplay = { String.format(Locale.US, "%.2f", it) }
         )
         SliderWithLabel(
-            label = "Rise time (carrier cycles)",
-            value = settings.riseTimeCycles,
-            onValueChange = { onSettingsChange(settings.copy(riseTimeCycles = it)) },
+            label = "Maximum pulse width",
+            value = settings.maxPulseWidth,
+            onValueChange = { onSettingsChange(settings.copy(maxPulseWidth = it)) },
             onValueChangeFinished = onSave,
-            valueRange = FOCOutput.RISE_TIME_RANGE,
-            steps = calculateSliderSteps(FOCOutput.RISE_TIME_RANGE, 0.1f),
-            valueDisplay = { String.format(Locale.US, "%.1f", it) }
-        )
-        /*SliderWithLabel(
-            label = "Pulse interval randomness",
-            value = settings.intervalRandomness,
-            onValueChange = { onSettingsChange(settings.copy(intervalRandomness = it)) },
-            onValueChangeFinished = onSave,
-            valueRange = FOCOutput.RANDOMNESS_RANGE,
-            steps = calculateSliderSteps(FOCOutput.RANDOMNESS_RANGE, 0.01f),
+            valueRange = 3.0f..20.0f,
+            steps = 16,
             valueDisplay = { String.format(Locale.US, "%.2f", it) }
-        )*/
+        )
         Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = onResetSettings,
@@ -314,37 +311,6 @@ fun FocSettingsContent(
         ) {
             Text("Reset FOC parameters")
         }
-        // ── Estimated Duty Cycle Display ────────────────────────────────
-        Spacer(modifier = Modifier.height(16.dp))
-        listOf(10, 20, 50, 100).forEach { freqHz ->
-            val pulseWidth = calculateAdaptivePulseWidth(
-                frequencyHz = freqHz.toDouble(),
-                basePulseWidth = settings.basePulseWidthCycles,
-                lowFrequencyBoost = settings.pulseWidthBoost.toDouble()
-            )
-
-            // (1 / carrier frequency) * pulse width * pulse rate
-            val dutyCycleProportion = (1.0 / settings.carrierFrequencyHz) * pulseWidth * freqHz
-            val dutyCyclePercent = (dutyCycleProportion * 100.0).roundToInt()
-
-            val color = when {
-                dutyCycleProportion < 0.50 -> Color(0xFF4CAF50) // Green
-                dutyCycleProportion < 0.90 -> Color(0xFFFFEB3B) // Yellow
-                else -> Color(0xFFF44336) // Red
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "Estimated duty cycle @ $freqHz Hz: $dutyCyclePercent%",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = color,
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
@@ -361,29 +327,19 @@ fun isValidIPv4(ip: String): Boolean {
 }
 
 /**
- * Calculate the pulse width we will use at a given pulse frequency.
- * Applies an optional boost to make low frequencies more "thumpy".
+ * Calculate the pulse width we will use at a given pulse frequency to achieve a target duty cycle.
  */
-fun calculateAdaptivePulseWidth(
-    frequencyHz: Double,
-    basePulseWidth: Int,
-    lowFrequencyBoost: Double // 0.0 to 1.0
-): Int {
-    val maxBoost = FOCOutput.PULSE_WIDTH_RANGE.last - basePulseWidth
+fun calculatePulseWidth(
+    targetDutyCycle: Double,
+    pulseRateHz: Double,
+    carrierFrequencyHz: Int
+): Float {
+    if (pulseRateHz <= 1.0 || carrierFrequencyHz <= 1) return FOCOutput.PULSE_WIDTH_RANGE.start
 
-    // If no boost is possible, return the base width
-    if (lowFrequencyBoost <= 0.0 || maxBoost <= 0.0) return basePulseWidth.coerceIn(FOCOutput.PULSE_WIDTH_RANGE)
-
-    val highFreqThreshold = 50.0
-    val minFreq = 1.0
-    val safeFreq = frequencyHz.coerceIn(minFreq, highFreqThreshold)
-    // Map frequency to a normalised position between 0.0 (1Hz) and 1.0 (50Hz)
-    val normalizedPos = (safeFreq - minFreq) / (highFreqThreshold - minFreq)
-    // Apply a power curve (1.5)
-    val decayFactor = (1.0 - normalizedPos).pow(1.5)
-
-    val boost = lowFrequencyBoost * maxBoost * decayFactor
-    return (basePulseWidth + boost).roundToInt().coerceIn(FOCOutput.PULSE_WIDTH_RANGE)
+    // dutyCycle = (pulseWidth / carrierFrequencyHz) * pulseRateHz
+    // pulseWidth = (dutyCycle * carrierFrequencyHz) / pulseRateHz
+    val rawPulseWidth = (targetDutyCycle * carrierFrequencyHz) / pulseRateHz
+    return rawPulseWidth.toFloat().coerceIn(FOCOutput.PULSE_WIDTH_RANGE)
 }
 
 fun reversePositionalEffect(amplitudeA: Double, amplitudeB: Double): Pair<Double, Double> {
@@ -503,15 +459,13 @@ class FOCOutput : BaseOutput(), ConnectableOutput {
         // Reset general settings while preserving IP address and calibration values
         updateSettings(
             current.copy(
-                carrierFrequencyHz = defaults.carrierFrequencyHz,
-                riseTimeCycles = defaults.riseTimeCycles,
-                basePulseWidthCycles = defaults.basePulseWidthCycles,
-                pulseWidthBoost = defaults.pulseWidthBoost,
-                intervalRandomness = defaults.intervalRandomness,
+                targetDutyCycle = defaults.targetDutyCycle,
                 powerMode = defaults.powerMode,
                 maxAmplitudeAmps = defaults.maxAmplitudeAmps,
                 dynamicPanStrength = defaults.dynamicPanStrength,
                 positionalWidth = defaults.positionalWidth,
+                electrodeGrouping = defaults.electrodeGrouping,
+                maxPulseWidth = defaults.maxPulseWidth,
             )
         )
     }
@@ -525,7 +479,7 @@ class FOCOutput : BaseOutput(), ConnectableOutput {
                 lowPowerDb = defaults.lowPowerDb,
                 midLowPowerDb = defaults.midLowPowerDb,
                 midHighPowerDb = defaults.midHighPowerDb,
-                highPowerDb = defaults.highPowerDb
+                highPowerDb = defaults.highPowerDb,
             )
         )
     }
@@ -727,15 +681,16 @@ class FOCOutput : BaseOutput(), ConnectableOutput {
             AxisType.AXIS_ELECTRODE_3_POWER to 1.0f,
             AxisType.AXIS_ELECTRODE_4_POWER to 1.0f,
             AxisType.AXIS_WAVEFORM_AMPLITUDE_AMPS to 0.0f,
-            AxisType.AXIS_CARRIER_FREQUENCY_HZ to s.carrierFrequencyHz.toFloat(),
+            AxisType.AXIS_CARRIER_FREQUENCY_HZ to CARRIER_FREQUENCY_HZ.toFloat(),
             AxisType.AXIS_PULSE_FREQUENCY_HZ to max(minFrequency, 1).toFloat(),
-            AxisType.AXIS_PULSE_WIDTH_IN_CYCLES to s.basePulseWidthCycles.toFloat(),
-            AxisType.AXIS_PULSE_RISE_TIME_CYCLES to s.riseTimeCycles,
-            AxisType.AXIS_PULSE_INTERVAL_RANDOM_PERCENT to s.intervalRandomness,
+            AxisType.AXIS_PULSE_WIDTH_IN_CYCLES to PULSE_WIDTH_RANGE.start,
+            AxisType.AXIS_PULSE_RISE_TIME_CYCLES to RISE_TIME_CARRIER_CYCLES,
+            AxisType.AXIS_PULSE_INTERVAL_RANDOM_PERCENT to PULSE_INTERVAL_RANDOMNESS,
             AxisType.AXIS_CALIBRATION_4_A to s.lowPowerDb,
             AxisType.AXIS_CALIBRATION_4_B to s.midLowPowerDb,
             AxisType.AXIS_CALIBRATION_4_C to s.midHighPowerDb,
             AxisType.AXIS_CALIBRATION_4_D to s.highPowerDb,
+            AxisType.AXIS_CALIBRATION_4_REDUCTION_IN_CENTER to REDUCTION_IN_CENTER
         )
         val updates = mutableListOf<Triple<AxisType, Float, Int>>()
         for ((axis, value) in axes) {
@@ -764,17 +719,19 @@ class FOCOutput : BaseOutput(), ConnectableOutput {
 
         when (s.powerMode) {
             ElectrodePowerMode.SIMPLE -> {
-                powers = calculateSimpleElectrodePowers(ampA, ampB)
+                val rawPowers = calculateSimpleElectrodePowers(ampA, ampB)
+                powers = applyElectrodeGrouping(rawPowers, s.electrodeGrouping)
                 volume = max(ampA, ampB).coerceIn(0.0..1.0)
             }
             ElectrodePowerMode.DYNAMIC -> {
-                powers = calculateDynamicElectrodePowers(
+                val rawPowers = calculateDynamicElectrodePowers(
                     ampA,
                     ampB,
                     pulse.freqA.toDouble(),
                     pulse.freqB.toDouble(),
                     s.dynamicPanStrength.toDouble()
                 )
+                powers = applyElectrodeGrouping(rawPowers, s.electrodeGrouping)
                 volume = max(ampA, ampB).coerceIn(0.0..1.0)
             }
             ElectrodePowerMode.POSITIONAL -> {
@@ -783,12 +740,11 @@ class FOCOutput : BaseOutput(), ConnectableOutput {
                 volume = amp
             }
         }
-        //Log.d(TAG, "Electrode powers: $powers")
+        // Log.d(TAG, "Electrode powers: $powers")
 
-        val powerScaling = 0.6
-
-        // Apply an adjustment to make the FOC's output closer to other devices Howl supports
-        volume = volume.pow(powerScaling).coerceIn(0.0..1.0)
+        // Power scaling adjustment to make the FOC's output feel more linear
+        // and closer to other devices Howl supports
+        volume = volume.pow(POWER_SCALING).coerceIn(0.0..1.0)
 
         //Log.d(TAG, "Volume: $volume")
         val volumeAmps = (volume * s.maxAmplitudeAmps).toFloat()
@@ -802,14 +758,14 @@ class FOCOutput : BaseOutput(), ConnectableOutput {
             pulse.freqAHz
         }
 
-        // Adaptively boost pulse width at low frequencies, for some additional "thump"
-        val currentPulseWidth = calculateAdaptivePulseWidth(
-            frequencyHz = pulseFreqHz.toDouble(),
-            basePulseWidth = s.basePulseWidthCycles,
-            lowFrequencyBoost = s.pulseWidthBoost.toDouble()
-        ).toFloat()
+        // Calculate pulse width to achieve the target duty cycle
+        val currentPulseWidth = calculatePulseWidth(
+            targetDutyCycle = s.targetDutyCycle.toDouble(),
+            pulseRateHz = pulseFreqHz.toDouble(),
+            carrierFrequencyHz = CARRIER_FREQUENCY_HZ
+        ).coerceAtMost(s.maxPulseWidth)
 
-        //Log.d(TAG, "Pulse width: $currentPulseWidth")
+        // Log.d(TAG, "Pulse width: $currentPulseWidth")
 
         val nowMs = SystemClock.elapsedRealtime()
         val forceAll = nowMs - lastForceSendMs >= FORCE_RESEND_INTERVAL_MS
@@ -831,15 +787,16 @@ class FOCOutput : BaseOutput(), ConnectableOutput {
         addIfDirty(AxisType.AXIS_ELECTRODE_3_POWER, powers.e3.toFloat())
         addIfDirty(AxisType.AXIS_ELECTRODE_4_POWER, powers.e4.toFloat())
         addIfDirty(AxisType.AXIS_WAVEFORM_AMPLITUDE_AMPS, volumeAmps)
-        addIfDirty(AxisType.AXIS_CARRIER_FREQUENCY_HZ, s.carrierFrequencyHz.toFloat())
+        addIfDirty(AxisType.AXIS_CARRIER_FREQUENCY_HZ, CARRIER_FREQUENCY_HZ.toFloat())
         addIfDirty(AxisType.AXIS_PULSE_FREQUENCY_HZ, pulseFreqHz)
         addIfDirty(AxisType.AXIS_PULSE_WIDTH_IN_CYCLES, currentPulseWidth)
-        addIfDirty(AxisType.AXIS_PULSE_RISE_TIME_CYCLES, s.riseTimeCycles)
-        addIfDirty(AxisType.AXIS_PULSE_INTERVAL_RANDOM_PERCENT, s.intervalRandomness)
+        addIfDirty(AxisType.AXIS_PULSE_RISE_TIME_CYCLES, RISE_TIME_CARRIER_CYCLES)
+        addIfDirty(AxisType.AXIS_PULSE_INTERVAL_RANDOM_PERCENT, PULSE_INTERVAL_RANDOMNESS)
         addIfDirty(AxisType.AXIS_CALIBRATION_4_A, s.lowPowerDb)
         addIfDirty(AxisType.AXIS_CALIBRATION_4_B, s.midLowPowerDb)
         addIfDirty(AxisType.AXIS_CALIBRATION_4_C, s.midHighPowerDb)
         addIfDirty(AxisType.AXIS_CALIBRATION_4_D, s.highPowerDb)
+        addIfDirty(AxisType.AXIS_CALIBRATION_4_REDUCTION_IN_CENTER, REDUCTION_IN_CENTER)
 
         if (updates.isNotEmpty()) {
             api.requestAxesMoveToBatch(updates)
@@ -853,8 +810,8 @@ class FOCOutput : BaseOutput(), ConnectableOutput {
         val tolerance = when (axis) {
             AxisType.AXIS_WAVEFORM_AMPLITUDE_AMPS -> 0.001f
             AxisType.AXIS_CARRIER_FREQUENCY_HZ -> 1.0f
-            AxisType.AXIS_PULSE_FREQUENCY_HZ -> 1.0f
-            AxisType.AXIS_PULSE_WIDTH_IN_CYCLES -> 0.5f
+            AxisType.AXIS_PULSE_FREQUENCY_HZ -> 0.1f
+            //AxisType.AXIS_PULSE_WIDTH_IN_CYCLES -> 0.5f
             else -> 0.01f // Default behaviour for most axes
         }
         return abs(previous - current) >= tolerance
@@ -884,16 +841,14 @@ class FOCOutput : BaseOutput(), ConnectableOutput {
      * "Stereo emulation" algorithm: AB represents channel A, CD represents channel B.
      * The channel with the highest amplitude gets both electrodes set to 1.0.
      * The other two electrodes are set to the ratio of the lower amplitude to the higher amplitude.
-     * This natively satisfies the FOC hardware constraint that at least one electrode is 1.0
-     * and the other three sum to at least 1.0.
      */
     fun calculateSimpleElectrodePowers(ampA: Double, ampB: Double): FOC4ElectrodePowers {
         if (ampA >= ampB) {
             val ratio = if (ampA > 0.0) ampB / ampA else 0.0
-            return FOC4ElectrodePowers(1.0, 1.0, ratio, ratio)
+            return applyFOCConstraints(1.0, 1.0, ratio, ratio)
         } else {
             val ratio = if (ampB > 0.0) ampA / ampB else 0.0
-            return FOC4ElectrodePowers(ratio, ratio, 1.0, 1.0)
+            return applyFOCConstraints(ratio, ratio, 1.0, 1.0)
         }
     }
 
@@ -930,7 +885,7 @@ class FOCOutput : BaseOutput(), ConnectableOutput {
         val panB1 = cos(thetaB).pow(2.0)
         val panB2 = sin(thetaB).pow(2.0)
 
-        // Mix between the fully panned weights and a neutral 0.5 center balance based on panStrength
+        // Mix between the fully panned weights and a neutral 0.5 centre balance based on panStrength
         val w1 = ampA * ((1.0 - strength) * 0.5 + strength * panA1)
         val w2 = ampA * ((1.0 - strength) * 0.5 + strength * panA2)
         val w3 = ampB * ((1.0 - strength) * 0.5 + strength * panB1)
@@ -967,56 +922,111 @@ class FOCOutput : BaseOutput(), ConnectableOutput {
     }
 
     /**
-     * Utility function to solve the FOC hardware constraints for 4 raw weights.
+     * Utility function to apply the FOC hardware constraints to 4 raw weights.
+     * Core logic is a Kotlin port of the FOC firmware's fourphase_constrain_coordinates()
+     * so the values we send should be identical to what the device would choose.
      *
-     * Ensures at least one electrode is exactly 1.0, and the sum of the other three is >= 1.0.
+     * Constraints enforced: at least one electrode is exactly 1.0, and the largest
+     * electrode never exceeds the sum of the other three.
+     *
+     * The weights are automatically normalised so the maximum value is exactly 1.0,
+     * saving the caller from having to do it manually.
      */
     private fun applyFOCConstraints(w1: Double, w2: Double, w3: Double, w4: Double): FOC4ElectrodePowers {
-        val sumW = w1 + w2 + w3 + w4
+        // First normalise the weights so that the maximum is 1.0
+        // the firmware doesn't do this step, but it saves us some work elsewhere
+        val rawMax = maxOf(w1, w2, w3, w4)
+        val safeMax = if (rawMax < 1e-12) 1.0 else rawMax
 
-        // Use L2 norm for a perfectly smooth (C1 continuous) upper bound of the maximum.
-        val maxSmooth = sqrt(w1 * w1 + w2 * w2 + w3 * w3 + w4 * w4)
+        val a = (w1 / safeMax).coerceIn(0.0, 1.0)
+        val b = (w2 / safeMax).coerceIn(0.0, 1.0)
+        val c = (w3 / safeMax).coerceIn(0.0, 1.0)
+        val d = (w4 / safeMax).coerceIn(0.0, 1.0)
 
-        // Calculate the exact pedestal required to guarantee the FOC constraint that the
-        // normalised sum will be >= 2.0
-        val pedestal = (maxSmooth - 0.5 * sumW).coerceAtLeast(0.0)
+        // sX > 0 means electrode X dominates and the other three must rise to
+        // satisfy the constraint; sX == 0 always otherwise.
+        val sA = minOf(-a + b + c + d, 0.0) / -3.0
+        val sB = minOf( a - b + c + d, 0.0) / -3.0
+        val sC = minOf( a + b - c + d, 0.0) / -3.0
+        val sD = minOf( a + b + c - d, 0.0) / -3.0
 
-        val v1 = w1 + pedestal
-        val v2 = w2 + pedestal
-        val v3 = w3 + pedestal
-        val v4 = w4 + pedestal
+        var x1 = a + sB + sC + sD
+        var x2 = b + sA + sC + sD
+        var x3 = c + sA + sB + sD
+        var x4 = d + sA + sB + sC
 
-        // Normalise by the TRUE maximum to guarantee that at least one electrode is exactly 1.0.
-        // Because our pedestal was derived from the smooth L2 norm (which is >= true max),
-        // dividing by the true max will keep the total sum >= 2.0.
-        val trueMax = max(max(v1, v2), max(v3, v4))
+        // Boost everything so the maximum is exactly 1.0, keeping the shape.
+        // Priority order on ties (a, b, c, d) matches the firmware.
+        // Not generally triggered as we normalise first, but logic preserved for completeness.
+        val maxVal = max(max(x1, x2), max(x3, x4))
+        if (maxVal < 1.0) {
+            val toAdd = 1.0 - maxVal
+            when (maxVal) {
+                x1 -> {
+                    x1 = 1.0 // fix rounding errors, as later code tests for equality with 1
+                    x2 += toAdd
+                    x3 += toAdd
+                    x4 += toAdd
+                }
+                x2 -> {
+                    x2 = 1.0
+                    x1 += toAdd
+                    x3 += toAdd
+                    x4 += toAdd
+                }
+                x3 -> {
+                    x3 = 1.0
+                    x1 += toAdd
+                    x2 += toAdd
+                    x4 += toAdd
+                }
+                else -> {
+                    x4 = 1.0
+                    x1 += toAdd
+                    x2 += toAdd
+                    x3 += toAdd
+                }
+            }
+        }
 
-        // Guard against division by zero in edge cases
-        val safeMax = if (trueMax < 1e-9) 1.0 else trueMax
+        return FOC4ElectrodePowers(x1, x2, x3, x4)
+    }
 
-        return FOC4ElectrodePowers(
-            e1 = v1 / safeMax,
-            e2 = v2 / safeMax,
-            e3 = v3 / safeMax,
-            e4 = v4 / safeMax
-        )
+    /**
+     * Remaps the calculated channel powers (where e1/e2 are Channel A and e3/e4 are Channel B)
+     * to the physical electrodes based on the selected electrode grouping.
+     */
+    private fun applyElectrodeGrouping(powers: FOC4ElectrodePowers, grouping: ElectrodeGrouping): FOC4ElectrodePowers {
+        return when (grouping) {
+            // Channel A = Low & Mid-low (e1, e2) | Channel B = Mid-high & High (e3, e4)
+            ElectrodeGrouping.AB_CD -> powers
+            // Channel A = Low & Mid-high (e1, e3) | Channel B = Mid-low & High (e2, e4)
+            ElectrodeGrouping.AC_BD -> FOC4ElectrodePowers(powers.e1, powers.e3, powers.e2, powers.e4)
+            // Channel A = Low & High (e1, e4) | Channel B = Mid-low & Mid-high (e2, e3)
+            ElectrodeGrouping.AD_BC -> FOC4ElectrodePowers(powers.e1, powers.e3, powers.e4, powers.e2)
+        }
     }
 
     companion object {
         const val TAG = "FOCOutput"
 
         // Maximum supported firmware version (major version changes are not backwards compatible)
-        const val MAX_FIRMWARE_MAJOR = 1
+        const val MAX_FIRMWARE_MAJOR = 2
         // Interpolation time, in line with our 40Hz pattern update rate
         const val INTERPOLATION_INTERVAL_MS = 25
         // Forced full resend interval
         const val FORCE_RESEND_INTERVAL_MS = 1000L
+        const val POWER_SCALING = 0.5
+        const val REDUCTION_IN_CENTER = 0.08f
+        const val PULSE_INTERVAL_RANDOMNESS = 0.0f
+        const val RISE_TIME_CARRIER_CYCLES = 5.0f
+        const val CARRIER_FREQUENCY_HZ = 1300
 
         val CARRIER_RANGE: IntRange = 500..2000
         val RISE_TIME_RANGE: ClosedFloatingPointRange<Float> = 2.0f..10.0f
         val RANDOMNESS_RANGE: ClosedFloatingPointRange<Float> = 0.0f..0.3f
         val ELECTRODE_DB_RANGE: ClosedFloatingPointRange<Float> = -10.0f..0.0f
-        val PULSE_WIDTH_RANGE: IntRange = 3..20
+        val PULSE_WIDTH_RANGE: ClosedFloatingPointRange<Float> = 3.0f..20.0f
         val MAX_AMPLITUDE_RANGE: ClosedFloatingPointRange<Float> = 0.06f..0.12f
     }
 }
