@@ -34,6 +34,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
 enum class ConnectionStatus {
@@ -55,6 +56,8 @@ class BluetoothHandler(
     companion object {
         private const val TAG = "BLE"
         private val SCAN_TIMEOUT = 15000.milliseconds
+        // Longer timeout for connection and service discovery operations
+        private val CONNECT_TIMEOUT = 5000.milliseconds
         private val CLIENT_CHARACTERISTIC_CONFIG = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
         val ALL_BLE_PERMISSIONS = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN)
@@ -67,21 +70,20 @@ class BluetoothHandler(
     private var bluetoothGatt: BluetoothGatt? = null
     var rememberedAddress: String? = null
 
-    // 1. Reactive Connection State
+    // Reactive Connection State
     private val _connectionState = MutableStateFlow(ConnectionStatus.Disconnected)
     val connectionState: StateFlow<ConnectionStatus> = _connectionState.asStateFlow()
 
     private val _batteryLevel = MutableStateFlow(0)
     val batteryLevel: StateFlow<Int> = _batteryLevel.asStateFlow()
 
-    // 2. Continuous Notifications Flow
+    // Continuous Notifications Flow
     private val _notifications = MutableSharedFlow<BluetoothNotification>(extraBufferCapacity = 64)
     val notifications: SharedFlow<BluetoothNotification> = _notifications.asSharedFlow()
 
-    // 3. Internal Event Routing for GATT Callbacks (Changed to Channel for guaranteed delivery)
+    // Internal Event Routing for GATT Callbacks (Channel for guaranteed delivery)
     private var gattEvents = Channel<GattEvent>(Channel.BUFFERED)
 
-    // 4. Sequential Operation Queue
     private val operationMutex = Mutex()
 
     fun setBatteryLevel(percent: Int) {
@@ -92,69 +94,34 @@ class BluetoothHandler(
     }
 
     suspend fun scanAndConnect(): Result<Unit> = operationMutex.withLock {
-        var device: BluetoothDevice? = null
-
         try {
-            // Attempt direct connection if we have a remembered address
-            if (!rememberedAddress.isNullOrBlank()) {
-                updateState(ConnectionStatus.Connecting)
-                HLog.d(TAG, "Attempting direct connection to remembered address: $rememberedAddress")
-                try {
-                    val remoteDevice = bluetoothAdapter?.getRemoteDevice(rememberedAddress!!)
-                    if (remoteDevice != null) {
-                        executeWithRetry(important = true, maxAttempts = 2) {
-                            try {
-                                connectGattSuspend(remoteDevice)
-                                discoverServicesSuspend()
-                            } catch (e: Exception) {
-                                closeGatt()
-                                throw e
-                            }
-                        }
-                        device = remoteDevice
-                    }
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    HLog.w(TAG, "Direct connection failed, falling back to scan.")
-                    device = null
-                }
+            updateState(ConnectionStatus.Scanning)
+
+            val scannedDevice = withTimeoutOrNull(SCAN_TIMEOUT) {
+                scanForDevice()
+            } ?: run {
+                val message = "Scan timed out, no $friendlyName found."
+                HLog.w(TAG, message)
+                throw BleException(message)
             }
 
-            // Fall back to scanning if direct connection failed or wasn't attempted
-            if (device == null) {
-                updateState(ConnectionStatus.Scanning)
+            updateState(ConnectionStatus.Connecting)
 
-                val scannedDevice = withTimeoutOrNull(SCAN_TIMEOUT) {
-                    scanForDevice()
-                } ?: run {
-                    val message = "Scan timed out, no $friendlyName found."
-                    HLog.w(TAG, message)
-                    throw BleException(message)
+            executeWithRetry(important = true, maxAttempts = 3) {
+                try {
+                    connectGattSuspend(scannedDevice)
+                    discoverServicesSuspend()
+                } catch (e: Exception) {
+                    closeGatt()
+                    throw e
                 }
-
-                updateState(ConnectionStatus.Connecting)
-
-                executeWithRetry(important = true, maxAttempts = 3) {
-                    try {
-                        connectGattSuspend(scannedDevice)
-                        discoverServicesSuspend()
-                    } catch (e: Exception) {
-                        closeGatt()
-                        throw e
-                    }
-                }
-                device = scannedDevice
             }
 
             // Only replace the remembered address upon successful connection
-            val connectedDevice = device ?: throw BleException("Device is null after connection attempts")
-            if (rememberedAddress != connectedDevice.address) {
-                rememberedAddress = connectedDevice.address
+            if (rememberedAddress != scannedDevice.address) {
+                rememberedAddress = scannedDevice.address
                 onAddressChanged() // <-- Trigger save
             }
-
-            rememberedAddress = connectedDevice.address
 
             updateState(ConnectionStatus.Connected)
             return@withLock Result.success(Unit)
@@ -368,8 +335,11 @@ class BluetoothHandler(
      * Safely awaits a specific GATT event while actively listening for disconnections.
      * Includes a strict timeout to prevent permanent deadlocks if the Android BLE stack hangs.
      */
-    private suspend fun <T : GattEvent> awaitGattEvent(predicate: (GattEvent) -> Boolean): T {
-        val event = withTimeoutOrNull(3000.milliseconds) {
+    private suspend fun <T : GattEvent> awaitGattEvent(
+        timeout: Duration = 3000.milliseconds, // Default for reads/writes
+        predicate: (GattEvent) -> Boolean
+    ): T {
+        val event = withTimeoutOrNull(timeout) {
             try {
                 var nextEvent = gattEvents.receive()
                 while (!predicate(nextEvent) && !(nextEvent is GattEvent.ConnectionStateChange && nextEvent.newState == BluetoothProfile.STATE_DISCONNECTED)) {
@@ -431,7 +401,10 @@ class BluetoothHandler(
                     HLog.d(TAG, "Scan saw BLE device $address ($advertisedName)")
                 }
 
-                if (advertisedName == deviceName) {
+                val isNameMatch = advertisedName == deviceName
+                val isRememberedMatch =
+                    !rememberedAddress.isNullOrBlank() && address == rememberedAddress
+                if (isNameMatch || isRememberedMatch) {
                     scanner.stopScan(this)
                     HLog.d(TAG, "Scan found $friendlyName device.")
                     if (cont.isActive) cont.resumeWith(Result.success(result.device))
@@ -474,7 +447,7 @@ class BluetoothHandler(
             throw BleException("Failed to initiate GATT connection.")
         }
 
-        val event = awaitGattEvent<GattEvent.ConnectionStateChange> { it is GattEvent.ConnectionStateChange }
+        val event = awaitGattEvent<GattEvent.ConnectionStateChange>(timeout = CONNECT_TIMEOUT) { it is GattEvent.ConnectionStateChange }
         if (event.newState != BluetoothProfile.STATE_CONNECTED) {
             throw BleException("Failed to connect. Status: ${event.status}")
         }
@@ -485,7 +458,7 @@ class BluetoothHandler(
             throw BleException("Failed to initiate service discovery.")
         }
 
-        val event = awaitGattEvent<GattEvent.ServicesDiscovered> { it is GattEvent.ServicesDiscovered }
+        val event = awaitGattEvent<GattEvent.ServicesDiscovered>(timeout = CONNECT_TIMEOUT) { it is GattEvent.ServicesDiscovered }
         if (event.status != BluetoothGatt.GATT_SUCCESS) {
             throw BleException("Service discovery failed. Status: ${event.status}")
         }
@@ -515,6 +488,7 @@ class BluetoothHandler(
 
     private val gattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+            if (gatt !== bluetoothGatt) return
             gattEvents.trySend(GattEvent.ConnectionStateChange(status, newState))
             if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 updateState(ConnectionStatus.Disconnected)
@@ -523,35 +497,42 @@ class BluetoothHandler(
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+            if (gatt !== bluetoothGatt) return
             gattEvents.trySend(GattEvent.ServicesDiscovered(status))
         }
 
         @Suppress("DEPRECATION")
         @Deprecated("Deprecated in Java")
         override fun onCharacteristicRead(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+            if (gatt !== bluetoothGatt) return
             gattEvents.trySend(GattEvent.CharacteristicRead(characteristic.uuid, status, characteristic.value ?: ByteArray(0)))
         }
 
         override fun onCharacteristicRead(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray, status: Int) {
+            if (gatt !== bluetoothGatt) return
             gattEvents.trySend(GattEvent.CharacteristicRead(characteristic.uuid, status, value))
         }
 
         override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+            if (gatt !== bluetoothGatt) return
             gattEvents.trySend(GattEvent.CharacteristicWrite(characteristic.uuid, status))
         }
 
         override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+            if (gatt !== bluetoothGatt) return
             gattEvents.trySend(GattEvent.DescriptorWrite(descriptor.uuid, status))
         }
 
         @Suppress("DEPRECATION")
         @Deprecated("Deprecated in Java")
         override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
+            if (gatt !== bluetoothGatt) return
             val value = characteristic.value ?: ByteArray(0)
             _notifications.tryEmit(BluetoothNotification(characteristic.service.uuid, characteristic.uuid, value))
         }
 
         override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray) {
+            if (gatt !== bluetoothGatt) return
             _notifications.tryEmit(BluetoothNotification(characteristic.service.uuid, characteristic.uuid, value))
         }
     }
