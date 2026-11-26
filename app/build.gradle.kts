@@ -7,14 +7,18 @@ plugins {
 
 android {
     namespace = "com.example.howl"
-    compileSdk = 37
+    compileSdk {
+        version = release(37) {
+            minorApiLevel = 2
+        }
+    }
 
     defaultConfig {
         applicationId = "com.example.howl"
         minSdk = 26
         targetSdk = 37
-        versionCode = 221
-        versionName = "2.2.1"
+        versionCode = 222
+        versionName = "2.2.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -24,11 +28,6 @@ android {
             optimization {
                 enable = true
             }
-            /*isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )*/
         }
     }
     buildFeatures {
@@ -68,6 +67,4 @@ dependencies {
     implementation(libs.ktor.server.auth)
     implementation(libs.ktor.server.cors)
     implementation(libs.ktor.server.websockets)
-    implementation(libs.protobuf.java)
-    implementation(libs.protobuf.kotlin)
 }

@@ -27,8 +27,8 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import focstim_rpc.Constants.AxisType
-import focstim_rpc.Constants.OutputMode
+import com.example.howl.FocRpc.AxisType
+import com.example.howl.FocRpc.OutputMode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -63,7 +63,6 @@ data class FOC4ElectrodePowers(
 
 @Serializable
 enum class ElectrodePowerMode(val displayName: String) {
-    SIMPLE("Stereo emulation"),
     DYNAMIC("Dynamic"),
     POSITIONAL("Positional"),
 }
@@ -83,7 +82,7 @@ data class FocSettings(
     val targetDutyCycle: Float = 0.25f,
     val maxAmplitudeAmps: Float = 0.10f,
     val powerMode: ElectrodePowerMode = ElectrodePowerMode.DYNAMIC,
-    val dynamicPanStrength: Float = 0.5f,
+    val dynamicPanStrength: Float = 1.0f,
     val positionalWidth: Float = 0.25f,
     val electrodeGrouping: ElectrodeGrouping = ElectrodeGrouping.AB_CD,
     val maxPulseWidth: Float = 15.0f,
@@ -564,7 +563,8 @@ class FOCOutput : BaseOutput(), ConnectableOutput {
             api.connect()
 
             val firmwareVersion = api.requestFirmwareVersion()
-                .responseFirmwareVersion.stm32FirmwareVersion2
+                .responseFirmwareVersion?.stm32FirmwareVersion2
+                ?: throw FocException("Device did not return firmware version")
             val firmwareString =
                 "${firmwareVersion.major}.${firmwareVersion.minor}.${firmwareVersion.revision} (${firmwareVersion.branch})"
             HLog.i(TAG, "Firmware version: $firmwareString")
@@ -574,6 +574,7 @@ class FOCOutput : BaseOutput(), ConnectableOutput {
             }
 
             val capabilities = api.requestCapabilitiesGet().responseCapabilitiesGet
+                ?: throw FocException("Device did not return capabilities")
             if (!capabilities.fourphase) {
                 throw FocException("Device does not report four-phase support")
             }
@@ -718,11 +719,6 @@ class FOCOutput : BaseOutput(), ConnectableOutput {
         var volume = 0.0
 
         when (s.powerMode) {
-            ElectrodePowerMode.SIMPLE -> {
-                val rawPowers = calculateSimpleElectrodePowers(ampA, ampB)
-                powers = applyElectrodeGrouping(rawPowers, s.electrodeGrouping)
-                volume = max(ampA, ampB).coerceIn(0.0..1.0)
-            }
             ElectrodePowerMode.DYNAMIC -> {
                 val rawPowers = calculateDynamicElectrodePowers(
                     ampA,
@@ -838,26 +834,15 @@ class FOCOutput : BaseOutput(), ConnectableOutput {
     }
 
     /**
-     * "Stereo emulation" algorithm: AB represents channel A, CD represents channel B.
-     * The channel with the highest amplitude gets both electrodes set to 1.0.
-     * The other two electrodes are set to the ratio of the lower amplitude to the higher amplitude.
-     */
-    fun calculateSimpleElectrodePowers(ampA: Double, ampB: Double): FOC4ElectrodePowers {
-        if (ampA >= ampB) {
-            val ratio = if (ampA > 0.0) ampB / ampA else 0.0
-            return applyFOCConstraints(1.0, 1.0, ratio, ratio)
-        } else {
-            val ratio = if (ampB > 0.0) ampA / ampB else 0.0
-            return applyFOCConstraints(ratio, ratio, 1.0, 1.0)
-        }
-    }
-
-    /**
      * "Dynamic" algorithm:
-     * Uses a similar idea to the simple algorithm of the relative amplitudes determining
-     * stereo balance. But adds additional spatial panning so that the balance between
-     * A and B is affected by the channel A frequency, and the balance between C and D is
-     * affected by the channel B frequency.
+     * Starts with a typical "stereo emulation" technique of using electrodes AB to represent
+     * channel A in our stereo pattern, and CD to represent channel B. Then adds an extra
+     * spatial effect which is driven by the difference between our two channel frequencies.
+     * The FOC hardware could not otherwise represent this element of the pattern, since it
+     * only outputs a single pulse frequency.
+     *
+     * freqA - freqB < 0: our effect "spreads" sensation, biasing towards electrodes A and D
+     * freqA - freqB > 0: our effect "converges" sensation, biasing towards electrodes B and C
      *
      * This isn't technically accurate (as we're converting frequency effects to spatial effects),
      * but creates more interesting true four phase patterns that are better suited to the FOC.
@@ -876,22 +861,20 @@ class FOCOutput : BaseOutput(), ConnectableOutput {
 
         val strength = panStrength.coerceIn(0.0, 1.0)
 
-        // Constant sum panning using squared trigonometric functions.
-        val thetaA = freqA * PI / 2.0
-        val thetaB = freqB * PI / 2.0
+        // diff > 0: converge (A towards e2, B towards e3)
+        // diff < 0: spread (A towards e1, B towards e4)
+        val diff = freqA.coerceIn(0.0, 1.0) - freqB.coerceIn(0.0, 1.0)
+        val offset = diff * (PI / 4.0) * strength
 
-        val panA1 = cos(thetaA).pow(2.0)
-        val panA2 = sin(thetaA).pow(2.0)
-        val panB1 = cos(thetaB).pow(2.0)
-        val panB2 = sin(thetaB).pow(2.0)
+        val thetaA = (PI / 4.0 + offset).coerceIn(0.0, PI / 2.0)
+        val thetaB = (PI / 4.0 - offset).coerceIn(0.0, PI / 2.0)
 
-        // Mix between the fully panned weights and a neutral 0.5 centre balance based on panStrength
-        val w1 = ampA * ((1.0 - strength) * 0.5 + strength * panA1)
-        val w2 = ampA * ((1.0 - strength) * 0.5 + strength * panA2)
-        val w3 = ampB * ((1.0 - strength) * 0.5 + strength * panB1)
-        val w4 = ampB * ((1.0 - strength) * 0.5 + strength * panB2)
-
-        return applyFOCConstraints(w1, w2, w3, w4)
+        return applyFOCConstraints(
+            ampA * cos(thetaA),
+            ampA * sin(thetaA),
+            ampB * cos(thetaB),
+            ampB * sin(thetaB)
+        )
     }
 
     /**
@@ -909,8 +892,10 @@ class FOCOutput : BaseOutput(), ConnectableOutput {
         val spread = 1.0 + w * 3.0
 
         fun weight(dist: Double): Double {
-            val scaledDist = dist / spread
-            return if (scaledDist <= 1.0) cos(scaledDist * PI / 2.0).pow(2.0) else 0.0
+            // Linear falloff (triangular window)
+            // Ensures the "center of mass" of the stimulation tracks the requested position linearly
+            val scaledDist = abs(dist) / spread
+            return if (scaledDist < 1.0) 1.0 - scaledDist else 0.0
         }
 
         val w1 = weight(p - 0.0)

@@ -1,14 +1,8 @@
 package com.example.howl
 
 import android.os.SystemClock
-import focstim_rpc.Constants.AxisType
-import focstim_rpc.Constants.OutputMode
-import focstim_rpc.FocstimRpc
-import focstim_rpc.Messages
-import focstim_rpc.request as buildRequest
-import focstim_rpc.requestAxisMoveTo as buildAxisMoveTo
-import focstim_rpc.requestSignalStart as buildSignalStart
-import focstim_rpc.rpcMessage as buildRpcMessage
+import com.example.howl.FocRpc.AxisType
+import com.example.howl.FocRpc.OutputMode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -33,7 +27,7 @@ class FocException(message: String, cause: Throwable? = null) : IOException(mess
 
 /**
  * TCP transport and RPC framing for the FOC Stim. All payloads are
- * [FocstimRpc.RpcMessage] protos wrapped in [FocHdlc] frames.
+ * [FocRpc.RpcMessage] frames wrapped in [FocHdlc] framing.
  *
  * The reusable core is [sendRequest] (send any request, await and validate its
  * response) plus [processMessage] (match an inbound message to its request or
@@ -49,7 +43,7 @@ class FocApi(
 ) {
     private var socket: Socket? = null
     private val writeMutex = Mutex()
-    private val pending = ConcurrentHashMap<Int, CompletableDeferred<FocstimRpc.Response>>()
+    private val pending = ConcurrentHashMap<Int, CompletableDeferred<FocRpc.Response>>()
     private val hdlc = FocHdlc()
     private var readJob: Job? = null
     private val closed = AtomicBoolean(false)
@@ -117,13 +111,13 @@ class FocApi(
     // ── Reusable request/response core ────────────────────────────────────
 
     /**
-     * Send any [FocstimRpc.Request], await its response and throw [FocException]
+     * Send any [FocRpc.Request], await its response and throw [FocException]
      * on timeout or device-reported error. Cancellation-safe: a timed-out
      * request is removed from the pending map.
      */
-    suspend fun sendRequest(rpcRequest: FocstimRpc.Request, timeoutMs: Long): FocstimRpc.Response {
-        val frame = FocHdlc.encode(buildRpcMessage { request = rpcRequest }.toByteArray())
-        val awaiting = CompletableDeferred<FocstimRpc.Response>()
+    suspend fun sendRequest(rpcRequest: FocRpc.Request, timeoutMs: Long): FocRpc.Response {
+        val frame = FocHdlc.encode(FocRpc.RpcMessage(request = rpcRequest).toByteArray())
+        val awaiting = CompletableDeferred<FocRpc.Response>()
         pending[rpcRequest.id] = awaiting
         try {
             writeFrame(frame)
@@ -141,39 +135,39 @@ class FocApi(
     }
 
     /**
-     * Match one inbound [FocstimRpc.RpcMessage] to its pending request, or
+     * Match one inbound [FocRpc.RpcMessage] to its pending request, or
      * dispatch it to [processNotification]. Unknown response IDs are ignored
      * (they belong to already-timed-out requests, or to untracked
      * fire-and-forget streaming updates).
      */
-    fun processMessage(message: FocstimRpc.RpcMessage) {
+    fun processMessage(message: FocRpc.RpcMessage) {
+        val response = message.response
+        val notification = message.notification
         when {
-            message.hasResponse() -> {
-                val response = message.response
-                pending.remove(response.id)?.complete(response)
-                    //?: HLog.v(TAG, "No pending request for response id ${response.id}")
-            }
-            message.hasNotification() -> processNotification(message.notification)
-            message.hasRequest() -> HLog.v(TAG, "Ignoring inbound request from device")
+            response != null -> pending.remove(response.id)?.complete(response)
+                //?: HLog.v(TAG, "No pending request for response id ${response.id}")
+            notification != null -> processNotification(notification)
+            message.request != null -> HLog.v(TAG, "Ignoring inbound request from device")
         }
     }
 
     /** Throw [FocException] if the device reported an error for this response. */
-    fun checkResponse(response: FocstimRpc.Response): FocstimRpc.Response {
-        if (response.hasError()) {
-            throw FocException("Device returned error ${response.error.code}")
+    fun checkResponse(response: FocRpc.Response): FocRpc.Response {
+        response.error?.let {
+            throw FocException("Device returned error ${it.code.value}")
         }
         return response
     }
 
-    fun processNotification(notification: FocstimRpc.Notification) {
+    fun processNotification(notification: FocRpc.Notification) {
+        val debugString = notification.notificationDebugString
         when {
-            notification.hasNotificationBoot() ->
+            notification.notificationBoot != null ->
                 HLog.w(TAG, "Device rebooted; output will stop")
-            /*notification.hasNotificationDeviceVolume() ->
+            /*notification.notificationDeviceVolume != null ->
                 HLog.v(TAG, "Device volume: ${notification.notificationDeviceVolume.volume}")*/
-            notification.hasNotificationDebugString() -> {
-                val text = notification.notificationDebugString.message
+            debugString != null -> {
+                val text = debugString.message
                 HLog.w(TAG, "Device: $text")
                 // The firmware stops the signal itself when it considers comms
                 // lost. Surface that so the output drops to Disconnected instead
@@ -192,39 +186,39 @@ class FocApi(
 
     // ── Typed request wrappers ────────────────────────────────────────────
 
-    suspend fun requestFirmwareVersion(): FocstimRpc.Response =
+    suspend fun requestFirmwareVersion(): FocRpc.Response =
         sendRequest(
-            buildRequest {
-                id = nextRequestId()
-                requestFirmwareVersion = Messages.RequestFirmwareVersion.getDefaultInstance()
-            },
+            FocRpc.Request(
+                id = nextRequestId(),
+                requestFirmwareVersion = FocRpc.RequestFirmwareVersion,
+            ),
             SETUP_TIMEOUT_MS
         )
 
-    suspend fun requestCapabilitiesGet(): FocstimRpc.Response =
+    suspend fun requestCapabilitiesGet(): FocRpc.Response =
         sendRequest(
-            buildRequest {
-                id = nextRequestId()
-                requestCapabilitiesGet = Messages.RequestCapabilitiesGet.getDefaultInstance()
-            },
+            FocRpc.Request(
+                id = nextRequestId(),
+                requestCapabilitiesGet = FocRpc.RequestCapabilitiesGet,
+            ),
             SETUP_TIMEOUT_MS
         )
 
-    suspend fun requestSignalStart(outputMode: OutputMode): FocstimRpc.Response =
+    suspend fun requestSignalStart(outputMode: OutputMode): FocRpc.Response =
         sendRequest(
-            buildRequest {
-                id = nextRequestId()
-                requestSignalStart = buildSignalStart { mode = outputMode }
-            },
+            FocRpc.Request(
+                id = nextRequestId(),
+                requestSignalStart = FocRpc.RequestSignalStart(mode = outputMode),
+            ),
             SETUP_TIMEOUT_MS
         )
 
-    suspend fun requestSignalStop(): FocstimRpc.Response =
+    suspend fun requestSignalStop(): FocRpc.Response =
         sendRequest(
-            buildRequest {
-                id = nextRequestId()
-                requestSignalStop = Messages.RequestSignalStop.getDefaultInstance()
-            },
+            FocRpc.Request(
+                id = nextRequestId(),
+                requestSignalStop = FocRpc.RequestSignalStop,
+            ),
             STOP_TIMEOUT_MS
         )
 
@@ -238,15 +232,15 @@ class FocApi(
      * [handleTransportError].
      */
     suspend fun requestAxisMoveTo(axisType: AxisType, axisValue: Float, intervalMs: Int) {
-        val axisRequest = buildRequest {
-            id = nextFireAndForgetId()
-            requestAxisMoveTo = buildAxisMoveTo {
-                axis = axisType
-                value = axisValue
-                interval = intervalMs
-            }
-        }
-        val frame = FocHdlc.encode(buildRpcMessage { request = axisRequest }.toByteArray())
+        val axisRequest = FocRpc.Request(
+            id = nextFireAndForgetId(),
+            requestAxisMoveTo = FocRpc.RequestAxisMoveTo(
+                axis = axisType,
+                value = axisValue,
+                interval = intervalMs,
+            ),
+        )
+        val frame = FocHdlc.encode(FocRpc.RpcMessage(request = axisRequest).toByteArray())
         try {
             writeFrame(frame)
         } catch (e: IOException) {
@@ -260,15 +254,15 @@ class FocApi(
 
         // 1. Build all HDLC frames
         val frames = updates.map { (axisType, axisValue, intervalMs) ->
-            val axisRequest = buildRequest {
-                id = nextFireAndForgetId()
-                requestAxisMoveTo = buildAxisMoveTo {
-                    axis = axisType
-                    value = axisValue
-                    interval = intervalMs
-                }
-            }
-            FocHdlc.encode(buildRpcMessage { request = axisRequest }.toByteArray())
+            val axisRequest = FocRpc.Request(
+                id = nextFireAndForgetId(),
+                requestAxisMoveTo = FocRpc.RequestAxisMoveTo(
+                    axis = axisType,
+                    value = axisValue,
+                    interval = intervalMs,
+                ),
+            )
+            FocHdlc.encode(FocRpc.RpcMessage(request = axisRequest).toByteArray())
         }
 
         // 2. Combine into a single ByteArray
@@ -314,7 +308,7 @@ class FocApi(
                 lastReceivedMs = SystemClock.elapsedRealtime()
                 for (frame in hdlc.parse(buffer.copyOf(read))) {
                     try {
-                        processMessage(FocstimRpc.RpcMessage.parseFrom(frame))
+                        processMessage(FocRpc.RpcMessage.parseFrom(frame))
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
